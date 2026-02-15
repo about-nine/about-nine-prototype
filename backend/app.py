@@ -54,6 +54,10 @@ app.register_blueprint(spotify_auth_bp)
 if DEBUG:
     app.register_blueprint(debug_bp)
 
+# =========================
+# ✅ Firebase 즉시 초기화
+# =========================
+get_firestore()
 
 # =========================
 # Health

@@ -25,7 +25,7 @@
 
         <div class="timer-text">
           haven't received it? <span id="timer">02:59</span>
-          <br>
+          <br />
           <span class="resend-link" id="resendLink" onclick="resendOTP()"
             >resend now</span
           >
@@ -151,36 +151,59 @@
 
         try {
           console.log("STEP1: verifying firebase");
-          const idToken = await verifyFirebaseOTP(code);
+          let idToken;
 
-          console.log("STEP2: idToken:", idToken);
+          try {
+            idToken = await verifyFirebaseOTP(code);
+          } catch (firebaseErr) {
+            console.error(
+              "Firebase verify failed:",
+              firebaseErr.code,
+              firebaseErr.message,
+            );
 
+            if (firebaseErr.code === "auth/invalid-verification-code") {
+              showError("error", "invalid code. please try again");
+            } else if (firebaseErr.code === "auth/code-expired") {
+              showError("error", "code expired. please resend");
+            } else if (firebaseErr.code === "auth/missing-verification-id") {
+              showError("error", "session lost. please go back and retry");
+            } else {
+              showError(
+                "error",
+                "verification failed: " +
+                  (firebaseErr.code || firebaseErr.message),
+              );
+            }
+            return;
+          }
+
+          console.log("STEP2: idToken obtained");
           console.log("STEP3: calling backend");
 
-          const result = await apiCall("/auth/firebase-login", "POST", {
-            idToken,
-          });
+          try {
+            const result = await apiCall("/auth/firebase-login", "POST", {
+              idToken,
+            });
+            saveToLocal("user_id", result.user_id);
 
-          saveToLocal("user_id", result.user_id);
+            if (result.is_existing_user) {
+              navigateTo("lounge.html");
+            } else {
+              navigateTo("birthdate.html");
+            }
+          } catch (apiErr) {
+            console.error("Backend login failed:", apiErr.message);
 
-          console.log("STEP4: success");
-
-          // 🔥 기존 유저 vs 신규 유저 분기
-          if (result.is_existing_user) {
-            console.log("✅ Existing user → lounge.html");
-            navigateTo("lounge.html");
-          } else {
-            console.log("🆕 New user → birthdate.html");
-            navigateTo("birthdate.html");
+            if (apiErr.message?.includes("invite")) {
+              showError("error", "invite code required. please start over");
+            } else {
+              showError("error", "login failed: " + apiErr.message);
+            }
           }
-
         } catch (e) {
-          console.error("OTP FAIL:", e);
-          if (e?.message?.includes("invite required")) {
-            showError("error", "invite code required");
-          } else {
-            showError("error", "invalid code");
-          }
+          console.error("Unexpected error:", e);
+          showError("error", "something went wrong. please try again");
         }
       }
 

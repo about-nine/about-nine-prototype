@@ -94,6 +94,12 @@
     <script src="js/common.js"></script>
     <script>
       async function enterApp() {
+        // localStorage에 user_id가 없으면 로그인 플로우로
+        if (!getFromLocal("user_id")) {
+          navigateTo("invite-code.html");
+          return;
+        }
+
         try {
           await apiCall("/users/profile");
           navigateTo("lounge.html");

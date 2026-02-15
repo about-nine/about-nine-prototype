@@ -1,11 +1,4 @@
-import {
-  rtdb,
-  ref,
-  set,
-  onDisconnect,
-  onValue
-} from "/js/firebase.js";
-
+import { rtdb, ref, set, onDisconnect, onValue } from "/js/firebase.js";
 
 /* =========================
    Presence Init
@@ -58,39 +51,36 @@ function initPresence() {
     }, 15000);
   };
 
-  // Try to mark online immediately (queued if not connected yet)
+  const stopHeartbeat = () => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  };
+
   startHeartbeat();
 
   onValue(connectedRef, (snap) => {
     if (!snap.val()) return;
-
     onDisconnect(presenceRef).set({
       online: false,
-      updated_at: Date.now()
+      updated_at: Date.now(),
     });
-
     startHeartbeat();
-
     console.log("presence connected");
   });
 
-  // Mobile browsers may pause timers in background; re-assert on resume.
+  // 탭이 숨겨지면 heartbeat만 멈춤 (TTL로 자연스럽게 offline 판정)
+  // 탭이 다시 보이면 heartbeat 재시작
   document.addEventListener("visibilitychange", () => {
-    try {
-      if (document.hidden) {
-        setOffline();
-      } else {
-        startHeartbeat();
-      }
-    } catch {}
+    if (document.hidden) {
+      stopHeartbeat();
+    } else {
+      startHeartbeat();
+    }
   });
 
+  // blur/focus는 제거하거나, focus에서만 heartbeat 재시작
   window.addEventListener("focus", startHeartbeat);
-  window.addEventListener("blur", () => {
-    try {
-      setOffline();
-    } catch {}
-  });
+  // blur에서 setOffline() 호출하지 않음
 
   window.addEventListener("pageshow", startHeartbeat);
   window.addEventListener("pagehide", () => {
@@ -105,7 +95,6 @@ function initPresence() {
     } catch {}
   });
 }
-
 
 /* =========================
    Run

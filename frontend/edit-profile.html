@@ -255,10 +255,14 @@
           </div>
 
           <!-- Bottom Actions -->
-          <button id="saveButton1" onclick="saveProfile()" style="margin: 8px 0 20px 0;">save</button>
-          <div class="bottom-text sign-out" onclick="signOut()">
-            sign out
-          </div>
+          <button
+            id="saveButton1"
+            onclick="saveProfile()"
+            style="margin: 8px 0 20px 0"
+          >
+            save
+          </button>
+          <div class="bottom-text sign-out" onclick="signOut()">sign out</div>
           <div class="bottom-text delete" onclick="deleteAccount()">
             delete account
           </div>
@@ -278,15 +282,19 @@
                 <option value="men">men</option>
                 <option value="women">women</option>
                 <option value="men and women">men and women</option>
-                <option value="men and non-binary people">men and non-binary</option>
-                <option value="women and non-binary people">women and non-binary</option>
+                <option value="men and non-binary people">
+                  men and non-binary
+                </option>
+                <option value="women and non-binary people">
+                  women and non-binary
+                </option>
                 <option value="all types of genders">all types</option>
               </select>
             </div>
           </div>
 
           <!-- Age Range Slider -->
-        <div class="section-title">age range</div>
+          <div class="section-title">age range</div>
           <div class="card">
             <div class="age-range-box active">
               <span class="age-value" id="minAgeDisplay">20</span>
@@ -314,7 +322,13 @@
           </div>
 
           <!-- Bottom Actions -->
-          <button id="saveButton2" onclick="saveProfile()" style="margin-top: 8px;">save</button>
+          <button
+            id="saveButton2"
+            onclick="saveProfile()"
+            style="margin-top: 8px"
+          >
+            save
+          </button>
         </div>
       </div>
     </div>
@@ -405,11 +419,12 @@
           profileData.phone || "-";
 
         const profile = profileData.onboarding_profile || {};
-        
+
         // 🔥 select 값 설정
         document.getElementById("drinkSelect").value = profile.drink || "no";
         document.getElementById("smokeSelect").value = profile.smoke || "no";
-        document.getElementById("marijuanaSelect").value = profile.marijuana || "no";
+        document.getElementById("marijuanaSelect").value =
+          profile.marijuana || "no";
 
         document.getElementById("bioText").value = profileData.bio || "";
 
@@ -612,9 +627,11 @@
       /* ======================
          Actions
       ====================== */
-      function signOut() {
+      async function signOut() {
         if (confirm("are you sure you want to sign out?")) {
-          localStorage.clear();
+          await firebaseLogout(); // Firebase Auth 정리
+          apiCall("/auth/logout", "POST").catch(() => {}); // 서버 세션 정리
+          localStorage.clear(); // 로컬 정리
           navigateTo("index.html");
         }
       }

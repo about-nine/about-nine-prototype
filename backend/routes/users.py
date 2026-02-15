@@ -16,6 +16,9 @@ import math
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 
+# DEBUG: set True to return all users without filters
+BYPASS_USER_FILTERS = True
+
 # =========================
 # Playlist
 # =========================
@@ -148,6 +151,17 @@ def list_users():
         return jsonify(success=False), 401
 
     db = get_firestore()
+    if BYPASS_USER_FILTERS:
+        users = []
+        for doc in db.collection("users").stream():
+            u = doc.to_dict()
+            if "id" not in u:
+                u["id"] = doc.id
+            if u["id"] == uid:
+                continue
+            users.append(u)
+        return jsonify(success=True, users=users)
+
     me = db.collection("users").document(uid).get().to_dict()
 
     print(f"\n=== USER LIST DEBUG ===")

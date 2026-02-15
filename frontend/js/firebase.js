@@ -117,3 +117,13 @@ window.verifyFirebaseOTP = async (code) => {
 
   return await result.user.getIdToken();
 };
+
+import { signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+window.firebaseLogout = async () => {
+  try {
+    await firebaseSignOut(auth);
+  } catch (e) {
+    console.error("Firebase signOut error:", e);
+  }
+};

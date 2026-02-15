@@ -30,10 +30,6 @@ def verify_invite():
 @auth_bp.route("/auth/firebase-login", methods=["POST"])
 def firebase_login():
 
-    # 🔥 invite 필수
-    if not session.get("invite_verified"):
-        return jsonify(success=False, message="invite required"), 403
-
     data, err, code = get_json()
     if err:
         return err, code
@@ -44,15 +40,14 @@ def firebase_login():
 
     try:
         decoded = fb_auth.verify_id_token(id_token)
-    except Exception:
+    except Exception as e:
+        print(f"❌ Token verification failed: {type(e).__name__}: {e}")
         return jsonify(success=False, message="invalid token"), 401
 
     firebase_uid = decoded["uid"]
     db = get_firestore()
 
-    # =========================
     # user 조회
-    # =========================
     query = (
         db.collection("users")
         .where("firebase_uid", "==", firebase_uid)
@@ -63,10 +58,15 @@ def firebase_login():
     doc = query[0] if query else None
 
     if doc:
+        # 기존 유저 → invite 불필요
         user_data = doc.to_dict()
         user_id = user_data["id"]
         is_existing_user = user_data.get("onboarding_completed", False)
     else:
+        # 신규 유저 → invite 필수
+        if not session.get("invite_verified"):
+            return jsonify(success=False, message="invite required"), 403
+
         user_id = secrets.token_urlsafe(16)
         db.collection("users").document(user_id).set({
             "id": user_id,
@@ -77,12 +77,9 @@ def firebase_login():
             "onboarding_completed": False,
         })
         is_existing_user = False
-        
         print(f"🆕 New user created: {user_id}")
 
-    # =========================
     # session
-    # =========================
     session["user_id"] = user_id
     session["firebase_uid"] = firebase_uid
     session["phone_verified"] = True
@@ -92,7 +89,12 @@ def firebase_login():
     session.pop("invite_verified", None)
 
     return jsonify(
-        success=True, 
+        success=True,
         user_id=user_id,
-        is_existing_user=is_existing_user  # 🔥 기존 유저 여부 반환
+        is_existing_user=is_existing_user
     )
+
+@auth_bp.route("/auth/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify(success=True)
