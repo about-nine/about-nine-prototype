@@ -83,6 +83,65 @@ body {
   color: var(--accent-yellow);
 }
 
+/* Policy pages */
+.policy-container {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  padding: calc(32px + var(--safe-top)) 24px
+    calc(40px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.policy-back {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.policy-back::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.5 4L7.5 12L15.5 20' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.policy-title {
+  font-family: "Merriweather", serif;
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.policy-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.policy-content p {
+  margin: 0;
+}
+
+.policy-link {
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: underline;
+}
+
 /* 헤더 */
 h1 {
   font-size: 32px;
@@ -914,6 +973,15 @@ a:hover {
   .chat-header {
     padding: 20px 0 12px;
     font-size: 16px;
+  }
+
+  .policy-container {
+    padding: calc(24px + var(--safe-top)) 18px
+      calc(32px + var(--safe-bottom));
+  }
+
+  .policy-title {
+    font-size: 28px;
   }
 
   .chat-messages {

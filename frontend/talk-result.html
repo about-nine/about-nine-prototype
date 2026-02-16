@@ -482,15 +482,12 @@
       }
 
       @supports (height: 100svh) {
-        .result-chat-container,
+        .result-chat-container {
+          height: 100svh;
+        }
         .analysis-bottom-sheet,
         .profile-bottom-sheet {
           height: 90svh;
-        }
-
-        .analysis-bottom-sheet,
-        .profile-bottom-sheet {
-          transform: translateX(-50%) translateY(115%);
         }
       }
 
