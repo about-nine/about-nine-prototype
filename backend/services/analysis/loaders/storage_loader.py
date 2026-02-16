@@ -46,10 +46,6 @@ class StorageLoader:
         )
 
     def download_recordings(self, recording_files, talk_id: str):
-        """
-        recording_files: list of dicts with at least fileName/storage_path.
-        returns: [{"uid": ..., "storage_path": ..., "local_path": ...}, ...]
-        """
         bucket = get_bucket()
         local_dir = os.path.join(self.local_root, str(talk_id))
         os.makedirs(local_dir, exist_ok=True)
@@ -59,7 +55,9 @@ class StorageLoader:
 
         def _download_blob(storage_path: str):
             if storage_path in downloaded_paths:
-                return None
+                # 이미 다운로드됐어도 로컬 경로는 반환
+                local_path = os.path.join(local_dir, storage_path)
+                return local_path
             local_path = os.path.join(local_dir, storage_path)
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             blob = bucket.blob(storage_path)
@@ -80,24 +78,22 @@ class StorageLoader:
                 continue
 
             local_path = _download_blob(storage_path)
-            if local_path:
-                downloaded.append(
-                    {
-                        "uid": item.get("uid"),
-                        "storage_path": storage_path,
-                        "local_path": local_path,
-                    }
-                )
+            # 항상 downloaded 리스트에 추가 (중복 다운로드만 방지, 등록은 항상)
+            downloaded.append(
+                {
+                    "uid": item.get("uid"),
+                    "storage_path": storage_path,
+                    "local_path": local_path,
+                }
+            )
 
-            # If it's an m3u8 playlist, download all segments in the same folder
-            # or with the same filename prefix (flat storage layout).
             if storage_path.endswith(".m3u8"):
                 prefix = os.path.dirname(storage_path)
                 if prefix:
                     for blob in bucket.list_blobs(prefix=prefix):
                         _download_blob(blob.name)
                 else:
-                    base_prefix = storage_path[:-5]  # strip .m3u8
+                    base_prefix = storage_path[:-5]
                     for blob in bucket.list_blobs(prefix=base_prefix):
                         _download_blob(blob.name)
 

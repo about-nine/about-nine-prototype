@@ -297,6 +297,48 @@
       </div>
     </div>
 
+    <div
+      id="tapOverlay"
+      style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        flex-direction: column;
+        gap: 16px;
+      "
+    >
+      <div
+        style="
+          color: white;
+          font-size: 16px;
+          font-family: &quot;Merriweather&quot;, serif;
+        "
+      >
+        allow microphone access to start
+      </div>
+      <button
+        id="tapToStart"
+        style="
+          width: 60%;
+          padding: 14px 40px;
+          border-radius: 30px;
+          border: none;
+          background: var(--accent-yellow, #f5c542);
+          color: black;
+          font-size: 16px;
+          font-weight: 600;
+          font-family: &quot;Merriweather&quot;, serif;
+          cursor: pointer;
+        "
+      >
+        connect
+      </button>
+    </div>
+
     <script src="js/common.js"></script>
 
     <script type="module">
@@ -573,7 +615,7 @@
       async function syncCallStartTime() {
         const snap = await get(ref(rtdb, `match_requests/${requestId}`));
         const data = snap.val();
-        
+
         if (!data) {
           alert("request not found");
           navigateTo("lounge.html");
@@ -582,7 +624,9 @@
 
         if (data && data.call_started_at) {
           callStart = data.call_started_at;
-          console.log(`✅ 통화 시작 시간 동기화: ${new Date(callStart).toLocaleTimeString()}`);
+          console.log(
+            `✅ 통화 시작 시간 동기화: ${new Date(callStart).toLocaleTimeString()}`,
+          );
         } else {
           // Fallback: call_started_at이 없으면 현재 시간 사용
           callStart = Date.now();
@@ -610,35 +654,81 @@
           hash = (hash << 5) - hash + userId.charCodeAt(i);
           hash = hash & hash;
         }
-        return Math.abs(hash) % 2000000000;
+        return (Math.abs(hash) % 1999999999) + 1; // 0 방지
       }
 
       async function initCall() {
-        agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-        const numericUid = getNumericUid(userId);
-        console.log(`🔢 UID 변환: ${userId} → ${numericUid}`);
+        try {
+          agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-        await agoraClient.join(AGORA_APP_ID, requestId, null, numericUid);
-        console.log("✅ Agora 채널 입장 완료");
+          // 원격 오디오 자동 구독 설정
+          agoraClient.on("user-published", async (user, mediaType) => {
+            try {
+              await agoraClient.subscribe(user, mediaType);
+              console.log(`✅ 구독 완료: user=${user.uid}, type=${mediaType}`);
 
-        // 🔥 UID 매핑 저장 (화자 분리 후 식별용)
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-        await update(requestRef, {
-          [`uid_mapping/${numericUid}`]: userId,
-        });
-        console.log(`✅ UID 매핑 저장: ${numericUid} → ${userId}`);
+              if (mediaType === "audio") {
+                const remoteTrack = user.audioTrack;
+                if (remoteTrack) {
+                  remoteTrack.play();
+                  console.log(`✅ 상대방 오디오 재생 시작: uid=${user.uid}`);
+                } else {
+                  console.warn(`⚠️ audioTrack이 null: uid=${user.uid}`);
+                }
+              }
+            } catch (subErr) {
+              console.error(`❌ 구독 실패: uid=${user.uid}`, subErr);
+            }
+          });
 
-        localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        await agoraClient.publish([localAudioTrack]);
-        console.log("✅ 오디오 퍼블리시 완료");
+          agoraClient.on("user-unpublished", (user, mediaType) => {
+            console.log(
+              `📤 사용자 퍼블리시 해제: uid=${user.uid}, type=${mediaType}`,
+            );
+          });
 
-        agoraClient.on("user-published", async (user, mediaType) => {
-          await agoraClient.subscribe(user, mediaType);
-          if (mediaType === "audio") {
-            user.audioTrack.play();
-            console.log("✅ 상대방 오디오 재생 중");
+          agoraClient.on("user-left", (user) => {
+            console.log(`👋 사용자 퇴장: uid=${user.uid}`);
+          });
+
+          // 연결 상태 모니터링
+          agoraClient.on("connection-state-change", (curState, prevState) => {
+            console.log(`🔗 연결 상태: ${prevState} → ${curState}`);
+          });
+
+          const numericUid = getNumericUid(userId);
+          console.log(`🔢 UID 변환: ${userId} → ${numericUid}`);
+
+          await agoraClient.join(AGORA_APP_ID, requestId, null, numericUid);
+          console.log("✅ Agora 채널 입장 완료");
+
+          // UID 매핑 저장
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          await update(requestRef, {
+            [`uid_mapping/${numericUid}`]: userId,
+          });
+
+          // 마이크 트랙 생성
+          try {
+            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+              encoderConfig: "speech_standard",
+              AEC: true,
+              ANS: true,
+              AGC: true,
+            });
+            console.log("✅ 마이크 트랙 생성 완료");
+          } catch (micErr) {
+            console.error("❌ 마이크 접근 실패:", micErr);
+            alert("microphone permission is required for voice talk");
+            return;
           }
-        });
+
+          await agoraClient.publish([localAudioTrack]);
+          console.log("✅ 오디오 퍼블리시 완료");
+        } catch (err) {
+          console.error("❌ Agora 초기화 실패:", err);
+          alert("failed to connect voice call. please try again.");
+        }
       }
 
       /* ================= Controls ================= */
@@ -724,19 +814,59 @@
         console.log("   requestId:", requestId);
         console.log("   topic:", topic);
 
+        // 이미지, 시간 동기화는 미리 로드
         if (!isLifeRound) {
-          await loadImages();
-          console.log("✅ 이미지 로드 완료");
+          try {
+            await loadImages();
+            console.log("✅ 이미지 로드 완료");
+          } catch (e) {
+            console.error("⚠️ 이미지 로드 실패 (계속 진행):", e);
+          }
         }
 
-        await syncCallStartTime();
-        console.log("✅ 통화 시작 시간 동기화 완료");
+        try {
+          await Promise.race([
+            syncCallStartTime(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("timeout")), 5000),
+            ),
+          ]);
+          console.log("✅ 통화 시작 시간 동기화 완료");
+        } catch (e) {
+          console.warn("⚠️ 시간 동기화 실패, 현재 시간 사용:", e);
+          callStart = Date.now();
+        }
 
-        startTimer();
-        console.log("✅ 타이머 시작");
+        // 🔥 사용자 탭을 기다림 (iOS 오디오 정책 대응)
+        document
+          .getElementById("tapToStart")
+          .addEventListener("click", async () => {
+            console.log("👆 사용자 탭 감지 — 통화 시작");
 
-        await initCall();
-        console.log("✅ 통화 초기화 완료");
+            // 오버레이 제거
+            document.getElementById("tapOverlay").style.display = "none";
+
+            // 타이머 시작
+            startTimer();
+            console.log("✅ 타이머 시작");
+
+            // Agora 연결 (Agora가 자체적으로 AudioContext 관리)
+            await initCall();
+            console.log("✅ 통화 초기화 완료");
+
+            // 녹화 시작
+            try {
+              const recRes = await fetch("/api/agora/auto-start-recording", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ request_id: requestId }),
+              });
+              const recResult = await recRes.json();
+              console.log("🎬 녹화 시작 결과:", recResult);
+            } catch (e) {
+              console.warn("⚠️ 녹화 시작 실패 (통화는 계속):", e);
+            }
+          });
       };
     </script>
   </body>

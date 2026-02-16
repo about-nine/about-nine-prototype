@@ -563,14 +563,16 @@
         if (index === currentCenterIndex) return;
         currentCenterIndex = index;
         // 모든 아이템에서 center 클래스 제거
-        document.querySelectorAll(".carousel-item").forEach((item, itemIndex) => {
-          if (itemIndex === index) {
-            item.classList.add("center");
-            selectedOption = item.dataset.option;
-          } else {
-            item.classList.remove("center");
-          }
-        });
+        document
+          .querySelectorAll(".carousel-item")
+          .forEach((item, itemIndex) => {
+            if (itemIndex === index) {
+              item.classList.add("center");
+              selectedOption = item.dataset.option;
+            } else {
+              item.classList.remove("center");
+            }
+          });
 
         // Dots 업데이트
         document.querySelectorAll(".carousel-dot").forEach((dot, dotIndex) => {
@@ -661,30 +663,7 @@
           );
 
           if (initiatorReady && receiverReady) {
-            if (!data.recording_sid && data.initiator === userId) {
-              console.log("🎬 서버에 녹화 시작 요청...");
-              
-              try {
-                const response = await fetch("/api/agora/auto-start-recording", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ request_id: requestId })
-                });
-                
-                const result = await response.json();
-                console.log("📥 녹화 시작 응답:", result);
-                
-                if (result.success) {
-                  console.log("✅ 서버에서 녹화 시작 완료");
-                  console.log("   resourceId:", result.resourceId);
-                  console.log("   sid:", result.sid);
-                } else {
-                  console.log("⚠️ 녹화 시작 실패:", result.message);
-                }
-              } catch (error) {
-                console.error("❌ 녹화 시작 요청 실패:", error);
-              }
-            }
+            // 녹화 시작은 voice-talk.html에서 처리
             navigateTo("voice-talk.html");
           }
         });

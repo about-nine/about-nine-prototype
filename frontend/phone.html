@@ -1,141 +1,146 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>휴대폰 번호 입력</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <script type="module" src="js/firebase.js"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>휴대폰 번호 입력</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
 
-  <style>
-    .phone-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    .country-select {
-      width: 90px;
-      padding: 12px 8px; 
-      font-size: 14px;
-      appearance: none;  
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 10px center; 
-      padding-right: 28px; 
-    }
-
-    .phone-input {
-      flex: 1;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="container">
-    <div>
-      <h1 class="brand-text">tell us your<br />phone number</h1>
-
-      <!-- 국가 + 번호 입력 -->
-      <div class="phone-row">
-        <select id="country" class="country-select">
-          <option value="+1" selected>🇺🇸 +1</option>
-          <option value="+82">🇰🇷 +82</option>
-          <option value="+81">🇯🇵 +81</option>
-          <option value="+86">🇨🇳 +86</option>
-          <option value="+44">🇬🇧 +44</option>
-        </select>
-
-        <input
-          type="tel"
-          id="phone"
-          class="phone-input"
-          placeholder="10-1234-5678"
-          autocomplete="tel"
-        />
-      </div>
-
-      <span id="error" class="error hidden"></span>
-    </div>
-
-    <div>
-      <div class="bottom-text">
-        by signing up, you are agreeing to<br>
-        our <a href="#">terms of service</a> and
-        <a href="#">privacy policy</a>
-      </div>
-      
-      <button onclick="sendOTP()">next</button>
-    </div>
-  </div>
-
-  <!-- Firebase invisible recaptcha -->
-  <div id="recaptcha-container"></div>
-
-  <script src="js/common.js"></script>
-
-  <script>
-    const phoneInput = document.getElementById('phone');
-    const countrySelect = document.getElementById('country');
-
-    phoneInput.addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/[^0-9]/g, '');
-    });
-
-    function buildE164() {
-      const country = countrySelect.value;
-      let number = phoneInput.value.replace(/[^0-9]/g, '');
-
-      if (!number) return null;
-
-      if (number.startsWith('0')) {
-        number = number.slice(1);
+    <style>
+      .phone-row {
+        display: flex;
+        gap: 8px;
       }
 
-      return country + number;
-    }
+      .country-select {
+        width: 90px;
+        padding: 12px 8px;
+        font-size: 14px;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        padding-right: 28px;
+      }
 
-    async function sendOTP() {
-        hideError('error');
+      .phone-input {
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div>
+        <h1 class="brand-text">tell us your<br />phone number</h1>
+
+        <!-- 국가 + 번호 입력 -->
+        <div class="phone-row">
+          <select id="country" class="country-select">
+            <option value="+1" selected>🇺🇸 +1</option>
+            <option value="+82">🇰🇷 +82</option>
+            <option value="+81">🇯🇵 +81</option>
+            <option value="+86">🇨🇳 +86</option>
+            <option value="+44">🇬🇧 +44</option>
+          </select>
+
+          <input
+            type="tel"
+            id="phone"
+            class="phone-input"
+            placeholder="10-1234-5678"
+            autocomplete="tel"
+          />
+        </div>
+
+        <span id="error" class="error hidden"></span>
+      </div>
+
+      <div>
+        <div class="bottom-text">
+          by signing up, you are agreeing to<br />
+          our <a href="#">terms of service</a> and
+          <a href="#">privacy policy</a>
+        </div>
+
+        <button onclick="sendOTP()">next</button>
+      </div>
+    </div>
+
+    <!-- Firebase invisible recaptcha -->
+    <div id="recaptcha-container"></div>
+
+    <script src="js/common.js"></script>
+
+    <script>
+      const phoneInput = document.getElementById("phone");
+      const countrySelect = document.getElementById("country");
+
+      phoneInput.addEventListener("input", (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, "");
+      });
+
+      function buildE164() {
+        const country = countrySelect.value;
+        let number = phoneInput.value.replace(/[^0-9]/g, "");
+
+        if (!number) return null;
+
+        if (number.startsWith("0")) {
+          number = number.slice(1);
+        }
+
+        return country + number;
+      }
+
+      async function sendOTP() {
+        hideError("error");
 
         const countryCode = countrySelect.value;
-        const raw = phoneInput.value.replace(/[^0-9]/g, '');
+        const raw = phoneInput.value.replace(/[^0-9]/g, "");
 
         if (!raw || raw.length < 8) {
-            showError('error', 'please enter a valid phone number');
-            return;
+          showError("error", "please enter a valid phone number");
+          return;
+        }
+
+        // Firebase 로드 확인
+        if (typeof window.initRecaptcha !== "function") {
+          showError("error", "still loading, please try again");
+          return;
         }
 
         let formatted = raw;
-        if (countryCode === '+82' && raw.startsWith('0')) {
-            formatted = raw.slice(1);
+        if (countryCode === "+82" && raw.startsWith("0")) {
+          formatted = raw.slice(1);
         }
 
         const fullPhone = countryCode + formatted;
 
         try {
-            showLoading('sending code...');
+          showLoading("sending code...");
 
-            if (!window.recaptchaVerifier) {
-              initRecaptcha();
-            }
+          if (!window.recaptchaVerifier) {
+            initRecaptcha();
+          }
 
-            await sendFirebaseOTP(fullPhone);
+          await sendFirebaseOTP(fullPhone);
 
-            saveToLocal('phone', fullPhone);
+          saveToLocal("phone", fullPhone);
 
-            hideLoading();
-            navigateTo('otp.html');
-
+          hideLoading();
+          navigateTo("otp.html");
         } catch (e) {
-            console.error(e);
-            hideLoading();
-            showError('error', 'failed to send verification code');
+          console.error(e);
+          hideLoading();
+          showError("error", "failed to send verification code");
         }
-    }
+      }
 
-    phoneInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendOTP();
-    });
-  </script>
-</body>
+      phoneInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendOTP();
+      });
+    </script>
+  </body>
 </html>

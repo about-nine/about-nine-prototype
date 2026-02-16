@@ -96,7 +96,6 @@ def static_files(filename):
 def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
-
 # =========================
 # Run
 # =========================

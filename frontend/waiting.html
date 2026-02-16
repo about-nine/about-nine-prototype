@@ -81,14 +81,6 @@
       }
 
       /* 하단 텍스트 & 버튼 영역 */
-      .waiting-footer {
-        flex: 0 0 auto;
-        min-height: 200px;
-        width: 100%;
-        position: relative;
-        padding-bottom: 80px;
-      }
-
       .waiting-question {
         font-size: 20px;
         color: var(--text-primary);
@@ -103,10 +95,7 @@
         align-items: center;
         gap: 0;
         width: 100%;
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        margin-top: 16px;
       }
 
       @supports (height: 100svh) {
@@ -138,12 +127,8 @@
           height: 80px;
         }
 
-        .waiting-footer {
-          min-height: 170px;
-          padding-bottom: 64px;
-        }
-
         .waiting-question {
+          margin-top: 16px;
           font-size: 18px;
           min-height: 64px;
         }
@@ -166,11 +151,6 @@
           padding: calc(40px + var(--safe-top)) 16px
             calc(24px + var(--safe-bottom));
         }
-
-        .waiting-footer {
-          min-height: 150px;
-          padding-bottom: 54px;
-        }
       }
     </style>
   </head>
@@ -191,10 +171,9 @@
       </div>
 
       <!-- 하단 -->
-      <div class="waiting-footer">
-        <div class="waiting-question" id="waitingQuestion"></div>
-        <div class="waiting-buttons" id="waitingButtons"></div>
-      </div>
+
+      <div class="waiting-question" id="waitingQuestion"></div>
+      <div class="waiting-buttons" id="waitingButtons"></div>
     </div>
 
     <script src="js/common.js"></script>
@@ -203,195 +182,199 @@
       import { rtdb, ref, onValue, update, get, remove } from "/js/firebase.js";
 
       (() => {
-      const userId = getFromLocal("user_id");
-      if (!userId) {
-        navigateTo("index.html");
-      }
+        const userId = getFromLocal("user_id");
+        if (!userId) {
+          navigateTo("index.html");
+        }
 
-      // URL 파라미터
-      const params = new URLSearchParams(window.location.search);
-      const mode = params.get("mode"); // "initiator" or "receiver"
-      const requestId = params.get("requestId");
+        // URL 파라미터
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get("mode"); // "initiator" or "receiver"
+        const requestId = params.get("requestId");
 
-      if (!mode || !requestId) {
-        alert("invalid request");
-        navigateTo("lounge.html");
-        return;
-      }
+        if (!mode || !requestId) {
+          alert("invalid request");
+          navigateTo("lounge.html");
+          return;
+        }
 
-      let partner = getFromLocal("chat_partner");
-      const getPartnerName = () => {
-        const partnerFirst = partner?.first_name || partner?.firstName || "";
-        const partnerLast = partner?.last_name || partner?.lastName || "";
-        return `${partnerFirst} ${partnerLast}`.trim() || "your match";
-      };
+        let partner = getFromLocal("chat_partner");
+        const getPartnerName = () => {
+          const partnerFirst = partner?.first_name || partner?.firstName || "";
+          const partnerLast = partner?.last_name || partner?.lastName || "";
+          return `${partnerFirst} ${partnerLast}`.trim() || "your match";
+        };
 
-      /* ====================== 🔥 주제 설정 ====================== */
+        /* ====================== 🔥 주제 설정 ====================== */
 
-      const TOPICS = {
-        1: {
-          name: "food",
-          question: "let's see if you two vibe when it comes to food",
-        },
-        2: {
-          name: "visual",
-          question: "let's see if you two vibe when it comes to visual taste",
-        },
-        3: {
-          name: "life",
-          question: "feel free to be open about your expectations for life",
-        },
-      };
+        const TOPICS = {
+          1: {
+            name: "food",
+            question: "let's see if you two vibe when it comes to food",
+          },
+          2: {
+            name: "visual",
+            question: "let's see if you two vibe when it comes to visual taste",
+          },
+          3: {
+            name: "life",
+            question: "feel free to be open about your expectations for life",
+          },
+        };
 
-      /* ====================== 🔥 매칭 요청 로드 & UI 초기화 ====================== */
+        /* ====================== 🔥 매칭 요청 로드 & UI 초기화 ====================== */
 
-      async function initUI() {
-        try {
-          // 🔥 Firebase에서 match_request 읽기
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          const snapshot = await get(requestRef);
+        async function initUI() {
+          try {
+            // 🔥 Firebase에서 match_request 읽기
+            const requestRef = ref(rtdb, `match_requests/${requestId}`);
+            const snapshot = await get(requestRef);
 
-          if (!snapshot.exists()) {
-            alert("request not found");
-            navigateTo("lounge.html");
-            return;
-          }
+            if (!snapshot.exists()) {
+              alert("request not found");
+              navigateTo("lounge.html");
+              return;
+            }
 
-          const matchRequest = snapshot.val();
-          const round = matchRequest.round || 1;
-          const topic = matchRequest.topic || "food";
+            const matchRequest = snapshot.val();
+            const round = matchRequest.round || 1;
+            const topic = matchRequest.topic || "food";
 
-          console.log(`🎯 Match Request - Round ${round}: ${topic}`);
+            console.log(`🎯 Match Request - Round ${round}: ${topic}`);
 
-          if (!partner && mode === "receiver" && matchRequest.initiator_profile) {
-            partner = matchRequest.initiator_profile;
-            saveToLocal("chat_partner", partner);
-          }
+            if (
+              !partner &&
+              mode === "receiver" &&
+              matchRequest.initiator_profile
+            ) {
+              partner = matchRequest.initiator_profile;
+              saveToLocal("chat_partner", partner);
+            }
 
-          const partnerName = getPartnerName();
+            const partnerName = getPartnerName();
 
-          // 🔥 라운드에 맞는 질문 표시
-          const topicData = TOPICS[round];
-          const question = topicData.question;
+            // 🔥 라운드에 맞는 질문 표시
+            const topicData = TOPICS[round];
+            const question = topicData.question;
 
-          const titleEl = document.getElementById("waitingTitle");
-          const questionEl = document.getElementById("waitingQuestion");
-          const buttonsEl = document.getElementById("waitingButtons");
+            const titleEl = document.getElementById("waitingTitle");
+            const questionEl = document.getElementById("waitingQuestion");
+            const buttonsEl = document.getElementById("waitingButtons");
 
-          if (mode === "initiator") {
-            // 내가 요청한 경우
-            titleEl.innerHTML = `waiting for a chat with<br><span class="partner-name">${partnerName}</span>`;
-            questionEl.textContent = question;
-            buttonsEl.innerHTML = ""; // 버튼 없음
-          } else {
-            // 상대가 요청한 경우
-            titleEl.innerHTML = `<span class="partner-name">${partnerName}</span><br>wants to start a chat<br>with you`;
-            questionEl.textContent = question;
-            buttonsEl.innerHTML = `
+            if (mode === "initiator") {
+              // 내가 요청한 경우
+              titleEl.innerHTML = `waiting for a chat with<br><span class="partner-name">${partnerName}</span>`;
+              questionEl.textContent = question;
+              buttonsEl.innerHTML = ""; // 버튼 없음
+            } else {
+              // 상대가 요청한 경우
+              titleEl.innerHTML = `<span class="partner-name">${partnerName}</span><br>wants to start a chat<br>with you`;
+              questionEl.textContent = question;
+              buttonsEl.innerHTML = `
+            <div class="bottom-text" onclick="rejectMatch()" style="cursor: pointer;">maybe later</div>
             <button onclick="acceptMatch()">enter</button>
-            <div class="bottom-text" onclick="rejectMatch()" style="cursor: pointer; margin-top: 16px;">maybe later</div>
           `;
+            }
+
+            // 🔥 localStorage에 저장 (option-select.html에서 사용)
+            saveToLocal("current_round", round);
+            saveToLocal("current_topic", topic);
+
+            // Firebase 리스닝 시작
+            startListening();
+          } catch (error) {
+            console.error("Failed to load match request:", error);
+            alert("failed to load match request");
+            navigateTo("lounge.html");
           }
+        }
 
-          // 🔥 localStorage에 저장 (option-select.html에서 사용)
-          saveToLocal("current_round", round);
-          saveToLocal("current_topic", topic);
+        /* ====================== 타이머 ====================== */
 
-          // Firebase 리스닝 시작
-          startListening();
-        } catch (error) {
-          console.error("Failed to load match request:", error);
-          alert("failed to load match request");
+        let timeLeft = 10;
+        const timerEl = document.getElementById("timer");
+
+        const timerInterval = setInterval(() => {
+          timeLeft--;
+          timerEl.textContent = timeLeft;
+
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            handleTimeout();
+          }
+        }, 1000);
+
+        /* ====================== Firebase 리스닝 ====================== */
+
+        function startListening() {
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+
+          onValue(requestRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+              clearInterval(timerInterval);
+              alert("the other person cancelled or the request timed out");
+              navigateTo("lounge.html");
+              return;
+            }
+
+            if (data.status === "accepted") {
+              clearInterval(timerInterval);
+              saveToLocal("match_request_id", requestId);
+              navigateTo(`option-select.html?requestId=${requestId}`);
+            } else if (data.status === "rejected") {
+              clearInterval(timerInterval);
+              alert("the other person declined");
+              navigateTo("lounge.html");
+            } else if (data.status === "timeout") {
+              clearInterval(timerInterval);
+              alert("request timed out");
+              navigateTo("lounge.html");
+            }
+          });
+        }
+
+        /* ====================== 액션 ====================== */
+
+        // 수락
+        window.acceptMatch = async function () {
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          await update(requestRef, {
+            status: "accepted",
+          });
+        };
+
+        // 거절
+        window.rejectMatch = async function () {
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          await update(requestRef, {
+            status: "rejected",
+          });
+          await remove(requestRef);
+          navigateTo("lounge.html");
+        };
+
+        // 타임아웃
+        async function handleTimeout() {
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          await update(requestRef, {
+            status: "timeout",
+          });
+          await remove(requestRef);
           navigateTo("lounge.html");
         }
-      }
 
-      /* ====================== 타이머 ====================== */
+        /* ====================== 정리 ====================== */
 
-      let timeLeft = 10;
-      const timerEl = document.getElementById("timer");
-
-      const timerInterval = setInterval(() => {
-        timeLeft--;
-        timerEl.textContent = timeLeft;
-
-        if (timeLeft <= 0) {
+        window.addEventListener("beforeunload", () => {
           clearInterval(timerInterval);
-          handleTimeout();
-        }
-      }, 1000);
-
-      /* ====================== Firebase 리스닝 ====================== */
-
-      function startListening() {
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-
-        onValue(requestRef, (snapshot) => {
-          const data = snapshot.val();
-          if (!data) {
-            clearInterval(timerInterval);
-            alert("the other person cancelled or the request timed out");
-            navigateTo("lounge.html");
-            return;
-          }
-
-          if (data.status === "accepted") {
-            clearInterval(timerInterval);
-            saveToLocal("match_request_id", requestId);
-            navigateTo(`option-select.html?requestId=${requestId}`);
-          } else if (data.status === "rejected") {
-            clearInterval(timerInterval);
-            alert("the other person declined");
-            navigateTo("lounge.html");
-          } else if (data.status === "timeout") {
-            clearInterval(timerInterval);
-            alert("request timed out");
-            navigateTo("lounge.html");
-          }
         });
-      }
 
-      /* ====================== 액션 ====================== */
+        /* ====================== Init ====================== */
 
-      // 수락
-      window.acceptMatch = async function () {
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-        await update(requestRef, {
-          status: "accepted",
-        });
-      };
-
-      // 거절
-      window.rejectMatch = async function () {
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-        await update(requestRef, {
-          status: "rejected",
-        });
-        await remove(requestRef);
-        navigateTo("lounge.html");
-      };
-
-      // 타임아웃
-      async function handleTimeout() {
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-        await update(requestRef, {
-          status: "timeout",
-        });
-        await remove(requestRef);
-        navigateTo("lounge.html");
-      }
-
-      /* ====================== 정리 ====================== */
-
-      window.addEventListener("beforeunload", () => {
-        clearInterval(timerInterval);
-      });
-
-      /* ====================== Init ====================== */
-
-      window.onload = () => {
-        initUI();
-      };
+        window.onload = () => {
+          initUI();
+        };
       })();
     </script>
   </body>

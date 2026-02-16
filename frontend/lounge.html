@@ -346,16 +346,31 @@
       /* ====================== 위치 업데이트 ====================== */
 
       async function updateLocation() {
+        // 이미 저장된 위치가 있으면 그걸 사용 (팝업 안 뜸)
+        const stored = getFromLocal("location");
+        if (stored && stored.lat && stored.lng) {
+          try {
+            await apiCall("/users/update-location", "POST", {
+              lat: stored.lat,
+              lng: stored.lng,
+            });
+          } catch (error) {
+            console.error("Failed to update location:", error);
+          }
+          return;
+        }
+
+        // 저장된 위치 없으면 요청 (최초 1회만 해당)
         if (!navigator.geolocation) return;
 
         return new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
               try {
-                await apiCall("/users/update-location", "POST", {
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                });
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                saveToLocal("location", { lat, lng });
+                await apiCall("/users/update-location", "POST", { lat, lng });
               } catch (error) {
                 console.error("Failed to update location:", error);
               } finally {
@@ -664,7 +679,11 @@
         for (let i = 0; i < value.length; i += 1) {
           hash ^= value.charCodeAt(i);
           hash +=
-            (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+            (hash << 1) +
+            (hash << 4) +
+            (hash << 7) +
+            (hash << 8) +
+            (hash << 24);
         }
         return hash >>> 0;
       }
@@ -777,7 +796,6 @@
         trackMarqueeText.textContent = text;
         trackMarqueeEl.classList.toggle("paused", text.length < 40);
       }
-
 
       function showConnectPrompt(message = "connect spotify to listen") {
         previewStatusEl.textContent = "";
@@ -966,7 +984,8 @@
         signatureEl.style.setProperty("--sig-c1", c1);
         signatureEl.style.setProperty("--sig-c2", c2);
         signatureEl.style.setProperty("--sig-c3", c3);
-        document.getElementById("tasteTitle").innerText = `${firstName}'s taste`;
+        document.getElementById("tasteTitle").innerText =
+          `${firstName}'s taste`;
         renderTrackMarquee(u.playlist || []);
 
         spotifyQueue = buildSpotifyQueue(u.playlist || []);
