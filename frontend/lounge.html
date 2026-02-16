@@ -359,27 +359,7 @@
           }
           return;
         }
-
-        // 저장된 위치 없으면 요청 (최초 1회만 해당)
-        if (!navigator.geolocation) return;
-
-        return new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-              try {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                saveToLocal("location", { lat, lng });
-                await apiCall("/users/update-location", "POST", { lat, lng });
-              } catch (error) {
-                console.error("Failed to update location:", error);
-              } finally {
-                resolve();
-              }
-            },
-            () => resolve(),
-          );
-        });
+        // 위치 요청은 location-permission 페이지의 버튼에서만 진행
       }
 
       /* ====================== 유저 불러오기 ====================== */
@@ -1028,6 +1008,11 @@
           console.error("Session check failed:", error);
           removeFromLocal("user_id");
           navigateTo("index.html");
+          return;
+        }
+
+        if (!getFromLocal("location")) {
+          navigateTo("location-permission.html");
           return;
         }
 

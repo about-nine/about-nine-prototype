@@ -45,6 +45,14 @@
       let timerSeconds = 179; // 2:59
       let timerInterval;
       let resendInProgress = false;
+      let isExpired = false;
+
+      function setInputsDisabled(disabled) {
+        inputs.forEach((input) => {
+          input.disabled = disabled;
+          if (disabled) input.value = "";
+        });
+      }
 
       // 자동 포커스 및 입력 처리
       inputs.forEach((input, index) => {
@@ -85,7 +93,19 @@
         const code = Array.from(inputs)
           .map((i) => i.value)
           .join("");
+        if (isExpired) {
+          nextBtn.disabled = true;
+          return;
+        }
         nextBtn.disabled = code.length !== 6;
+      }
+
+      function expireCode() {
+        if (isExpired) return;
+        isExpired = true;
+        setInputsDisabled(true);
+        nextBtn.disabled = true;
+        showError("error", "code expired. please resend");
       }
 
       function startTimer() {
@@ -100,12 +120,15 @@
           if (timerSeconds <= 0) {
             clearInterval(timerInterval);
             document.getElementById("timer").textContent = "00:00";
+            expireCode();
           }
         }, 1000);
       }
 
       function resetTimer() {
         timerSeconds = 179;
+        isExpired = false;
+        setInputsDisabled(false);
         startTimer();
       }
 
@@ -130,10 +153,11 @@
 
           await sendFirebaseOTP(phone);
 
+          hideError("error");
           inputs.forEach((i) => (i.value = ""));
+          resetTimer();
           inputs[0].focus();
           checkComplete();
-          resetTimer();
           hideLoading();
         } catch (e) {
           console.error("RESEND FAIL:", e);
