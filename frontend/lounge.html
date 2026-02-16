@@ -1075,12 +1075,16 @@
       }
 
       // 모달 열기
+      // 모달 열기
       async function openPlaylist(u) {
         selectedUser = u;
         playlistTracks = u.playlist || [];
         currentPlayingIndex = -1;
 
         const firstName = u.first_name || u.firstName;
+
+        console.log("🎵 Opening playlist for:", firstName);
+        console.log("📀 Playlist tracks:", playlistTracks);
 
         // 제목 설정
         document.getElementById("playlistTitle").textContent =
@@ -1115,22 +1119,30 @@
         // Audio features 비동기 로드
         try {
           const trackIds = extractTrackIds(playlistTracks);
+          console.log("🔑 Extracted track IDs:", trackIds);
+
           if (trackIds.length > 0) {
+            console.log("📡 Calling audio-features API...");
             const features = await apiCall("/spotify/audio-features", "POST", {
               track_ids: trackIds,
             });
 
-            // ✅ 응답 검증 추가
+            console.log("🎨 Received features:", features);
+
             if (features && typeof features === "object" && !features.error) {
               const colors = featuresToGradient(features);
+              console.log("🌈 Generated colors:", colors);
               applyMoodGradient(colors);
             } else {
-              console.log("Using default gradient (features unavailable)");
+              console.warn(
+                "⚠️ Using default gradient (invalid features response)",
+              );
             }
+          } else {
+            console.warn("⚠️ No track IDs found, using default gradient");
           }
         } catch (error) {
-          console.log("Using default gradient (API error):", error.message);
-          // 실패해도 기본 그라데이션으로 계속 진행
+          console.error("❌ Failed to load audio features:", error);
         }
       }
 
@@ -1153,37 +1165,51 @@
       }
 
       // 트랙 재생
+      // 트랙 재생
       async function playTrack(index) {
         if (!playlistTracks || !playlistTracks[index]) return;
 
+        const track = playlistTracks[index];
+        console.log("▶️ Playing track:", track.name);
+
         try {
+          console.log("🎧 Ensuring Spotify player...");
           await ensureSpotifyPlayer();
           hideConnectPrompt();
+          console.log("✅ Spotify player ready");
         } catch (error) {
-          console.error("Spotify player error:", error);
+          console.error("❌ Spotify player error:", error);
+          showConnectPrompt("connect spotify to play music");
           return;
         }
 
         let token = null;
         try {
+          console.log("🔑 Getting Spotify token...");
           token = await getSpotifyToken();
-        } catch {
-          showConnectPrompt();
+          console.log("✅ Token obtained");
+        } catch (error) {
+          console.error("❌ Token error:", error);
+          showConnectPrompt("spotify login required");
           return;
         }
 
         try {
+          console.log("📱 Ensuring playback device...");
           await ensurePlaybackDevice(token);
+          console.log("✅ Device ready");
         } catch (error) {
-          console.error("Device transfer error:", error);
+          console.error("⚠️ Device transfer error:", error);
         }
 
-        const track = playlistTracks[index];
         const uri =
           track.uri ||
           track.spotify_uri ||
           track.spotifyUri ||
           `spotify:track:${track.id}`;
+
+        console.log("🎵 Track URI:", uri);
+        console.log("📱 Device ID:", spotifyDeviceId);
 
         try {
           const response = await fetch(
@@ -1200,9 +1226,15 @@
             },
           );
 
+          console.log("📡 Spotify API response:", response.status);
+
           if (!response.ok) {
             const errorText = await response.text();
-            console.error("Spotify play failed:", response.status, errorText);
+            console.error(
+              "❌ Spotify play failed:",
+              response.status,
+              errorText,
+            );
 
             if (response.status === 403) {
               showConnectPrompt("spotify premium required");
@@ -1213,6 +1245,8 @@
             }
             return;
           }
+
+          console.log("✅ Playback started!");
 
           // UI 업데이트
           currentPlayingIndex = index;
@@ -1225,7 +1259,7 @@
             playTrack((index + 1) % playlistTracks.length);
           }, 30000);
         } catch (error) {
-          console.error("Spotify playback error:", error);
+          console.error("❌ Spotify playback error:", error);
           updatePlaybackStatus("playback failed, try again");
         }
       }
