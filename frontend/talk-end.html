@@ -61,6 +61,31 @@
         transition: width 0.4s ease;
       }
 
+      .analysis-steps {
+        margin: 14px auto 0;
+        width: 100%;
+        max-width: 320px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .analysis-step {
+        opacity: 0;
+        transform: translateY(4px);
+        animation: stepIn 0.35s ease forwards;
+      }
+
+      @keyframes stepIn {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
       @supports (height: 100svh) {
         .end-container {
           min-height: 100svh;
@@ -121,6 +146,7 @@
           <div class="analysis-bar">
             <div class="analysis-bar-fill" id="analysisBarFill"></div>
           </div>
+          <div class="analysis-steps" id="analysisSteps"></div>
         </div>
       </div>
       <button id="nextBtn" class="primary" onclick="handleNext()" disabled>
@@ -147,8 +173,49 @@
       let progressValue = 0;
       let progressStartAt = null;
       const ANALYSIS_EXPECTED_MS = 45000;
+      const ANALYSIS_MAX_WAIT_MS = 8 * 60 * 1000;
       const ANALYSIS_MAX_PROGRESS = 95;
+      let progressLabel = "analyzing...";
       let talkId = getFromLocal("current_talk_id");
+      let stepLog = new Set();
+      const stepEl = document.getElementById("analysisSteps");
+
+      function resetSteps() {
+        stepLog = new Set();
+        if (stepEl) stepEl.innerHTML = "";
+      }
+
+      function addStep(message) {
+        if (!stepEl || stepLog.has(message)) return;
+        stepLog.add(message);
+        const line = document.createElement("div");
+        line.className = "analysis-step";
+        line.textContent = message;
+        stepEl.appendChild(line);
+      }
+
+      function updateStepsFromTalk(talk) {
+        if (!talk) return;
+        if (!hasRecordings(talk) && !hasConversation(talk)) {
+          addStep("Checking recording uploads...");
+        } else if (hasRecordings(talk) && !hasConversation(talk)) {
+          addStep("Building your transcript from audio...");
+        } else if (hasConversation(talk)) {
+          addStep("Transcript ready. Analyzing conversation...");
+        }
+
+        if (talk?.analysis_status === "running") {
+          addStep("Crunching chemistry signals...");
+        }
+
+        if (talk?.analysis_status === "failed") {
+          addStep("Still processing. We'll keep trying...");
+        }
+
+        if (isAnalysisComplete(talk)) {
+          addStep("Analysis complete. You're ready to continue.");
+        }
+      }
 
       /* ================= 초기화 ================= */
 
@@ -271,24 +338,12 @@
       /* ================= 분석 요청 ================= */
 
       async function analyzeTalk() {
-        const response = await fetch("/api/match/analyze-talk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            talk_id: talkId,
-          }),
+        if (!talkId) {
+          throw new Error("talk_id missing");
+        }
+        return await apiCall("/match/analyze-talk", "POST", {
+          talk_id: talkId,
         });
-        const raw = await response.text();
-        let result = null;
-        try {
-          result = raw ? JSON.parse(raw) : null;
-        } catch (error) {
-          throw new Error(raw || "analysis failed");
-        }
-        if (!response.ok) {
-          throw new Error(result?.message || "analysis failed");
-        }
-        return result;
       }
 
       function startProgress(startedAt = null) {
@@ -297,9 +352,12 @@
         const barEl = document.getElementById("analysisBarFill");
 
         el.classList.remove("hidden");
+        resetSteps();
+        addStep("Preparing your results...");
         progressValue = 0;
         progressStartAt = startedAt || Date.now();
-        textEl.textContent = "analyzing... 0%";
+        progressLabel = "analyzing...";
+        textEl.textContent = `${progressLabel} 0%`;
         barEl.style.width = "0%";
 
         progressTimer = setInterval(() => {
@@ -309,12 +367,12 @@
             ANALYSIS_MAX_PROGRESS,
             Math.max(2, Math.floor(ratio * 100)),
           );
-          textEl.textContent = `analyzing... ${progressValue}%`;
+          textEl.textContent = `${progressLabel} ${progressValue}%`;
           barEl.style.width = `${progressValue}%`;
         }, 600);
       }
 
-      function stopProgress(success = true) {
+      function stopProgress(success = true, reason = "failed") {
         const el = document.getElementById("analysisProgress");
         const textEl = document.getElementById("analysisText");
         const barEl = document.getElementById("analysisBarFill");
@@ -323,6 +381,7 @@
         progressTimer = null;
 
         if (success) {
+          addStep("Analysis complete. You're ready to continue.");
           progressValue = 100;
           textEl.textContent = "analysis complete 100%";
           barEl.style.width = "100%";
@@ -330,7 +389,14 @@
             el.classList.add("hidden");
           }, 600);
         } else {
-          textEl.textContent = "analysis failed. please try again.";
+          if (reason === "timeout" || reason === "pending") {
+            addStep("Still processing in the background.");
+            textEl.textContent =
+              "analysis is taking longer. you can continue.";
+          } else {
+            addStep("Something went wrong, but you can continue.");
+            textEl.textContent = "analysis failed. you can continue.";
+          }
           barEl.style.width = `${progressValue}%`;
         }
       }
@@ -359,26 +425,13 @@
         return talk?.analysis_started_at || talk?.analysis?.analyzed_at || null;
       }
 
-      async function waitForAnalysis(maxMs = 120000, intervalMs = 2000) {
-        const start = Date.now();
-        while (Date.now() - start < maxMs) {
-          await sleep(intervalMs);
-          const talk = await fetchTalk();
+      function hasRecordings(talk) {
+        const files = talk?.recording_files || talk?.recording_file_list;
+        return Array.isArray(files) && files.length > 0;
+      }
 
-          if (talk?.analysis_status === "failed") {
-            throw new Error("analysis failed");
-          }
-
-          const startedAt = getAnalysisStart(talk);
-          if (startedAt && progressStartAt !== startedAt) {
-            progressStartAt = startedAt;
-          }
-
-          if (isAnalysisComplete(talk)) {
-            return true;
-          }
-        }
-        return false;
+      function hasConversation(talk) {
+        return Array.isArray(talk?.conversation) && talk.conversation.length > 0;
       }
 
       async function processAnalysis() {
@@ -389,8 +442,10 @@
         try {
           // 1. talk_history 저장
           if (!talkId) {
+            addStep("Saving call summary...");
             await saveTalkHistory();
             console.log("✅ talk_history 저장 완료");
+            addStep("Call saved. Preparing analysis...");
           }
 
           // 2. 이미 분석 완료됐는지 확인
@@ -405,6 +460,7 @@
               throw e;
             }
           }
+          updateStepsFromTalk(talk);
           displayDurationFromTalk(talk);
           if (isAnalysisComplete(talk)) {
             stopProgress(true);
@@ -414,21 +470,22 @@
 
           // 3. 분석 요청 (fire-and-forget — 서버가 즉시 응답)
           try {
+            addStep("Starting analysis...");
             await analyzeTalk();
           } catch (e) {
             console.warn("⚠️ 분석 요청 실패, polling으로 대기:", e);
           }
 
           // 4. Polling으로 완료 대기 (최대 3분)
-          const ok = await waitForAnalysis(180000, 3000);
-          if (ok) {
+          const result = await waitForAnalysis(ANALYSIS_MAX_WAIT_MS, 3000);
+          if (result.ok) {
             console.log("✅ 분석 완료");
             stopProgress(true);
             nextBtn.disabled = false;
           } else {
             // 타임아웃이어도 next 허용 (talk-result에서 이어서 대기)
             console.warn("⚠️ 분석 타임아웃, talk-result에서 계속 대기");
-            stopProgress(false);
+            stopProgress(false, result.reason || "timeout");
             nextBtn.disabled = false;
           }
         } catch (e) {
@@ -441,12 +498,44 @@
 
       async function waitForAnalysis(maxMs = 180000, intervalMs = 3000) {
         const start = Date.now();
+        let lastStatus = null;
         while (Date.now() - start < maxMs) {
           await sleep(intervalMs);
           try {
             const talk = await fetchTalk();
 
-            if (talk?.analysis_status === "failed") {
+            if (isAnalysisComplete(talk)) {
+              return { ok: true };
+            }
+
+            updateStepsFromTalk(talk);
+
+            const status = talk?.analysis_status || null;
+            lastStatus = status;
+
+            if (status === "running") {
+              progressLabel = "analyzing...";
+              const started = talk?.analysis_started_at || 0;
+              const elapsed = Date.now() - started;
+              if (started && elapsed > 180000) {
+                console.warn("⚠️ 분석 stuck 감지, 재시도 요청");
+                try {
+                  await analyzeTalk();
+                } catch (_) {}
+              }
+            }
+
+            if (status === "failed") {
+              const error = String(talk?.analysis_error || "");
+              if (!hasRecordings(talk) && !hasConversation(talk)) {
+                progressLabel = "waiting for recordings...";
+                lastStatus = "pending";
+              } else if (
+                error.includes("no conversation and no recording_files")
+              ) {
+                progressLabel = "waiting for recordings...";
+                lastStatus = "pending";
+              }
               // 실패 시 한 번 재시도
               console.warn("⚠️ 분석 실패, 재시도 중...");
               try {
@@ -460,15 +549,14 @@
             if (startedAt && progressStartAt !== startedAt) {
               progressStartAt = startedAt;
             }
-
-            if (isAnalysisComplete(talk)) {
-              return true;
-            }
           } catch (e) {
             console.warn("⚠️ polling 에러:", e);
           }
         }
-        return false;
+        return {
+          ok: false,
+          reason: lastStatus === "failed" ? "failed" : "timeout",
+        };
       }
     </script>
   </body>

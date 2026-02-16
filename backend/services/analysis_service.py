@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.services.firestore import get_firestore
+from backend.services.rtdb import get_rtdb
 from firebase_admin import firestore
 from backend.services.chemistry_model import ChemistryModel
 from backend.services.embedding_service import EmbeddingService
@@ -82,6 +83,102 @@ def _normalize_recording_files(talk: Dict[str, Any]) -> List[Dict[str, Any]]:
             }
         )
     return normalized
+
+
+def _apply_patch_to_talk(talk: Dict[str, Any], patch: Dict[str, Any]) -> None:
+    if not patch:
+        return
+    for key, value in patch.items():
+        if "." in key:
+            root, sub = key.split(".", 1)
+            cur = talk.get(root)
+            if not isinstance(cur, dict):
+                cur = {}
+                talk[root] = cur
+            cur[sub] = value
+        else:
+            talk[key] = value
+
+
+def _build_patch_from_match_request(
+    match_request: Dict[str, Any],
+    existing: Dict[str, Any],
+) -> Dict[str, Any]:
+    patch: Dict[str, Any] = {}
+
+    call_started = match_request.get("call_started_at")
+    call_ended = match_request.get("ended_at")
+    existing_ts = existing.get("timestamp") or 0
+
+    if call_started:
+        patch["call_started_at"] = call_started
+    if call_ended:
+        patch["call_ended_at"] = call_ended
+        if call_started:
+            patch["duration"] = int((call_ended - call_started) / 1000)
+        if not existing_ts or call_ended > existing_ts:
+            patch["timestamp"] = call_ended
+    elif call_started and not existing_ts:
+        patch["timestamp"] = call_started
+
+    files = match_request.get("recording_file_list") or []
+    if isinstance(files, list) and files:
+        existing_files = existing.get("recording_files") or []
+        if not isinstance(existing_files, list) or len(files) >= len(existing_files):
+            patch["recording_files"] = files
+
+    status = match_request.get("recording_uploading_status")
+    if status:
+        patch["recording_uploading_status"] = status
+
+    uid_map = match_request.get("uid_mapping") or {}
+    if isinstance(uid_map, dict) and uid_map:
+        existing_map = existing.get("uid_mapping") or {}
+        if not isinstance(existing_map, dict):
+            existing_map = {}
+        merged = {**existing_map, **uid_map}
+        patch["uid_mapping"] = merged
+
+    initiator = match_request.get("initiator")
+    receiver = match_request.get("receiver")
+    if initiator:
+        initiator_selection = match_request.get("initiator_selection")
+        if initiator_selection is not None:
+            patch[f"selections.{initiator}"] = initiator_selection
+    if receiver:
+        receiver_selection = match_request.get("receiver_selection")
+        if receiver_selection is not None:
+            patch[f"selections.{receiver}"] = receiver_selection
+
+    return patch
+
+
+def _refresh_talk_from_rtdb(
+    talk_id: str,
+    talk: Dict[str, Any],
+    talk_ref,
+) -> Dict[str, Any]:
+    match_request_id = talk.get("match_request_id") or talk_id
+    if not match_request_id:
+        return talk
+    rtdb = get_rtdb()
+    if not rtdb:
+        return talk
+    try:
+        match_request = rtdb.child("match_requests").child(match_request_id).get()
+    except Exception:
+        return talk
+    if not match_request:
+        return talk
+
+    patch = _build_patch_from_match_request(match_request, talk)
+    if patch:
+        try:
+            talk_ref.update(patch)
+        except Exception:
+            pass
+        _apply_patch_to_talk(talk, patch)
+    return talk
 
 
 def _participants_from_talk(talk: Dict[str, Any]) -> List[str]:
@@ -284,6 +381,9 @@ class AnalysisService:
 
             if conversation_obj is None:
                 recording_files = _normalize_recording_files(talk)
+                if not recording_files:
+                    talk = _refresh_talk_from_rtdb(talk_id, talk, talk_ref)
+                    recording_files = _normalize_recording_files(talk)
                 if not recording_files:
                     try:
                         talk_ref.update(

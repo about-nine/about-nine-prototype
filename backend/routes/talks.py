@@ -219,8 +219,65 @@ def save_history():
             return jsonify(success=True, talk_id=existing_doc.id)
         return jsonify(success=False, message="match_request not found"), 404
 
+    def _build_patch_from_match(match_request_data, existing_data=None):
+        existing_data = existing_data or {}
+        patch = {}
+
+        call_started = match_request_data.get("call_started_at")
+        call_ended = match_request_data.get("ended_at")
+        existing_ts = existing_data.get("timestamp") or 0
+
+        if call_started:
+            patch["call_started_at"] = call_started
+        if call_ended:
+            patch["call_ended_at"] = call_ended
+            if call_started:
+                patch["duration"] = int((call_ended - call_started) / 1000)
+            if not existing_ts or call_ended > existing_ts:
+                patch["timestamp"] = call_ended
+        elif call_started and not existing_ts:
+            patch["timestamp"] = call_started
+
+        files = match_request_data.get("recording_file_list") or []
+        if isinstance(files, list) and files:
+            existing_files = existing_data.get("recording_files") or []
+            if not isinstance(existing_files, list) or len(files) >= len(existing_files):
+                patch["recording_files"] = files
+
+        status = match_request_data.get("recording_uploading_status")
+        if status:
+            patch["recording_uploading_status"] = status
+
+        uid_map = match_request_data.get("uid_mapping") or {}
+        if isinstance(uid_map, dict) and uid_map:
+            existing_map = existing_data.get("uid_mapping") or {}
+            if not isinstance(existing_map, dict):
+                existing_map = {}
+            merged = {**existing_map, **uid_map}
+            patch["uid_mapping"] = merged
+
+        initiator = match_request_data.get("initiator")
+        receiver = match_request_data.get("receiver")
+        if initiator:
+            initiator_selection = match_request_data.get("initiator_selection")
+            if initiator_selection is not None:
+                patch[f"selections.{initiator}"] = initiator_selection
+        if receiver:
+            receiver_selection = match_request_data.get("receiver_selection")
+            if receiver_selection is not None:
+                patch[f"selections.{receiver}"] = receiver_selection
+
+        return patch
+
     existing_talk_id = match_request.get("talk_id")
     if existing_talk_id:
+        db = get_firestore()
+        talk_ref = db.collection("talk_history").document(existing_talk_id)
+        existing_snap = talk_ref.get()
+        if existing_snap.exists:
+            patch = _build_patch_from_match(match_request, existing_snap.to_dict() or {})
+            if patch:
+                talk_ref.update(patch)
         return jsonify(success=True, talk_id=existing_talk_id)
 
     initiator = match_request.get("initiator")
@@ -276,6 +333,9 @@ def save_history():
     existing_doc = next(existing, None)
     if existing_doc:
         talk_id = existing_doc.id
+        patch = _build_patch_from_match(match_request, existing_doc.to_dict() or {})
+        if patch:
+            db.collection("talk_history").document(talk_id).update(patch)
         match_request_ref.update({"talk_id": talk_id})
         return jsonify(success=True, talk_id=talk_id)
 
@@ -286,6 +346,9 @@ def save_history():
     except AlreadyExists:
         existing = talk_ref.get()
         if existing.exists:
+            patch = _build_patch_from_match(match_request, existing.to_dict() or {})
+            if patch:
+                talk_ref.update(patch)
             match_request_ref.update({"talk_id": request_id})
             return jsonify(success=True, talk_id=request_id)
         raise
