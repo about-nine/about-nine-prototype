@@ -210,6 +210,7 @@
               idToken,
             });
             saveToLocal("user_id", result.user_id);
+            saveToLocal("onboarding_completed", !!result.is_existing_user);
 
             if (result.is_existing_user) {
               navigateTo("lounge.html");

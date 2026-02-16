@@ -298,6 +298,7 @@
             phone,
           });
 
+          saveToLocal("onboarding_completed", true);
           hideLoading();
           navigateTo("playlist.html");
         } catch (error) {

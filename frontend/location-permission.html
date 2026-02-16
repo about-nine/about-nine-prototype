@@ -26,6 +26,24 @@
     <script src="js/common.js"></script>
 
     <script>
+      async function resolveNextRoute() {
+        const completed = getFromLocal("onboarding_completed");
+        if (completed === true) {
+          return "lounge.html";
+        }
+        if (completed === false) {
+          return "onboarding-chat.html";
+        }
+        try {
+          const profileRes = await apiCall("/users/profile");
+          const isDone = !!profileRes?.user?.onboarding_completed;
+          saveToLocal("onboarding_completed", isDone);
+          return isDone ? "lounge.html" : "onboarding-chat.html";
+        } catch (e) {
+          return "onboarding-chat.html";
+        }
+      }
+
       async function requestLocation() {
         hideError("error");
 
@@ -47,7 +65,8 @@
               await apiCall("/users/update-location", "POST", { lat, lng });
 
               hideLoading();
-              navigateTo("onboarding-chat.html");
+              const nextRoute = await resolveNextRoute();
+              navigateTo(nextRoute);
             } catch (e) {
               hideLoading();
               showError("error", "failed to save location");
