@@ -134,8 +134,12 @@
       import { rtdb, ref, get, remove } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
-      const partner = getFromLocal("chat_partner");
-      const requestId = getFromLocal("match_request_id");
+      const params = new URLSearchParams(window.location.search);
+      const requestIdParam = params.get("requestId");
+      const requestId = requestIdParam || getFromLocal("match_request_id");
+      if (requestIdParam) {
+        saveToLocal("match_request_id", requestIdParam);
+      }
       const callDurationEl = document.getElementById("callDuration");
 
       let matchData = null;
@@ -144,12 +148,12 @@
       let progressStartAt = null;
       const ANALYSIS_EXPECTED_MS = 45000;
       const ANALYSIS_MAX_PROGRESS = 95;
-      let talkId = null;
+      let talkId = getFromLocal("current_talk_id");
 
       /* ================= 초기화 ================= */
 
       window.onload = async () => {
-        if (!userId || !partner || !requestId) {
+        if (!userId || (!requestId && !talkId)) {
           console.error("❌ 필수 데이터 없음");
           alert("invalid request");
           navigateTo("lounge.html");
@@ -158,17 +162,16 @@
 
         try {
           // RTDB에서 match_request 데이터 가져오기
-          const snap = await get(ref(rtdb, `match_requests/${requestId}`));
-          matchData = snap.val();
+          if (requestId) {
+            const snap = await get(ref(rtdb, `match_requests/${requestId}`));
+            matchData = snap.val();
 
-          if (!matchData) {
-            console.error("❌ match_request 데이터 없음");
-            alert("request not found");
-            navigateTo("lounge.html");
-            return;
+            if (!matchData) {
+              console.warn("⚠️ match_request 데이터 없음, fallback 진행");
+            } else {
+              console.log("✅ match_request 데이터 로드:", matchData);
+            }
           }
-
-          console.log("✅ match_request 데이터 로드:", matchData);
 
           // 통화 시간 표시
           displayDuration();
@@ -227,6 +230,22 @@
         )}`;
       }
 
+      function displayDurationFromTalk(talk) {
+        if (!callDurationEl || !talk) return;
+        const callStarted = toTimestamp(talk?.call_started_at);
+        const callEnded = toTimestamp(talk?.call_ended_at);
+        if (!callStarted || !callEnded) return;
+        const durationMs = callEnded - callStarted;
+        if (!Number.isFinite(durationMs) || durationMs < 0) return;
+        const durationSec = Math.floor(durationMs / 1000);
+        const m = Math.floor(durationSec / 60);
+        const s = durationSec % 60;
+        callDurationEl.textContent = `call duration ${m}:${String(s).padStart(
+          2,
+          "0",
+        )}`;
+      }
+
       /* ================= Next 버튼 ================= */
 
       window.handleNext = async () => {
@@ -236,6 +255,9 @@
       /* ================= 🔥 Firestore 저장 (top-level collection) ================= */
 
       async function saveTalkHistory() {
+        if (!requestId) {
+          throw new Error("request_id missing");
+        }
         const res = await apiCall("/talks/save-history", "POST", {
           request_id: requestId,
         });
@@ -318,6 +340,9 @@
       }
 
       async function fetchTalk() {
+        if (!talkId) {
+          throw new Error("talk_id missing");
+        }
         const res = await apiCall(`/talks/history/${talkId}`);
         if (!res.success || !res.talk) {
           throw new Error("talk_history not found");
@@ -369,7 +394,18 @@
           }
 
           // 2. 이미 분석 완료됐는지 확인
-          const talk = await fetchTalk();
+          let talk = null;
+          try {
+            talk = await fetchTalk();
+          } catch (e) {
+            if (requestId) {
+              await saveTalkHistory();
+              talk = await fetchTalk();
+            } else {
+              throw e;
+            }
+          }
+          displayDurationFromTalk(talk);
           if (isAnalysisComplete(talk)) {
             stopProgress(true);
             nextBtn.disabled = false;

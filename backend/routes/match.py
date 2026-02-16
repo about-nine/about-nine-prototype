@@ -1,6 +1,8 @@
 # match.py
 import threading
+import time
 from flask import Blueprint, request, jsonify, session
+from firebase_admin import firestore
 from backend.services.recommend_service import recommend_for_user
 from backend.services.firestore import get_firestore
 
@@ -11,7 +13,7 @@ def _run_analysis_background(talk_id: str):
     """백그라운드 스레드에서 분석 실행"""
     try:
         from backend.services.analysis_service import analyze_talk_pipeline
-        analyze_talk_pipeline(talk_id)
+        analyze_talk_pipeline(talk_id, force=True)
     except Exception as e:
         # 에러는 analysis_service 내부에서 Firestore에 기록됨
         print(f"⚠️ Background analysis failed for {talk_id}: {e}")
@@ -25,25 +27,41 @@ def analyze_talk():
     if not talk_id:
         return jsonify(success=False, message="talk_id required"), 400
 
-    # 이미 분석 완료됐는지 확인
-    try:
-        db = get_firestore()
-        snap = db.collection("talk_history").document(talk_id).get()
-        if snap.exists:
-            talk = snap.to_dict() or {}
-            analysis = talk.get("analysis") or {}
-            if analysis.get("chemistry_score") is not None:
-                return jsonify(success=True, talk_id=talk_id, status="complete")
+    db = get_firestore()
+    talk_ref = db.collection("talk_history").document(talk_id)
+    now_ms = int(time.time() * 1000)
 
-            # 이미 running 중이면 중복 실행 방지
-            if talk.get("analysis_status") == "running":
-                started = talk.get("analysis_started_at") or 0
-                elapsed = int(__import__("time").time() * 1000) - started
-                # 3분 이상 running이면 stuck → 재실행 허용
-                if elapsed < 180_000:
-                    return jsonify(success=True, talk_id=talk_id, status="running")
+    @firestore.transactional
+    def _claim(transaction):
+        snap = talk_ref.get(transaction=transaction)
+        if not snap.exists:
+            return "missing"
+        talk = snap.to_dict() or {}
+        analysis = talk.get("analysis") or {}
+        if analysis.get("chemistry_score") is not None:
+            return "complete"
+        status = talk.get("analysis_status")
+        started = int(talk.get("analysis_started_at") or 0)
+        if status == "running" and started and now_ms - started < 180_000:
+            return "running"
+        transaction.update(
+            talk_ref,
+            {"analysis_status": "running", "analysis_started_at": now_ms},
+        )
+        return "start"
+
+    try:
+        txn = db.transaction()
+        state = _claim(txn)
     except Exception:
-        pass
+        state = "start"
+
+    if state == "missing":
+        return jsonify(success=False, message="talk_history not found"), 404
+    if state == "complete":
+        return jsonify(success=True, talk_id=talk_id, status="complete")
+    if state == "running":
+        return jsonify(success=True, talk_id=talk_id, status="running")
 
     # 백그라운드 스레드로 분석 시작 → 즉시 응답
     thread = threading.Thread(

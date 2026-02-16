@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -225,25 +226,47 @@ class AnalysisService:
         self.preference = PreferenceAnalyzer()
         self.pitch = PitchAnalyzer()
 
-    def analyze_talk_pipeline(self, talk_id: str) -> Dict[str, Any]:
+    def _cleanup_local_recordings(self, talk_id: str) -> None:
+        if not talk_id:
+            return
+        if os.getenv("ANALYSIS_KEEP_TEMP", "").lower() in {"1", "true", "yes"}:
+            return
+        local_root = getattr(self.storage_loader, "local_root", None)
+        if not local_root:
+            return
+        target_dir = os.path.join(local_root, str(talk_id))
+        if not os.path.exists(target_dir):
+            return
+        try:
+            shutil.rmtree(target_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+    def analyze_talk_pipeline(self, talk_id: str, force: bool = False) -> Dict[str, Any]:
         db = _get_db()
         talk_ref = db.collection("talk_history").document(talk_id)
         conversation_list = None
         speaker_wavs = None
+
+        def _finish(result: Dict[str, Any]) -> Dict[str, Any]:
+            self._cleanup_local_recordings(talk_id)
+            return result
         try:
             snap = talk_ref.get()
             if not snap.exists:
-                return {"success": False, "message": "talk_history not found", "talk_id": talk_id}
+                return _finish({"success": False, "message": "talk_history not found", "talk_id": talk_id})
 
             talk = snap.to_dict() or {}
             existing_analysis = talk.get("analysis") or {}
             if isinstance(existing_analysis, dict) and existing_analysis.get("chemistry_score") is not None:
-                return {"success": True, "talk_id": talk_id, "analysis": existing_analysis, "status": "complete"}
+                return _finish(
+                    {"success": True, "talk_id": talk_id, "analysis": existing_analysis, "status": "complete"}
+                )
 
-            if talk.get("analysis_status") == "running":
+            if talk.get("analysis_status") == "running" and not force:
                 started = int(talk.get("analysis_started_at") or 0)
                 if started and _now_ms() - started < 180_000:
-                    return {"success": True, "talk_id": talk_id, "status": "running"}
+                    return _finish({"success": True, "talk_id": talk_id, "status": "running"})
 
             try:
                 talk_ref.update({"analysis_status": "running", "analysis_started_at": _now_ms()})
@@ -272,7 +295,13 @@ class AnalysisService:
                         )
                     except Exception:
                         pass
-                    return {"success": False, "message": "no conversation and no recording_files", "talk_id": talk_id}
+                    return _finish(
+                        {
+                            "success": False,
+                            "message": "no conversation and no recording_files",
+                            "talk_id": talk_id,
+                        }
+                    )
 
                 # (a) Download from Firebase Storage to local temp paths
                 # storage_loader should return local file paths + metadata
@@ -326,12 +355,14 @@ class AnalysisService:
                 )
             except Exception:
                 pass
-            return {
-                "success": False,
-                "message": "analysis failed",
-                "error": err_msg,
-                "talk_id": talk_id,
-            }
+            return _finish(
+                {
+                    "success": False,
+                    "message": "analysis failed",
+                    "error": err_msg,
+                    "talk_id": talk_id,
+                }
+            )
 
         if conversation_obj is None and conversation_list is not None:
             # reload object for analyzers
@@ -367,11 +398,18 @@ class AnalysisService:
             # Pitch analyzer can accept:
             #  - per-speaker wavs (best)
             #  - or list of wav paths (fallback)
-            pitch_out = self.pitch.score(
-                wav_paths_by_speaker=wav_paths_by_speaker if isinstance(wav_paths_by_speaker, dict) else {},
-                wav_paths=wav_paths_all if isinstance(wav_paths_all, list) else [],
-                call_id=talk_id,
-            )
+            disable_pitch = os.getenv("ANALYSIS_DISABLE_PITCH", "").lower() in {"1", "true", "yes"}
+            if disable_pitch:
+                pitch_out = {
+                    "scores": {"voice_pitch": 50.0},
+                    "raw": {"score": 50, "error": "disabled", "method": "disabled"},
+                }
+            else:
+                pitch_out = self.pitch.score(
+                    wav_paths_by_speaker=wav_paths_by_speaker if isinstance(wav_paths_by_speaker, dict) else {},
+                    wav_paths=wav_paths_all if isinstance(wav_paths_all, list) else [],
+                    call_id=talk_id,
+                )
         except Exception as e:
             try:
                 talk_ref.update(
@@ -379,7 +417,9 @@ class AnalysisService:
                 )
             except Exception:
                 pass
-            return {"success": False, "message": "analyzer failed", "error": str(e), "talk_id": talk_id}
+            return _finish(
+                {"success": False, "message": "analyzer failed", "error": str(e), "talk_id": talk_id}
+            )
 
         feats: Dict[str, float] = {
             # keep keys stable (your earlier convention)
@@ -405,7 +445,9 @@ class AnalysisService:
                 )
             except Exception:
                 pass
-            return {"success": False, "message": "chemistry model failed", "error": str(e), "talk_id": talk_id}
+            return _finish(
+                {"success": False, "message": "chemistry model failed", "error": str(e), "talk_id": talk_id}
+            )
 
         analysis: Dict[str, Any] = {
             "features": feats,
@@ -461,12 +503,12 @@ class AnalysisService:
                     # don't fail the whole pipeline on profile update
                     pass
 
-        return {"success": True, "talk_id": talk_id, "analysis": analysis}
+        return _finish({"success": True, "talk_id": talk_id, "analysis": analysis})
 
 
 # Convenience function to match your existing import style
 _service = AnalysisService()
 
 
-def analyze_talk_pipeline(talk_id: str) -> Dict[str, Any]:
-    return _service.analyze_talk_pipeline(talk_id)
+def analyze_talk_pipeline(talk_id: str, force: bool = False) -> Dict[str, Any]:
+    return _service.analyze_talk_pipeline(talk_id, force=force)

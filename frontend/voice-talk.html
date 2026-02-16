@@ -803,7 +803,7 @@
         console.log("🚀 talk-end.html로 이동");
         console.log("=".repeat(50));
 
-        navigateTo("talk-end.html");
+        navigateTo(`talk-end.html?requestId=${encodeURIComponent(requestId)}`);
       };
 
       /* ================= 리스너 & 초기화 ================= */
