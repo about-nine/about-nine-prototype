@@ -329,6 +329,27 @@ def update_profile():
 
 
 # =========================
+# Delete Account
+# =========================
+@users_bp.route("/delete", methods=["POST"])
+def delete_account():
+    """계정 삭제 (Firestore users 문서 삭제 + 세션 정리)"""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    try:
+        db.collection("users").document(user_id).delete()
+    except Exception as e:
+        print(f"❌ Failed to delete user {user_id}: {e}")
+        return jsonify(success=False, message="delete failed"), 500
+
+    session.clear()
+    return jsonify(success=True)
+
+
+# =========================
 # Block User
 # =========================
 @users_bp.route("/block", methods=["POST"])

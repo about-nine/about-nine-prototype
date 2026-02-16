@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Edit Profile</title>
     <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
 
     <style>
       .card {
@@ -629,7 +630,14 @@
       ====================== */
       async function signOut() {
         if (confirm("are you sure you want to sign out?")) {
-          await firebaseLogout(); // Firebase Auth 정리
+          try {
+            if (typeof firebaseLogout === "function") {
+              await firebaseLogout(); // Firebase Auth 정리
+            }
+          } catch (error) {
+            console.error("Logout error:", error);
+          }
+
           apiCall("/auth/logout", "POST").catch(() => {}); // 서버 세션 정리
           localStorage.clear(); // 로컬 정리
           navigateTo("index.html");
@@ -637,13 +645,34 @@
       }
 
       function deleteAccount() {
-        const confirmation = prompt(
-          'type "DELETE" to confirm account deletion:',
+        const confirmed = confirm(
+          "are you sure you want to delete your account? this can't be undone.",
         );
-        if (confirmation === "DELETE") {
-          // TODO: API call to delete account
-          alert("account deletion is not yet implemented");
-        }
+        if (!confirmed) return;
+
+        (async () => {
+          try {
+            showLoading("deleting account...");
+            await apiCall("/users/delete", "POST");
+            hideLoading();
+          } catch (error) {
+            hideLoading();
+            console.error("Account delete failed:", error);
+            alert("failed to delete account");
+            return;
+          }
+
+          try {
+            if (typeof firebaseLogout === "function") {
+              await firebaseLogout();
+            }
+          } catch (error) {
+            console.error("Firebase logout error:", error);
+          }
+
+          localStorage.clear();
+          navigateTo("index.html");
+        })();
       }
 
       /* ======================
