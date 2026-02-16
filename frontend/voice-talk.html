@@ -843,28 +843,29 @@
           .addEventListener("click", async () => {
             console.log("👆 사용자 탭 감지 — 통화 시작");
 
-            // 오버레이 제거
             document.getElementById("tapOverlay").style.display = "none";
 
-            // 타이머 시작
             startTimer();
             console.log("✅ 타이머 시작");
 
-            // Agora 연결 (Agora가 자체적으로 AudioContext 관리)
             await initCall();
             console.log("✅ 통화 초기화 완료");
 
-            // 녹화 시작
-            try {
-              const recRes = await fetch("/api/agora/auto-start-recording", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ request_id: requestId }),
-              });
-              const recResult = await recRes.json();
-              console.log("🎬 녹화 시작 결과:", recResult);
-            } catch (e) {
-              console.warn("⚠️ 녹화 시작 실패 (통화는 계속):", e);
+            // 🔥 initiator만 녹화 시작
+            const snap = await get(ref(rtdb, `match_requests/${requestId}`));
+            const data = snap.val();
+            if (data && data.initiator === userId) {
+              try {
+                const recRes = await fetch("/api/agora/auto-start-recording", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ request_id: requestId }),
+                });
+                const recResult = await recRes.json();
+                console.log("🎬 녹화 시작 결과:", recResult);
+              } catch (e) {
+                console.warn("⚠️ 녹화 시작 실패 (통화는 계속):", e);
+              }
             }
           });
       };
