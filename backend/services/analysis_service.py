@@ -241,7 +241,9 @@ class AnalysisService:
                 return {"success": True, "talk_id": talk_id, "analysis": existing_analysis, "status": "complete"}
 
             if talk.get("analysis_status") == "running":
-                return {"success": True, "talk_id": talk_id, "status": "running"}
+                started = int(talk.get("analysis_started_at") or 0)
+                if started and _now_ms() - started < 180_000:
+                    return {"success": True, "talk_id": talk_id, "status": "running"}
 
             try:
                 talk_ref.update({"analysis_status": "running", "analysis_started_at": _now_ms()})
@@ -260,6 +262,16 @@ class AnalysisService:
             if conversation_obj is None:
                 recording_files = _normalize_recording_files(talk)
                 if not recording_files:
+                    try:
+                        talk_ref.update(
+                            {
+                                "analysis_error": "no conversation and no recording_files",
+                                "analysis_failed_at": _now_ms(),
+                                "analysis_status": "failed",
+                            }
+                        )
+                    except Exception:
+                        pass
                     return {"success": False, "message": "no conversation and no recording_files", "talk_id": talk_id}
 
                 # (a) Download from Firebase Storage to local temp paths

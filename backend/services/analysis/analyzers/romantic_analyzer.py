@@ -167,8 +167,20 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(dot / norm)
 
 
+def _openai_timeout() -> float:
+    raw = os.getenv("OPENAI_TIMEOUT", "30")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 30.0
+
+
 def _openai_embed(texts: List[str]) -> List[np.ndarray]:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        timeout=_openai_timeout(),
+        max_retries=1,
+    )
     resp = client.embeddings.create(model="text-embedding-3-small", input=texts)
     return [np.array(d.embedding) for d in resp.data]
 

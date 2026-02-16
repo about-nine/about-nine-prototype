@@ -72,6 +72,14 @@ def _parse_json_response(response: str) -> Dict:
     return {"topic_continuity": None, "parse_error": True}
 
 
+def _openai_timeout() -> float:
+    raw = os.getenv("OPENAI_TIMEOUT", "30")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 30.0
+
+
 def _analyze_with_openai(data: Dict) -> Dict[str, Any]:
     """OpenAI API로 주제 연속성 평가"""
     formatted = _format_conversation(data)
@@ -88,10 +96,14 @@ topic_continuity: Does the topic flow naturally?
    - 5: Topic shifts slightly but remains connected
    - 0: Topic changes abruptly throughout
 
-Respond ONLY in JSON format:
+    Respond ONLY in JSON format:
 {{"topic_continuity": X}}"""
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        timeout=_openai_timeout(),
+        max_retries=1,
+    )
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         max_tokens=128,

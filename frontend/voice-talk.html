@@ -624,12 +624,14 @@
 
         if (data && data.call_started_at) {
           callStart = data.call_started_at;
+          saveToLocal("call_start_ms", callStart);
           console.log(
             `✅ 통화 시작 시간 동기화: ${new Date(callStart).toLocaleTimeString()}`,
           );
         } else {
           // Fallback: call_started_at이 없으면 현재 시간 사용
           callStart = Date.now();
+          saveToLocal("call_start_ms", callStart);
           console.log("⚠️ call_started_at 없음, 현재 시간 사용");
         }
       }
@@ -757,6 +759,9 @@
 
         if (timer) clearInterval(timer);
 
+        const endedAt = Date.now();
+        saveToLocal("call_end_ms", endedAt);
+
         if (!isRemote) {
           // 🔥 서버에 녹화 종료 요청 (내가 끊었을 때만)
           try {
@@ -786,7 +791,7 @@
           await update(ref(rtdb, `match_requests/${requestId}`), {
             call_ended: true,
             ended_by: userId,
-            ended_at: Date.now(),
+            ended_at: endedAt,
           });
 
           console.log("✅ Firebase 업데이트 완료");

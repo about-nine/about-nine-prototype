@@ -338,10 +338,22 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
 _client = None
 
 
+def _openai_timeout() -> float:
+    raw = os.getenv("OPENAI_TIMEOUT", "30")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 30.0
+
+
 def _get_openai_client():
     global _client
     if _client is None:
-        _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        _client = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            timeout=_openai_timeout(),
+            max_retries=1,
+        )
     return _client
 
 

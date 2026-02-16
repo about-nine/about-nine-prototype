@@ -16,13 +16,24 @@ class EmbeddingService:
             "EMBEDDING_MODEL", "text-embedding-3-small"
         )
 
+    def _openai_timeout(self) -> float:
+        raw = os.getenv("OPENAI_TIMEOUT", "30")
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return 30.0
+
     def encode_text(self, text: str) -> Optional[List[float]]:
         if not text or not text.strip():
             return None
         if not HAS_OPENAI or not os.getenv("OPENAI_API_KEY"):
             return None
         try:
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                timeout=self._openai_timeout(),
+                max_retries=1,
+            )
             resp = client.embeddings.create(
                 model=self._model_name,
                 input=text[:8000],  # API 토큰 제한 대비

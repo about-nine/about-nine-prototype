@@ -136,6 +136,7 @@
       const userId = getFromLocal("user_id");
       const partner = getFromLocal("chat_partner");
       const requestId = getFromLocal("match_request_id");
+      const callDurationEl = document.getElementById("callDuration");
 
       let matchData = null;
       let progressTimer = null;
@@ -184,21 +185,43 @@
 
       /* ================= 통화 시간 표시 ================= */
 
+      function toTimestamp(value) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+      }
+
       function displayDuration() {
-        const callStarted = matchData.call_started_at;
-        const callEnded = matchData.ended_at;
+        if (!callDurationEl) return;
+        const callStarted =
+          toTimestamp(matchData?.call_started_at) ??
+          toTimestamp(getFromLocal("call_start_ms"));
+        const callEnded =
+          toTimestamp(matchData?.ended_at) ??
+          toTimestamp(getFromLocal("call_end_ms"));
 
         if (!callStarted || !callEnded) {
-          callDuration.textContent = "call duration --:--";
+          callDurationEl.textContent = "call duration --:--";
           return;
         }
 
-        const durationMs = callEnded - callStarted;
+        let durationMs = callEnded - callStarted;
+        if (!Number.isFinite(durationMs) || durationMs < 0) {
+          const fallbackStart = toTimestamp(getFromLocal("call_start_ms"));
+          const fallbackEnd = toTimestamp(getFromLocal("call_end_ms"));
+          if (fallbackStart && fallbackEnd && fallbackEnd >= fallbackStart) {
+            durationMs = fallbackEnd - fallbackStart;
+          }
+        }
+
+        if (!Number.isFinite(durationMs) || durationMs < 0) {
+          callDurationEl.textContent = "call duration --:--";
+          return;
+        }
         const durationSec = Math.floor(durationMs / 1000);
         const m = Math.floor(durationSec / 60);
         const s = durationSec % 60;
 
-        callDuration.textContent = `call duration ${m}:${String(s).padStart(
+        callDurationEl.textContent = `call duration ${m}:${String(s).padStart(
           2,
           "0",
         )}`;
