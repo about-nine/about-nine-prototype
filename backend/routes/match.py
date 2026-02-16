@@ -10,7 +10,7 @@ match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 
 def _run_analysis_background(talk_id: str):
-    """백그라운드 스레드에서 분석 실행 (타임아웃 + 상세 로깅)"""
+    """백그라운드 스레드에서 분석 실행 (로깅 포함)"""
     from backend.services.firestore import get_firestore
     db = get_firestore()
     talk_ref = db.collection("talk_history").document(talk_id)
@@ -19,39 +19,14 @@ def _run_analysis_background(talk_id: str):
     
     try:
         from backend.services.analysis_service import analyze_talk_pipeline
-        import signal
         
-        class TimeoutError(Exception):
-            pass
+        print(f"🔬 [{talk_id}] Calling analyze_talk_pipeline...")
+        result = analyze_talk_pipeline(talk_id, force=True)
         
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Analysis timeout after 180 seconds")
-        
-        # Set 3-minute timeout (POSIX only - works on Render/Linux)
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(180)
-        
-        try:
-            print(f"🔬 [{talk_id}] Calling analyze_talk_pipeline...")
-            result = analyze_talk_pipeline(talk_id, force=True)
-            signal.alarm(0)  # Cancel timeout
-            
-            if result.get("success"):
-                print(f"✅ [{talk_id}] Analysis complete")
-            else:
-                print(f"⚠️ [{talk_id}] Analysis failed: {result.get('message')}")
-                
-        except TimeoutError as e:
-            signal.alarm(0)
-            print(f"⏰ [{talk_id}] Analysis timeout after 180s")
-            try:
-                talk_ref.update({
-                    "analysis_error": "timeout after 180s",
-                    "analysis_failed_at": int(time.time() * 1000),
-                    "analysis_status": "failed",
-                })
-            except Exception:
-                pass
+        if result.get("success"):
+            print(f"✅ [{talk_id}] Analysis complete")
+        else:
+            print(f"⚠️ [{talk_id}] Analysis failed: {result.get('message')}")
         
     except Exception as e:
         import traceback
