@@ -152,7 +152,8 @@ def analyze(data: Dict) -> Dict[str, Any]:
 
     category_scores = {}
     for cat in LSM_CATEGORIES:
-        category_scores[cat] = round(_lsm_category(rates_a[cat], rates_b[cat]), 4)
+        result = _lsm_category(rates_a[cat], rates_b[cat])
+        category_scores[cat] = round(result, 4) if result is not None else None
 
     valid_scores = [s for s in category_scores.values() if s is not None]
     total = sum(valid_scores) / len(valid_scores) if valid_scores else 0.5
