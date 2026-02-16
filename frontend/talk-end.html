@@ -178,20 +178,42 @@
       let progressLabel = "analyzing...";
       let talkId = getFromLocal("current_talk_id");
       let stepLog = new Set();
+      let stepQueue = [];
+      let stepActive = false;
+      let stepTimer = null;
+      const STEP_DELAY_MS = 450;
       const stepEl = document.getElementById("analysisSteps");
 
       function resetSteps() {
         stepLog = new Set();
+        stepQueue = [];
+        stepActive = false;
+        if (stepTimer) {
+          clearTimeout(stepTimer);
+          stepTimer = null;
+        }
         if (stepEl) stepEl.innerHTML = "";
       }
 
       function addStep(message) {
         if (!stepEl || stepLog.has(message)) return;
         stepLog.add(message);
+        stepQueue.push(message);
+        flushStepQueue();
+      }
+
+      function flushStepQueue() {
+        if (stepActive || stepQueue.length === 0) return;
+        stepActive = true;
+        const message = stepQueue.shift();
         const line = document.createElement("div");
         line.className = "analysis-step";
         line.textContent = message;
         stepEl.appendChild(line);
+        stepTimer = setTimeout(() => {
+          stepActive = false;
+          flushStepQueue();
+        }, STEP_DELAY_MS);
       }
 
       function updateStepsFromTalk(talk) {
@@ -237,6 +259,11 @@
               console.warn("⚠️ match_request 데이터 없음, fallback 진행");
             } else {
               console.log("✅ match_request 데이터 로드:", matchData);
+              const serverTalkId = matchData?.talk_id;
+              if (serverTalkId && serverTalkId !== talkId) {
+                talkId = serverTalkId;
+                saveToLocal("current_talk_id", talkId);
+              }
             }
           }
 
@@ -441,7 +468,12 @@
 
         try {
           // 1. talk_history 저장
-          if (!talkId) {
+          if (requestId && (!talkId || talkId !== requestId)) {
+            addStep("Saving call summary...");
+            await saveTalkHistory();
+            console.log("✅ talk_history 저장 완료");
+            addStep("Call saved. Preparing analysis...");
+          } else if (!talkId) {
             addStep("Saving call summary...");
             await saveTalkHistory();
             console.log("✅ talk_history 저장 완료");

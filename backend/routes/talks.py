@@ -278,7 +278,8 @@ def save_history():
             patch = _build_patch_from_match(match_request, existing_snap.to_dict() or {})
             if patch:
                 talk_ref.update(patch)
-        return jsonify(success=True, talk_id=existing_talk_id)
+            return jsonify(success=True, talk_id=existing_talk_id)
+        # stale talk_id in RTDB → continue to create/resolve a valid talk_history
 
     initiator = match_request.get("initiator")
     receiver = match_request.get("receiver")
