@@ -704,11 +704,6 @@
       let spotifyIndex = 0;
       let spotifyTimer = null;
 
-      spotifyConnectBtn.style.display = "none";
-      spotifyConnectBtn.onclick = () => {
-        window.location.href = spotifyLoginUrl;
-      };
-
       function spotifyUriFromId(id) {
         if (!id) return "";
         if (/^[A-Za-z0-9]{22}$/.test(id)) {
@@ -778,13 +773,29 @@
       }
 
       function showConnectPrompt(message = "connect spotify to listen") {
-        previewStatusEl.textContent = "";
+        previewStatusEl.textContent = message;
         spotifyConnectBtn.style.display = "block";
       }
 
       function hideConnectPrompt() {
         spotifyConnectBtn.style.display = "none";
       }
+
+      function resetSpotifyState() {
+        if (spotifyPlayer) {
+          spotifyPlayer.disconnect();
+        }
+        spotifyPlayer = null;
+        spotifyDeviceId = null;
+        spotifyTransferred = false;
+        spotifyReadyPromise = null;
+      }
+
+      spotifyConnectBtn.style.display = "none";
+      spotifyConnectBtn.onclick = () => {
+        resetSpotifyState();
+        window.location.href = spotifyLoginUrl;
+      };
 
       async function getSpotifyToken() {
         const res = await apiCall("/spotify/token");
@@ -814,6 +825,7 @@
             await getSpotifyToken();
           } catch (error) {
             showConnectPrompt();
+            resetSpotifyState();
             reject(error);
             return;
           }
@@ -842,14 +854,17 @@
           });
 
           spotifyPlayer.addListener("initialization_error", () => {
+            resetSpotifyState();
             showConnectPrompt("spotify player failed to start");
           });
 
           spotifyPlayer.addListener("authentication_error", () => {
+            resetSpotifyState();
             showConnectPrompt();
           });
 
           spotifyPlayer.addListener("account_error", () => {
+            resetSpotifyState();
             showConnectPrompt("spotify premium required");
           });
 
