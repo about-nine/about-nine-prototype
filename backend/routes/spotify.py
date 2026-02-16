@@ -304,3 +304,60 @@ def spotify_mood_tags():
 
     tags = build_mood_tags(features)
     return jsonify(success=True, tags=tags)
+
+
+@spotify_bp.route("/audio-features", methods=["POST"])
+def get_audio_features():
+    """Get average audio features for a playlist"""
+    data = request.get_json()
+    track_ids = data.get("track_ids", [])
+    
+    if not track_ids:
+        return jsonify({"error": "No track IDs provided"}), 400
+    
+    # Try user token first, fallback to app token
+    access_token, error = get_valid_access_token()
+    if error:
+        access_token = get_app_access_token()
+        if not access_token:
+            return jsonify({"error": "Spotify token unavailable"}), 401
+    
+    try:
+        # Spotify API: Get Audio Features for Several Tracks
+        ids_str = ",".join(track_ids[:100])  # Max 100 tracks
+        r = requests.get(
+            "https://api.spotify.com/v1/audio-features",
+            params={"ids": ids_str},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        
+        features_data = r.json()
+        audio_features = features_data.get("audio_features", [])
+        
+        # Calculate averages
+        valid_features = [f for f in audio_features if f is not None]
+        
+        if not valid_features:
+            return jsonify({
+                "energy": 0.5,
+                "danceability": 0.5,
+                "valence": 0.5,
+                "acousticness": 0.5,
+                "tempo": 120
+            })
+        
+        avg_features = {
+            "energy": sum(f.get("energy", 0) for f in valid_features) / len(valid_features),
+            "danceability": sum(f.get("danceability", 0) for f in valid_features) / len(valid_features),
+            "valence": sum(f.get("valence", 0) for f in valid_features) / len(valid_features),
+            "acousticness": sum(f.get("acousticness", 0) for f in valid_features) / len(valid_features),
+            "tempo": sum(f.get("tempo", 120) for f in valid_features) / len(valid_features),
+        }
+        
+        return jsonify(avg_features)
+    
+    except Exception as e:
+        print(f"Error fetching audio features: {e}")
+        return jsonify({"error": str(e)}), 500
