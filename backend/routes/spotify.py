@@ -313,6 +313,8 @@ def get_audio_features():
         data = request.get_json()
         track_ids = data.get("track_ids", [])
         
+        print(f"🔑 Received {len(track_ids)} track IDs: {track_ids[:3]}...")  # 처음 3개만
+        
         if not track_ids:
             return jsonify({
                 "energy": 0.5,
@@ -325,9 +327,10 @@ def get_audio_features():
         # Try user token first, fallback to app token
         access_token, error = get_valid_access_token()
         if error:
+            print(f"⚠️ User token failed: {error}, trying app token...")
             access_token = get_app_access_token()
             if not access_token:
-                # Return default values instead of error
+                print("❌ No access token available")
                 return jsonify({
                     "energy": 0.5,
                     "danceability": 0.5,
@@ -335,11 +338,14 @@ def get_audio_features():
                     "acousticness": 0.5,
                     "tempo": 120
                 }), 200
+        else:
+            print("✅ Using user token")
         
         # Spotify API: Get Audio Features for Several Tracks
-        ids_str = ",".join(track_ids[:100])  # Max 100 tracks
+        ids_str = ",".join(track_ids[:100])
         
         try:
+            print(f"📡 Calling Spotify API with {len(track_ids)} tracks...")
             r = requests.get(
                 "https://api.spotify.com/v1/audio-features",
                 params={"ids": ids_str},
@@ -347,9 +353,10 @@ def get_audio_features():
                 timeout=10,
             )
             
+            print(f"📡 Spotify API response: {r.status_code}")
+            
             if r.status_code != 200:
-                print(f"Spotify API error: {r.status_code} - {r.text}")
-                # Return default values
+                print(f"❌ Spotify API error: {r.status_code} - {r.text}")
                 return jsonify({
                     "energy": 0.5,
                     "danceability": 0.5,
@@ -360,10 +367,10 @@ def get_audio_features():
             
             features_data = r.json()
             audio_features = features_data.get("audio_features", [])
+            print(f"✅ Got {len(audio_features)} features from Spotify")
             
         except requests.exceptions.RequestException as e:
-            print(f"Spotify API request failed: {e}")
-            # Return default values
+            print(f"❌ Spotify API request failed: {e}")
             return jsonify({
                 "energy": 0.5,
                 "danceability": 0.5,
@@ -374,8 +381,10 @@ def get_audio_features():
         
         # Calculate averages
         valid_features = [f for f in audio_features if f is not None]
+        print(f"📊 Valid features: {len(valid_features)}/{len(audio_features)}")
         
         if not valid_features:
+            print("⚠️ No valid features found")
             return jsonify({
                 "energy": 0.5,
                 "danceability": 0.5,
@@ -392,13 +401,14 @@ def get_audio_features():
             "tempo": sum(f.get("tempo", 120) for f in valid_features) / len(valid_features),
         }
         
+        print(f"🎨 Calculated features: energy={avg_features['energy']:.2f}, valence={avg_features['valence']:.2f}")
+        
         return jsonify(avg_features), 200
     
     except Exception as e:
-        print(f"Error in get_audio_features: {e}")
+        print(f"❌ Error in get_audio_features: {e}")
         import traceback
         traceback.print_exc()
-        # Return default values instead of 500 error
         return jsonify({
             "energy": 0.5,
             "danceability": 0.5,

@@ -1164,13 +1164,99 @@
         document.getElementById("spotifyConnectBtn").style.display = "none";
       }
 
-      // 트랙 재생
+      async function ensureSpotifyPlayerForSafari() {
+        if (spotifyReadyPromise) return spotifyReadyPromise;
+
+        spotifyReadyPromise = new Promise(async (resolve, reject) => {
+          try {
+            await loadSpotifySdk();
+            const token = await getSpotifyToken();
+
+            spotifyPlayer = new Spotify.Player({
+              name: "About Nine",
+              getOAuthToken: (cb) => {
+                cb(token);
+              },
+              volume: 0.7,
+            });
+
+            // Safari 특정: 에러 리스너를 먼저 설정
+            spotifyPlayer.addListener("initialization_error", ({ message }) => {
+              console.error("Initialization error:", message);
+              reject(new Error(message));
+            });
+
+            spotifyPlayer.addListener("authentication_error", ({ message }) => {
+              console.error("Authentication error:", message);
+              reject(new Error(message));
+            });
+
+            spotifyPlayer.addListener("account_error", ({ message }) => {
+              console.error("Account error:", message);
+              reject(new Error(message));
+            });
+
+            spotifyPlayer.addListener("playback_error", ({ message }) => {
+              console.error("Playback error:", message);
+              // 재생 에러는 reject하지 않음 (계속 시도)
+            });
+
+            spotifyPlayer.addListener("ready", ({ device_id }) => {
+              console.log("✅ Device ready:", device_id);
+              spotifyDeviceId = device_id;
+              spotifyTransferred = false;
+              resolve(spotifyPlayer);
+            });
+
+            spotifyPlayer.addListener("not_ready", ({ device_id }) => {
+              console.warn("Device went offline:", device_id);
+              spotifyDeviceId = null;
+            });
+
+            // Safari: connect를 사용자 제스처 직후에 호출
+            const connected = await spotifyPlayer.connect();
+
+            if (!connected) {
+              throw new Error("Failed to connect player");
+            }
+
+            console.log("✅ Player connected");
+          } catch (error) {
+            console.error("❌ Player setup failed:", error);
+            resetSpotifyState();
+            reject(error);
+          }
+        });
+
+        return spotifyReadyPromise;
+      }
+
       // 트랙 재생
       async function playTrack(index) {
         if (!playlistTracks || !playlistTracks[index]) return;
 
         const track = playlistTracks[index];
         console.log("▶️ Playing track:", track.name);
+
+        if (isSafari()) {
+          try {
+            await ensureSpotifyPlayerForSafari();
+            hideConnectPrompt();
+          } catch (error) {
+            console.warn("⚠️ Web Playback SDK failed, using iframe fallback");
+            playTrackWithIframe(index);
+            return;
+          }
+        } else {
+          try {
+            await ensureSpotifyPlayer();
+            hideConnectPrompt();
+          } catch (error) {
+            console.error("❌ Spotify player error:", error);
+            showConnectPrompt("connect spotify to play music");
+            return;
+          }
+        }
 
         try {
           console.log("🎧 Ensuring Spotify player...");
