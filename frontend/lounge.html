@@ -503,6 +503,19 @@
       let presenceData = {};
       let currentUserProfile = null;
 
+      let playlistTracks = [];
+      let currentPlayingIndex = -1;
+      let spotifyTimer = null;
+      let spotifyPlayer = null;
+      let spotifyDeviceId = null;
+      let spotifyTransferred = false;
+      let spotifySdkPromise = null;
+      let spotifyReadyPromise = null;
+
+      const spotifyLoginUrl = `/api/spotify/login?next=${encodeURIComponent(
+        window.location.pathname,
+      )}`;
+
       /* ====================== 주제 설정 ====================== */
 
       const TOPICS = {
@@ -831,6 +844,113 @@
             renderUsers(aiUsers, "aiUserList", "ai");
           }
         });
+      }
+
+      /* ====================== Spotify Player 초기화 ====================== */
+
+      async function getSpotifyToken() {
+        const res = await apiCall("/spotify/token");
+        return res.access_token;
+      }
+
+      function loadSpotifySdk() {
+        if (window.Spotify) return Promise.resolve();
+        if (spotifySdkPromise) return spotifySdkPromise;
+
+        spotifySdkPromise = new Promise((resolve) => {
+          window.onSpotifyWebPlaybackSDKReady = () => resolve();
+          const script = document.createElement("script");
+          script.src = "https://sdk.scdn.co/spotify-player.js";
+          document.head.appendChild(script);
+        });
+
+        return spotifySdkPromise;
+      }
+
+      async function ensureSpotifyPlayer() {
+        if (spotifyReadyPromise) return spotifyReadyPromise;
+
+        spotifyReadyPromise = new Promise(async (resolve, reject) => {
+          try {
+            await loadSpotifySdk();
+            await getSpotifyToken();
+          } catch (error) {
+            showConnectPrompt();
+            resetSpotifyState();
+            reject(error);
+            return;
+          }
+
+          spotifyPlayer = new Spotify.Player({
+            name: "About Nine",
+            getOAuthToken: async (cb) => {
+              try {
+                const token = await getSpotifyToken();
+                cb(token);
+              } catch {
+                showConnectPrompt();
+              }
+            },
+            volume: 0.7,
+          });
+
+          spotifyPlayer.addListener("ready", ({ device_id }) => {
+            spotifyDeviceId = device_id;
+            spotifyTransferred = false;
+            resolve(spotifyPlayer);
+          });
+
+          spotifyPlayer.addListener("not_ready", () => {
+            spotifyDeviceId = null;
+          });
+
+          spotifyPlayer.addListener("initialization_error", () => {
+            resetSpotifyState();
+            showConnectPrompt("spotify player failed");
+          });
+
+          spotifyPlayer.addListener("authentication_error", () => {
+            resetSpotifyState();
+            showConnectPrompt();
+          });
+
+          spotifyPlayer.addListener("account_error", () => {
+            resetSpotifyState();
+            showConnectPrompt("spotify premium required");
+          });
+
+          spotifyPlayer.connect();
+        });
+
+        return spotifyReadyPromise;
+      }
+
+      async function ensurePlaybackDevice(token) {
+        if (!spotifyDeviceId || spotifyTransferred) return;
+        await fetch("https://api.spotify.com/v1/me/player", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            device_ids: [spotifyDeviceId],
+            play: false,
+          }),
+        });
+        spotifyTransferred = true;
+      }
+
+      function resetSpotifyState() {
+        if (spotifyPlayer) {
+          spotifyPlayer.disconnect();
+        }
+        spotifyPlayer = null;
+        spotifyDeviceId = null;
+        spotifyTransferred = false;
+        spotifyReadyPromise = null;
+        currentPlayingIndex = -1;
+        clearTimeout(spotifyTimer);
       }
 
       /* ================= 🎵 Spotify Mood Gradient Player ================= */
