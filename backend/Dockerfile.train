@@ -5,6 +5,7 @@ WORKDIR /app
 # System deps (light)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libsndfile1 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt

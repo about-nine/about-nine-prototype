@@ -2,33 +2,33 @@ import os
 from typing import List, Optional
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
+
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
 
 
 class EmbeddingService:
     def __init__(self, model_name: Optional[str] = None):
         self._model_name = model_name or os.getenv(
-            "SENTENCE_TRANSFORMER_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+            "EMBEDDING_MODEL", "text-embedding-3-small"
         )
-        self._model = None
-
-    def _load(self) -> SentenceTransformer:
-        if self._model is None:
-            self._model = SentenceTransformer(self._model_name)
-        return self._model
 
     def encode_text(self, text: str) -> Optional[List[float]]:
         if not text or not text.strip():
             return None
+        if not HAS_OPENAI or not os.getenv("OPENAI_API_KEY"):
+            return None
         try:
-            model = self._load()
-            vec = model.encode(
-                text,
-                normalize_embeddings=True,
-                convert_to_numpy=True,
-                show_progress_bar=False,
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            resp = client.embeddings.create(
+                model=self._model_name,
+                input=text[:8000],  # API 토큰 제한 대비
             )
-            return vec.astype(float).tolist()
+            vec = resp.data[0].embedding
+            return normalize_vector(vec)
         except Exception:
             return None
 

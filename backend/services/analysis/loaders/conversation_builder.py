@@ -1,23 +1,19 @@
-# backend/services/analysis/conversation_builder.py
+# backend/services/analysis/loaders/conversation_builder.py
 
 from typing import List, Dict
 import os
-import whisper
-import threading
+import openai
 
 # -------------------------
-# Whisper lazy loader
+# OpenAI Whisper API client
 # -------------------------
-_model = None
-_model_lock = threading.Lock()
+_client = None
 
-def get_whisper_model():
-    global _model
-    if _model is None:
-        with _model_lock:
-            if _model is None:
-                _model = whisper.load_model("base")
-    return _model
+def get_openai_client():
+    global _client
+    if _client is None:
+        _client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return _client
 
 
 # -------------------------
@@ -27,34 +23,37 @@ def audio_to_segments(
     wav_path: str,
     speaker_id: str,
 ) -> List[Dict]:
-    """
-    단일 화자 오디오 파일 → conversation segment 리스트
-    """
     if not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1024:
         return []
 
-    model = get_whisper_model()
+    client = get_openai_client()
 
     try:
-        result = model.transcribe(
-            wav_path,
-            word_timestamps=False,   # segment 단위면 충분
-            language="en",            # 필요 시 자동 감지 제거
-            fp16=False                # CPU 안정성
-        )
-    except Exception:
+        with open(wav_path, "rb") as f:
+            result = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"],
+                language="ko"
+            )
+    except Exception as e:
+        print(f"⚠️ STT 실패 ({wav_path}): {e}")
         return []
 
     segments = []
-    for seg in result.get("segments", []):
-        text = seg["text"].strip()
+    for seg in (result.segments or []):
+        text = seg.get("text", "").strip() if isinstance(seg, dict) else getattr(seg, "text", "").strip()
         if not text:
             continue
 
+        start = seg.get("start", 0) if isinstance(seg, dict) else getattr(seg, "start", 0)
+        end = seg.get("end", 0) if isinstance(seg, dict) else getattr(seg, "end", 0)
+
         segments.append({
             "speaker": speaker_id,
-            "start": float(seg["start"]),
-            "end": float(seg["end"]),
+            "start": float(start),
+            "end": float(end),
             "text": text
         })
 
@@ -68,23 +67,12 @@ def build_conversation(
     call_id: str,
     speaker_audio_map: Dict[str, str],
 ) -> Dict:
-    """
-    여러 화자의 wav 파일을 받아
-    time 기준으로 정렬된 conversation 생성
-
-    speaker_audio_map = {
-        "uid_1": "/tmp/a.wav",
-        "uid_2": "/tmp/b.wav"
-    }
-    """
-
     all_segments: List[Dict] = []
 
     for speaker_id, wav_path in speaker_audio_map.items():
         segments = audio_to_segments(wav_path, speaker_id)
         all_segments.extend(segments)
 
-    # 시간 기준 정렬
     all_segments.sort(key=lambda x: x["start"])
 
     return {

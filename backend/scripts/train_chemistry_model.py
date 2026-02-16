@@ -28,13 +28,14 @@ def _label_from_go_no_go(go_no_go: Dict) -> int | None:
     if not isinstance(go_no_go, dict) or not go_no_go:
         return None
     values = [v for v in go_no_go.values() if isinstance(v, bool)]
-    if len(values) < 2:
+    if not values:
         return None
+    # 한 명만 응답해도 사용 (데이터 버리지 않음)
     if all(values):
-        return 1
+        return 100       # 양쪽 go
     if all(v is False for v in values):
-        return -1
-    return 0
+        return 0          # 양쪽 no
+    return 50             # 한쪽만 go
 
 
 def build_dataset(talks: List[Dict]) -> List[Dict]:
