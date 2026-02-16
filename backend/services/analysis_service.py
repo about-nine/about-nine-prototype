@@ -606,10 +606,36 @@ class AnalysisService:
 
         go_no_go = _go_no_go_from_talk(talk)
 
+        # 🔥 Convert numpy types to Python native types for Firestore
+        def _sanitize_for_firestore(obj):
+            """Recursively convert numpy types to Python native types"""
+            try:
+                import numpy as np
+                
+                if isinstance(obj, dict):
+                    return {k: _sanitize_for_firestore(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [_sanitize_for_firestore(item) for item in obj]
+                elif isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+                    return int(obj)
+                elif isinstance(obj, (np.floating, np.float64, np.float32)):
+                    return float(obj)
+                elif isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.bool_):
+                    return bool(obj)
+                else:
+                    return obj
+            except ImportError:
+                # numpy not installed, return as-is
+                return obj
+        
+        analysis_sanitized = _sanitize_for_firestore(analysis)
+
         # 4) Persist analysis
         talk_ref.update(
             {
-                "analysis": analysis,
+                "analysis": analysis_sanitized,
                 "analysis_status": "complete",
                 "analysis_completed_at": _now_ms(),
             }
@@ -632,7 +658,7 @@ class AnalysisService:
                     # don't fail the whole pipeline on profile update
                     pass
 
-        return _finish({"success": True, "talk_id": talk_id, "analysis": analysis})
+        return _finish({"success": True, "talk_id": talk_id, "analysis": analysis_sanitized})
 
 
 # Convenience function to match your existing import style
