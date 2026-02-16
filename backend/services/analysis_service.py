@@ -489,31 +489,60 @@ class AnalysisService:
 
         # 2) Run analyzers
         try:
+            print(f"🔬 [{talk_id}] Starting analyzers...")
+            
+            print(f"  → rhythm_analyzer...")
             rhythm_out = self.rhythm.score(conversation_obj)
+            print(f"  ✓ rhythm done")
+            
+            print(f"  → discourse_analyzer...")
             discourse_out = self.discourse.score(conversation_obj)
+            print(f"  ✓ discourse done")
+            
+            print(f"  → romantic_analyzer...")
             romantic_out = self.romantic.score(conversation_obj)
+            print(f"  ✓ romantic done")
+            
+            print(f"  → lsm_analyzer...")
             lsm_out = self.lsm.score(conversation_obj)
+            print(f"  ✓ lsm done")
+            
+            print(f"  → preference_analyzer...")
             pref_out = self.preference.score(conversation_obj)
+            print(f"  ✓ preference done")
 
-            # Pitch analyzer can accept:
-            #  - per-speaker wavs (best)
-            #  - or list of wav paths (fallback)
+            # Pitch analyzer
+            print(f"  → pitch_analyzer...")
             disable_pitch = os.getenv("ANALYSIS_DISABLE_PITCH", "").lower() in {"1", "true", "yes"}
             if disable_pitch:
                 pitch_out = {
                     "scores": {"voice_pitch": 50.0},
                     "raw": {"score": 50, "error": "disabled", "method": "disabled"},
                 }
+                print(f"  ⊘ pitch disabled")
             else:
                 pitch_out = self.pitch.score(
                     wav_paths_by_speaker=wav_paths_by_speaker if isinstance(wav_paths_by_speaker, dict) else {},
                     wav_paths=wav_paths_all if isinstance(wav_paths_all, list) else [],
                     call_id=talk_id,
                 )
+                print(f"  ✓ pitch done")
+            
+            print(f"✅ [{talk_id}] All analyzers complete")
+            
         except Exception as e:
+            import traceback
+            err_trace = traceback.format_exc()
+            print(f"❌ [{talk_id}] Analyzer failed: {e}")
+            print(err_trace)
             try:
                 talk_ref.update(
-                    {"analysis_error": str(e), "analysis_failed_at": _now_ms(), "analysis_status": "failed"}
+                    {
+                        "analysis_error": f"analyzer: {str(e)}",
+                        "analysis_trace": err_trace,
+                        "analysis_failed_at": _now_ms(),
+                        "analysis_status": "failed",
+                    }
                 )
             except Exception:
                 pass

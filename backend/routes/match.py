@@ -10,13 +10,64 @@ match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 
 def _run_analysis_background(talk_id: str):
-    """백그라운드 스레드에서 분석 실행"""
+    """백그라운드 스레드에서 분석 실행 (타임아웃 + 상세 로깅)"""
+    from backend.services.firestore import get_firestore
+    db = get_firestore()
+    talk_ref = db.collection("talk_history").document(talk_id)
+    
+    print(f"🚀 [{talk_id}] Starting background analysis...")
+    
     try:
         from backend.services.analysis_service import analyze_talk_pipeline
-        analyze_talk_pipeline(talk_id, force=True)
+        import signal
+        
+        class TimeoutError(Exception):
+            pass
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Analysis timeout after 180 seconds")
+        
+        # Set 3-minute timeout (POSIX only - works on Render/Linux)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(180)
+        
+        try:
+            print(f"🔬 [{talk_id}] Calling analyze_talk_pipeline...")
+            result = analyze_talk_pipeline(talk_id, force=True)
+            signal.alarm(0)  # Cancel timeout
+            
+            if result.get("success"):
+                print(f"✅ [{talk_id}] Analysis complete")
+            else:
+                print(f"⚠️ [{talk_id}] Analysis failed: {result.get('message')}")
+                
+        except TimeoutError as e:
+            signal.alarm(0)
+            print(f"⏰ [{talk_id}] Analysis timeout after 180s")
+            try:
+                talk_ref.update({
+                    "analysis_error": "timeout after 180s",
+                    "analysis_failed_at": int(time.time() * 1000),
+                    "analysis_status": "failed",
+                })
+            except Exception:
+                pass
+        
     except Exception as e:
-        # 에러는 analysis_service 내부에서 Firestore에 기록됨
-        print(f"⚠️ Background analysis failed for {talk_id}: {e}")
+        import traceback
+        err_trace = traceback.format_exc()
+        print(f"❌ [{talk_id}] Background analysis exception: {e}")
+        print(err_trace)
+        
+        try:
+            talk_ref.update({
+                "analysis_error": str(e),
+                "analysis_trace": err_trace,
+                "analysis_failed_at": int(time.time() * 1000),
+                "analysis_status": "failed",
+            })
+        except Exception:
+            pass
 
 
 @match_bp.route("/analyze-talk", methods=["POST"])
@@ -42,8 +93,11 @@ def analyze_talk():
             return "complete"
         status = talk.get("analysis_status")
         started = int(talk.get("analysis_started_at") or 0)
+        
+        # 🔥 3분 이상 "running"이면 재시도 허용
         if status == "running" and started and now_ms - started < 180_000:
             return "running"
+        
         transaction.update(
             talk_ref,
             {"analysis_status": "running", "analysis_started_at": now_ms},
@@ -63,7 +117,7 @@ def analyze_talk():
     if state == "running":
         return jsonify(success=True, talk_id=talk_id, status="running")
 
-    # 백그라운드 스레드로 분석 시작 → 즉시 응답
+    # 백그라운드 스레드로 분석 시작
     thread = threading.Thread(
         target=_run_analysis_background,
         args=(talk_id,),

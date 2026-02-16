@@ -177,17 +177,17 @@
       const ANALYSIS_MAX_PROGRESS = 95;
       let progressLabel = "analyzing...";
       let talkId = getFromLocal("current_talk_id");
-      let stepLog = new Set();
       let stepQueue = [];
       let stepActive = false;
       let stepTimer = null;
-      const STEP_DELAY_MS = 450;
+      let lastStepMessage = "";
+      const STEP_DELAY_MS = 350;
       const stepEl = document.getElementById("analysisSteps");
 
       function resetSteps() {
-        stepLog = new Set();
         stepQueue = [];
         stepActive = false;
+        lastStepMessage = "";
         if (stepTimer) {
           clearTimeout(stepTimer);
           stepTimer = null;
@@ -196,9 +196,9 @@
       }
 
       function addStep(message) {
-        if (!stepEl || stepLog.has(message)) return;
-        stepLog.add(message);
-        stepQueue.push(message);
+        if (!stepEl || !message || message === lastStepMessage) return;
+        lastStepMessage = message;
+        stepQueue = [message];
         flushStepQueue();
       }
 
@@ -206,37 +206,36 @@
         if (stepActive || stepQueue.length === 0) return;
         stepActive = true;
         const message = stepQueue.shift();
+        stepEl.innerHTML = "";
         const line = document.createElement("div");
         line.className = "analysis-step";
         line.textContent = message;
         stepEl.appendChild(line);
         stepTimer = setTimeout(() => {
           stepActive = false;
-          flushStepQueue();
+          if (stepQueue.length > 0) flushStepQueue();
         }, STEP_DELAY_MS);
       }
 
       function updateStepsFromTalk(talk) {
         if (!talk) return;
-        if (!hasRecordings(talk) && !hasConversation(talk)) {
-          addStep("Checking recording uploads...");
-        } else if (hasRecordings(talk) && !hasConversation(talk)) {
-          addStep("Building your transcript from audio...");
-        } else if (hasConversation(talk)) {
-          addStep("Transcript ready. Analyzing conversation...");
-        }
-
-        if (talk?.analysis_status === "running") {
-          addStep("Crunching chemistry signals...");
-        }
-
-        if (talk?.analysis_status === "failed") {
-          addStep("Still processing. We'll keep trying...");
-        }
+        let message = "";
 
         if (isAnalysisComplete(talk)) {
-          addStep("Analysis complete. You're ready to continue.");
+          message = "Analysis complete. You're ready to continue.";
+        } else if (talk?.analysis_status === "failed") {
+          message = "Still processing. We'll keep trying...";
+        } else if (talk?.analysis_status === "running") {
+          message = "Crunching chemistry signals...";
+        } else if (!hasRecordings(talk) && !hasConversation(talk)) {
+          message = "Checking recording uploads...";
+        } else if (hasRecordings(talk) && !hasConversation(talk)) {
+          message = "Building your transcript from audio...";
+        } else if (hasConversation(talk)) {
+          message = "Transcript ready. Analyzing conversation...";
         }
+
+        if (message) addStep(message);
       }
 
       /* ================= 초기화 ================= */
