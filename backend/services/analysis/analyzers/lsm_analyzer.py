@@ -102,7 +102,9 @@ def _category_rates(texts: List[str]) -> Dict[str, float]:
     return rates
 
 
-def _lsm_category(rate_a: float, rate_b: float) -> float:
+def _lsm_category(rate_a: float, rate_b: float, min_rate=0.005) -> float:
+    if rate_a + rate_b < min_rate:
+        return None  # 이 카테고리는 계산에서 제외
     return 1.0 - abs(rate_a - rate_b) / (rate_a + rate_b + EPS)
 
 
@@ -142,12 +144,18 @@ def analyze(data: Dict) -> Dict[str, Any]:
 
     rates_a = _category_rates(speakers_texts[speaker_ids[0]])
     rates_b = _category_rates(speakers_texts[speaker_ids[1]])
+    
+    total_a = sum(rates_a.values())
+    total_b = sum(rates_b.values())
+    if total_a < 0.01 and total_b < 0.01:
+        return {"score": 50, "error": "no_function_words_detected", "method": "default"}
 
     category_scores = {}
     for cat in LSM_CATEGORIES:
         category_scores[cat] = round(_lsm_category(rates_a[cat], rates_b[cat]), 4)
 
-    total = sum(category_scores.values()) / len(category_scores)
+    valid_scores = [s for s in category_scores.values() if s is not None]
+    total = sum(valid_scores) / len(valid_scores) if valid_scores else 0.5
     score_100 = int(round(total * 100))
 
     return {

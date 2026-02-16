@@ -23,6 +23,7 @@ Fallback: librosa 없으면 기본값 50점 반환
 import os
 import numpy as np
 from typing import Dict, Any, List, Optional
+from scipy.signal import correlate
 
 try:
     import librosa
@@ -104,41 +105,24 @@ def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=400, vad_db=-35):
     }
 
 
-def _weighted_corr(a, b, w):
-    w = w.astype(float)
-    if w.sum() < 10:
-        return 0.0
-    aw = a[w > 0]
-    bw = b[w > 0]
-    if np.std(aw) < 1e-8 or np.std(bw) < 1e-8:
-        return 0.0
-    return float(np.corrcoef(aw, bw)[0, 1])
-
-
 def _best_lag_sync(z_a, z_b, mask_a, mask_b, max_lag_frames=200):
     L = min(len(z_a), len(z_b))
-    a, b = z_a[:L], z_b[:L]
-    ma, mb = mask_a[:L], mask_b[:L]
-
-    best_corr = -1.0
-    best_lag = 0
-
-    for lag in range(-max_lag_frames, max_lag_frames + 1):
-        if lag < 0:
-            aa, bb = a[-lag:], b[:L + lag]
-            w = ma[-lag:] & mb[:L + lag]
-        elif lag > 0:
-            aa, bb = a[:L - lag], b[lag:]
-            w = ma[:L - lag] & mb[lag:]
-        else:
-            aa, bb, w = a, b, ma & mb
-
-        c = _weighted_corr(aa, bb, w)
-        if c > best_corr:
-            best_corr = c
-            best_lag = lag
-
-    return float(best_corr), int(best_lag)
+    a = z_a[:L] * mask_a[:L]
+    b = z_b[:L] * mask_b[:L]
+    
+    corr = correlate(a, b, mode='full')
+    # normalize
+    norm = np.sqrt(correlate(a*a, np.ones_like(b)) * correlate(np.ones_like(a), b*b))
+    norm[norm < 1e-8] = 1e-8
+    corr_norm = corr / norm
+    
+    center = L - 1
+    valid = corr_norm[center - max_lag_frames:center + max_lag_frames + 1]
+    best_idx = np.argmax(valid)
+    best_lag = best_idx - max_lag_frames
+    best_corr = float(valid[best_idx])
+    
+    return best_corr, best_lag
 
 
 def _corr_to_score(corr: float) -> int:

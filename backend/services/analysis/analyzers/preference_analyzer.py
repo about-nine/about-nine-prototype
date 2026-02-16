@@ -41,6 +41,10 @@ PREFERENCE_INDICATORS = {
         r"i (?:always|usually|often) (?:eat|drink|watch|listen|go)",
         r"nothing beats",
         r"the best (?:thing|part)",
+        r"(?:that's |it's |so )(?:great|awesome|amazing|the best)",
+        r"i (?:go|do|have) (?:that |this |it )?(?:all the time|every ?(?:day|week))",
+        r"(?:oh )?(?:yeah|yes),? i (?:know|love) (?:that|this)",
+        r"(?:have you (?:tried|been to)|you should try)",
     ],
     "negative": [
         r"i (?:don't|do not|never) (?:like|enjoy|eat|watch)",
@@ -257,6 +261,10 @@ def analyze(data: Dict) -> Dict[str, Any]:
     all_prefs = _extract_preferences(utterances, speakers)
     prefs_a = [p for p in all_prefs if p.speaker == sp_a]
     prefs_b = [p for p in all_prefs if p.speaker == sp_b]
+    
+    # prefs가 하나도 없으면 기본값
+    if not prefs_a and not prefs_b:
+        return {"score": 50, "error": "no_preferences_detected", "method": "default"}
 
     # 2. Explicit agreements
     agreement_count = _count_agreements(utterances)

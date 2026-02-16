@@ -108,13 +108,21 @@ Respond ONLY in JSON format:
 
 
 def _analyze_fallback(data: Dict) -> Dict[str, Any]:
-    """Fallback: 평균 단어 수 기반 (API 실패 시)"""
     texts = [u["text"] for u in data["conversation"] if u.get("text")]
-    if not texts:
-        return {"score": 0, "method": "fallback"}
-    avg_len = sum(len(t.split()) for t in texts) / len(texts)
-    score = min(100, int(avg_len * 2))
-    return {"score": score, "avg_word_count": round(avg_len, 2), "method": "fallback"}
+    if len(texts) < 2:
+        return {"score": 50, "method": "fallback"}
+    
+    sims = []
+    for i in range(1, len(texts)):
+        words_prev = set(texts[i-1].lower().split())
+        words_curr = set(texts[i].lower().split())
+        union = words_prev | words_curr
+        if union:
+            sims.append(len(words_prev & words_curr) / len(union))
+    
+    avg_sim = sum(sims) / len(sims) if sims else 0
+    score = min(100, int(avg_sim * 150))  # 스케일 조정
+    return {"score": score, "method": "fallback"}
 
 
 def analyze(data: Dict) -> Dict[str, Any]:

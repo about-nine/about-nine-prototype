@@ -122,6 +122,28 @@ ROMANTIC_SEED_EXAMPLES = {
         "intensity": 0.95,
         "directness": 0.85,
     },
+    "Curiosity": {  # 상대에 대한 호기심
+        "examples": [
+            "Tell me more about that",
+            "What do you do for fun",
+            "How did you get into that",
+            "That's really interesting",
+        ],
+    },
+    "Playfulness": {  # 장난/유머
+        "examples": [
+            "Haha you're so funny",
+            "Stop you're making me laugh",
+            "Are you always this charming",
+        ],
+    },
+    "Availability": {  # 다시 만날 의향
+        "examples": [
+            "We should definitely do this again",
+            "Are you free this weekend",
+            "I'd love to continue this conversation",
+        ],
+    },
 }
 
 MUTUALITY_PATTERNS = [
