@@ -262,7 +262,7 @@
           const ratio = elapsed / ANALYSIS_EXPECTED_MS;
           progressValue = Math.min(
             ANALYSIS_MAX_PROGRESS,
-            Math.max(2, Math.floor(ratio * 100))
+            Math.max(2, Math.floor(ratio * 100)),
           );
           textEl.textContent = `analyzing... ${progressValue}%`;
           barEl.style.width = `${progressValue}%`;
@@ -308,11 +308,7 @@
       }
 
       function getAnalysisStart(talk) {
-        return (
-          talk?.analysis_started_at ||
-          talk?.analysis?.analyzed_at ||
-          null
-        );
+        return talk?.analysis_started_at || talk?.analysis?.analyzed_at || null;
       }
 
       async function waitForAnalysis(maxMs = 120000, intervalMs = 2000) {
@@ -343,11 +339,13 @@
         startProgress();
 
         try {
+          // 1. talk_history 저장
           if (!talkId) {
             await saveTalkHistory();
             console.log("✅ talk_history 저장 완료");
           }
 
+          // 2. 이미 분석 완료됐는지 확인
           const talk = await fetchTalk();
           if (isAnalysisComplete(talk)) {
             stopProgress(true);
@@ -355,26 +353,63 @@
             return;
           }
 
-          const startedAt = getAnalysisStart(talk);
-          if (startedAt) {
-            progressStartAt = startedAt;
+          // 3. 분석 요청 (fire-and-forget — 서버가 즉시 응답)
+          try {
+            await analyzeTalk();
+          } catch (e) {
+            console.warn("⚠️ 분석 요청 실패, polling으로 대기:", e);
           }
 
-          await analyzeTalk();
-
-          const ok = await waitForAnalysis();
-          if (!ok) {
-            throw new Error("analysis timeout");
+          // 4. Polling으로 완료 대기 (최대 3분)
+          const ok = await waitForAnalysis(180000, 3000);
+          if (ok) {
+            console.log("✅ 분석 완료");
+            stopProgress(true);
+            nextBtn.disabled = false;
+          } else {
+            // 타임아웃이어도 next 허용 (talk-result에서 이어서 대기)
+            console.warn("⚠️ 분석 타임아웃, talk-result에서 계속 대기");
+            stopProgress(false);
+            nextBtn.disabled = false;
           }
-
-          console.log("✅ 분석 완료");
-          stopProgress(true);
-          nextBtn.disabled = false;
         } catch (e) {
           console.error("❌ 분석 처리 실패:", e);
           stopProgress(false);
+          // 실패해도 next 허용
           nextBtn.disabled = false;
         }
+      }
+
+      async function waitForAnalysis(maxMs = 180000, intervalMs = 3000) {
+        const start = Date.now();
+        while (Date.now() - start < maxMs) {
+          await sleep(intervalMs);
+          try {
+            const talk = await fetchTalk();
+
+            if (talk?.analysis_status === "failed") {
+              // 실패 시 한 번 재시도
+              console.warn("⚠️ 분석 실패, 재시도 중...");
+              try {
+                await analyzeTalk();
+              } catch (_) {}
+              await sleep(5000);
+              continue;
+            }
+
+            const startedAt = getAnalysisStart(talk);
+            if (startedAt && progressStartAt !== startedAt) {
+              progressStartAt = startedAt;
+            }
+
+            if (isAnalysisComplete(talk)) {
+              return true;
+            }
+          } catch (e) {
+            console.warn("⚠️ polling 에러:", e);
+          }
+        }
+        return false;
       }
     </script>
   </body>

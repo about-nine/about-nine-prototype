@@ -588,13 +588,21 @@
       <div class="result-messages chat-messages" id="messages"></div>
 
       <!-- 입력 영역 (드롭다운 + 전송) -->
-      <div class="result-input-area chat-input-area chat-input-wrap" id="inputArea" style="display: none">
+      <div
+        class="result-input-area chat-input-area chat-input-wrap"
+        id="inputArea"
+        style="display: none"
+      >
         <select class="choice-dropdown chat-select" id="choiceSelect">
           <option value="">go or no</option>
           <option value="go">go</option>
           <option value="no">no</option>
         </select>
-        <button class="send-btn chat-send" id="sendBtn" onclick="submitChoice()"></button>
+        <button
+          class="send-btn chat-send"
+          id="sendBtn"
+          onclick="submitChoice()"
+        ></button>
       </div>
 
       <!-- Go to Lounge 버튼 -->
@@ -658,7 +666,6 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-
       const userId = getFromLocal("user_id");
       let effectiveUserId = userId;
       let talkId = getFromLocal("current_talk_id");
@@ -716,7 +723,7 @@
         const partnerName = getPartnerName();
         await addCocoMessage(
           `here's your chemistry score with ${partnerName}`,
-          1000
+          1000,
         );
 
         await addScoreCard(1500);
@@ -839,7 +846,9 @@
           // 🔎 서버 기준으로 내 user_id 재확인 (로컬 user_id가 어긋난 경우 대응)
           try {
             const rtdbRes = await fetchGoNoGoStatus();
-            const latest = rtdbRes ? null : await apiCall(`/talks/history/${talkId}`);
+            const latest = rtdbRes
+              ? null
+              : await apiCall(`/talks/history/${talkId}`);
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(latest?.talk);
             const ids = Object.keys(goNoGo);
             if (ids.length === 1) {
@@ -929,8 +938,12 @@
             }
 
             const participants =
-              rtdbRes?.participants || data?.participants || talkData?.participants || {};
-            const expectedCount = Object.values(participants).filter(Boolean).length || 2;
+              rtdbRes?.participants ||
+              data?.participants ||
+              talkData?.participants ||
+              {};
+            const expectedCount =
+              Object.values(participants).filter(Boolean).length || 2;
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(data);
             const goNoGoValues = Object.values(goNoGo).filter(
               (v) => v === true || v === false,
@@ -962,12 +975,17 @@
             }
 
             const partnerValue =
-              partnerId && Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
+              partnerId &&
+              Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
                 ? goNoGo[partnerId]
                 : null;
 
             const partnerResponse =
-              partnerValue === true ? "go" : partnerValue === false ? "no" : null;
+              partnerValue === true
+                ? "go"
+                : partnerValue === false
+                  ? "no"
+                  : null;
 
             if (partnerResponse) {
               clearInterval(partnerPollTimer);
@@ -981,7 +999,9 @@
               }
             }
           } catch (error) {
-            if (String(error?.message || "").includes("talk_history not found")) {
+            if (
+              String(error?.message || "").includes("talk_history not found")
+            ) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
               removeFromLocal("current_talk_id");
@@ -994,14 +1014,13 @@
         }, 2000);
       }
 
-
       /* ================= 둘 다 GO ================= */
 
       async function handleBothGo() {
         await addCocoMessage("alright, this is the profile", 500);
         await addCocoMessage(
           `this might ease a bit of your curiosity about ${getPartnerName()}`,
-          1000
+          1000,
         );
 
         await addProfileCard(1500);
@@ -1037,12 +1056,12 @@
         if (partnerResponse === "no") {
           await addCocoMessage(
             `sorry, ${getPartnerName()} decided not to continue`,
-            500
+            500,
           );
         } else {
           await addCocoMessage(
             "that's okay, there are more people waiting for you",
-            500
+            500,
           );
         }
 
@@ -1067,12 +1086,16 @@
           preference_sync: "Preference Sync",
           voice_pitch: "Voice Pitch",
         };
-        return mapping[key] || key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+        return (
+          mapping[key] ||
+          key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())
+        );
       }
 
       function renderAnalysisFeatures() {
         const analysis = talkData?.analysis || {};
-        const baseFeatures = analysis?.features || analysis?.details?.features || {};
+        const baseFeatures =
+          analysis?.features || analysis?.details?.features || {};
         const keys = [
           "turn_taking",
           "flow_continuity",
@@ -1083,7 +1106,11 @@
         ];
 
         const entries = keys
-          .filter((key) => typeof baseFeatures[key] === "number" && !Number.isNaN(baseFeatures[key]))
+          .filter(
+            (key) =>
+              typeof baseFeatures[key] === "number" &&
+              !Number.isNaN(baseFeatures[key]),
+          )
           .map((key) => [key, baseFeatures[key]]);
 
         if (!entries.length) {
@@ -1116,13 +1143,15 @@
         document.getElementById("sheetScore").textContent =
           score === null ? "--" : score;
         document.getElementById("sheetRating").textContent = rating;
-        document.getElementById("sheetKeywords").innerHTML = renderAnalysisFeatures();
+        document.getElementById("sheetKeywords").innerHTML =
+          renderAnalysisFeatures();
 
         openSheet("analysisSheet");
       };
 
       async function fetchProfileRounds() {
-        const partnerId = partner?.id || partner?.user_id || partner?.uid || partner?.userId;
+        const partnerId =
+          partner?.id || partner?.user_id || partner?.uid || partner?.userId;
         if (!partnerId) return null;
         try {
           const res = await apiCall(`/talks/history-detail/${partnerId}`);
@@ -1144,7 +1173,10 @@
           .map(([roundKey, info]) => {
             const roundNum = Number(roundKey);
             const label = roundLabel(info?.topic);
-            const scoreText = info?.score === null || info?.score === undefined ? "--" : info.score;
+            const scoreText =
+              info?.score === null || info?.score === undefined
+                ? "--"
+                : info.score;
             return `
               <div class="profile-trial-item">
                 <div class="profile-trial-title">${getOrdinal(roundNum)} trial (${label})</div>
@@ -1193,11 +1225,15 @@
         const gender = partner?.gender || profile?.gender || "--";
         const drink = profile?.drink || partner?.drink || "Not provided";
         const smoke = profile?.smoke || partner?.smoke || "Not provided";
-        const marijuana = profile?.marijuana || partner?.marijuana || "Not provided";
+        const marijuana =
+          profile?.marijuana || partner?.marijuana || "Not provided";
         const bio = partner?.bio || profile?.bio || "Not provided";
-        const moreInfo = partner?.more_info || profile?.more_info || "Not provided";
+        const moreInfo =
+          partner?.more_info || profile?.more_info || "Not provided";
         const phone = partner?.phone || profile?.phone || "--";
-        const playlist = Array.isArray(partner?.playlist) ? partner.playlist : [];
+        const playlist = Array.isArray(partner?.playlist)
+          ? partner.playlist
+          : [];
 
         const lockedAfterRound1 = unlocked < 2;
         const lockedAfterRound2 = unlocked < 3;
@@ -1361,7 +1397,7 @@
         return Math.max(0, Math.min(100, Math.round(raw)));
       }
 
-      async function waitForAnalysis(maxAttempts = 15, intervalMs = 1000) {
+      async function waitForAnalysis(maxAttempts = 60, intervalMs = 3000) {
         for (let i = 0; i < maxAttempts; i += 1) {
           await sleep(intervalMs);
           try {
@@ -1369,6 +1405,38 @@
             if (!res.success || !res.talk) continue;
 
             const fresh = res.talk;
+
+            // stuck 감지: running이 3분 넘었으면 재시도
+            if (fresh.analysis_status === "running") {
+              const started = fresh.analysis_started_at || 0;
+              const elapsed = Date.now() - started;
+              if (elapsed > 180000) {
+                console.warn("⚠️ 분석 stuck 감지, 재시도 요청");
+                try {
+                  await fetch("/api/match/analyze-talk", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ talk_id: talkId }),
+                  });
+                } catch (_) {}
+              }
+              continue;
+            }
+
+            // 실패 시 자동 재시도 (최대 2회)
+            if (fresh.analysis_status === "failed" && i < 40) {
+              console.warn("⚠️ 분석 실패, 재시도 요청");
+              try {
+                await fetch("/api/match/analyze-talk", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ talk_id: talkId }),
+                });
+              } catch (_) {}
+              await sleep(5000);
+              continue;
+            }
+
             const score = extractAnalysisScore(fresh);
             if (score !== null) {
               talkData = fresh;
@@ -1377,7 +1445,9 @@
               return;
             }
           } catch (error) {
-            if (String(error?.message || "").includes("talk_history not found")) {
+            if (
+              String(error?.message || "").includes("talk_history not found")
+            ) {
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");
@@ -1386,7 +1456,8 @@
           }
         }
         if (analysisScore === null) {
-          alert("analysis is taking longer than expected");
+          // 최종 실패 시에도 UI는 유지 (score "--"로 표시)
+          console.error("❌ 분석 최종 실패");
         }
       }
 
