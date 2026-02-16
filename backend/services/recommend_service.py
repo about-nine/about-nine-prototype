@@ -68,7 +68,7 @@ def _matches_orientation(orientation, target_gender) -> bool:
     return False
 
 
-def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
+def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     if not uid:
         return []
 

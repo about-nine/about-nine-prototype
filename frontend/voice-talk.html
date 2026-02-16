@@ -659,6 +659,9 @@
 
       async function initCall() {
         try {
+          AgoraRTC.setParameter("AUDIO_ENABLE_AEC", true);
+          AgoraRTC.setParameter("AUDIO_ENABLE_NS", true);
+          AgoraRTC.setParameter("AUDIO_ENABLE_AGC", true);
           agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
           // 원격 오디오 자동 구독 설정
@@ -670,6 +673,7 @@
               if (mediaType === "audio") {
                 const remoteTrack = user.audioTrack;
                 if (remoteTrack) {
+                  remoteTrack.setVolume(70);  // 기본 100 → 70으로 낮춤
                   remoteTrack.play();
                   console.log(`✅ 상대방 오디오 재생 시작: uid=${user.uid}`);
                 } else {
@@ -715,6 +719,10 @@
               AEC: true,
               ANS: true,
               AGC: true,
+              // 🔥 에코 제거 추가 옵션
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
             });
             console.log("✅ 마이크 트랙 생성 완료");
           } catch (micErr) {
