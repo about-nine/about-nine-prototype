@@ -65,7 +65,7 @@
         text-align: center;
       }
 
-      /* ================= 🎨 그라데이션 무드 플레이어 ================= */
+      /* ================= 🎨 앨범 커버 그라데이션 플레이어 ================= */
 
       .modal {
         display: none;
@@ -93,7 +93,7 @@
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       }
 
-      /* 🌊 그라데이션 배경 (전체 플레이리스트 무드) */
+      /* 🌊 앨범 커버 기반 그라데이션 배경 */
       .playlist-mood-gradient {
         position: absolute;
         inset: 0;
@@ -292,7 +292,7 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
       }
 
-      /* 🎵 Spotify Embed iframe (높이 감소: 152px -> 100px) */
+      /* 🎵 Spotify Embed iframe */
       #spotifyEmbedContainer {
         width: 100%;
         border-radius: 12px;
@@ -462,10 +462,10 @@
     <!-- 하단 네비게이션 -->
     <nav id="bottomNav" class="bottom-nav"></nav>
 
-    <!-- 🎵 새로운 Spotify 모달 -->
+    <!-- 🎵 Spotify 모달 -->
     <div class="modal" id="playlistModal">
       <div class="modal-content">
-        <!-- 🌊 플레이리스트 전체 무드 그라데이션 -->
+        <!-- 🌊 앨범 커버 기반 그라데이션 -->
         <div class="playlist-mood-gradient"></div>
 
         <!-- 오버레이 컨텐츠 -->
@@ -486,12 +486,23 @@
             </div>
           </div>
 
-          <!-- 하단 컨트롤 (Spotify iframe 표시) -->
+          <!-- 하단 컨트롤 -->
           <div class="modal-footer">
-            <div class="playback-status" id="playbackStatus">
+            <!-- Connect Spotify 버튼 (로그인 전) -->
+            <button
+              class="spotify-connect"
+              id="spotifyConnectBtn"
+              style="display: none"
+            >
+              connect spotify
+            </button>
+            
+            <!-- 재생 상태 (로그인 후) -->
+            <div class="playback-status" id="playbackStatus" style="display: none">
               tap any track to play
             </div>
-            <!-- Spotify Embed iframe -->
+            
+            <!-- Spotify Embed iframe (재생 중) -->
             <div id="spotifyEmbedContainer" style="display: none">
               <iframe
                 id="spotifyEmbed"
@@ -520,6 +531,7 @@
       let selectedUser = null;
       let presenceData = {};
       let currentUserProfile = null;
+      let isSpotifyConnected = false;
 
       let playlistTracks = [];
       let currentPlayingIndex = -1;
@@ -588,6 +600,19 @@
       function isAIMatchTime() {
         const h = new Date().getHours();
         return h >= 20 || h < 2;
+      }
+
+      /* ====================== Spotify 연결 상태 확인 ====================== */
+
+      async function checkSpotifyConnection() {
+        try {
+          const res = await apiCall("/spotify/status");
+          isSpotifyConnected = res.connected || false;
+          console.log("🎵 Spotify connected:", isSpotifyConnected);
+        } catch (error) {
+          console.error("Failed to check Spotify status:", error);
+          isSpotifyConnected = false;
+        }
       }
 
       /* ====================== 위치 업데이트 ====================== */
@@ -859,70 +884,188 @@
         });
       }
 
-      /* ================= 🎵 Spotify Mood Gradient Player ================= */
+      /* ================= 🎨 앨범 커버 색상 추출 ================= */
 
-      // Audio features → 그라데이션 색상 생성
-      function featuresToGradient(features) {
-        const { energy, danceability, valence, acousticness, tempo } = features;
-
-        // Energy + Danceability → 기본 Hue (0-360)
-        const baseHue = Math.round(energy * 180 + danceability * 90);
-
-        // Valence → Saturation (기분이 좋을수록 채도 높음)
-        const saturation = Math.round(45 + valence * 35);
-
-        // Acousticness → Lightness (어쿠스틱할수록 밝음)
-        const lightness = Math.round(40 + acousticness * 20);
-
-        // Tempo → 색상 간격 (템포가 빠를수록 대비 강함)
-        const hueShift = tempo > 120 ? 60 : 40;
-
-        // 3가지 색상으로 부드러운 그라데이션
-        return [
-          `hsl(${baseHue}, ${saturation}%, ${lightness}%)`,
-          `hsl(${(baseHue + hueShift) % 360}, ${saturation + 8}%, ${lightness + 5}%)`,
-          `hsl(${(baseHue + hueShift * 2) % 360}, ${saturation - 5}%, ${lightness - 3}%)`,
-        ];
-      }
-
-      // 기본 그라데이션 (features 없을 때)
-      function getDefaultGradient() {
-        return ["#667eea", "#764ba2", "#f093fb"];
-      }
-
-      // Track ID 추출
-      function extractTrackIds(tracks) {
-        const ids = [];
+      async function extractColorsFromAlbumCovers(tracks) {
+        console.log("🎨 Extracting colors from album covers...");
         
-        for (const track of tracks || []) {
-          let trackId = null;
+        const albumImages = tracks
+          .map(track => track.album_image || track.albumImage)
+          .filter(img => img);
+        
+        if (albumImages.length === 0) {
+          console.log("⚠️ No album images found, using default gradient");
+          return ["#667eea", "#764ba2", "#f093fb"];
+        }
+
+        console.log(`📸 Found ${albumImages.length} album images`);
+
+        try {
+          // 처음 3개 앨범 커버에서 색상 추출
+          const colors = await Promise.all(
+            albumImages.slice(0, 3).map(imageUrl => extractDominantColor(imageUrl))
+          );
           
-          // 1. track.id 직접 확인 (22자리 Spotify ID)
-          if (track?.id && /^[A-Za-z0-9]{22}$/.test(track.id)) {
-            trackId = track.id;
-          }
-          // 2. track.uri 파싱 (spotify:track:XXXXXX)
-          else if (track?.uri && track.uri.startsWith("spotify:track:")) {
-            trackId = track.uri.split(":")[2];
-          }
-          // 3. track.spotify_uri 파싱
-          else if (track?.spotify_uri && track.spotify_uri.startsWith("spotify:track:")) {
-            trackId = track.spotify_uri.split(":")[2];
-          }
-          // 4. track.spotifyUri 파싱
-          else if (track?.spotifyUri && track.spotifyUri.startsWith("spotify:track:")) {
-            trackId = track.spotifyUri.split(":")[2];
+          const validColors = colors.filter(c => c !== null);
+          
+          if (validColors.length === 0) {
+            console.log("⚠️ Color extraction failed, using default gradient");
+            return ["#667eea", "#764ba2", "#f093fb"];
           }
           
-          if (trackId && /^[A-Za-z0-9]{22}$/.test(trackId)) {
-            ids.push(trackId);
+          // 3개 미만이면 기본 색상으로 채우기
+          while (validColors.length < 3) {
+            validColors.push(["#667eea", "#764ba2", "#f093fb"][validColors.length]);
+          }
+          
+          console.log("✅ Extracted colors:", validColors);
+          return validColors;
+        } catch (error) {
+          console.error("❌ Color extraction error:", error);
+          return ["#667eea", "#764ba2", "#f093fb"];
+        }
+      }
+
+      async function extractDominantColor(imageUrl) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              // 작은 크기로 리샘플링 (성능 향상)
+              const size = 50;
+              canvas.width = size;
+              canvas.height = size;
+              
+              ctx.drawImage(img, 0, 0, size, size);
+              const imageData = ctx.getImageData(0, 0, size, size);
+              const pixels = imageData.data;
+              
+              // 색상 빈도 계산
+              const colorCounts = {};
+              
+              for (let i = 0; i < pixels.length; i += 4) {
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+                const a = pixels[i + 3];
+                
+                // 투명하거나 너무 어둡거나 밝은 색상 제외
+                if (a < 128) continue;
+                if (r + g + b < 50) continue;
+                if (r + g + b > 720) continue;
+                
+                // 색상을 그룹화 (정확도를 위해)
+                const rr = Math.floor(r / 32) * 32;
+                const gg = Math.floor(g / 32) * 32;
+                const bb = Math.floor(b / 32) * 32;
+                
+                const key = `${rr},${gg},${bb}`;
+                colorCounts[key] = (colorCounts[key] || 0) + 1;
+              }
+              
+              // 가장 빈번한 색상 찾기
+              let maxCount = 0;
+              let dominantColor = null;
+              
+              for (const [color, count] of Object.entries(colorCounts)) {
+                if (count > maxCount) {
+                  maxCount = count;
+                  dominantColor = color;
+                }
+              }
+              
+              if (dominantColor) {
+                const [r, g, b] = dominantColor.split(',').map(Number);
+                
+                // 채도와 밝기 조정 (더 선명한 색상)
+                const hsl = rgbToHsl(r, g, b);
+                hsl.s = Math.min(1, hsl.s * 1.3); // 채도 증가
+                hsl.l = Math.max(0.35, Math.min(0.65, hsl.l)); // 밝기 조정
+                
+                const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+                const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
+                
+                resolve(hex);
+              } else {
+                resolve(null);
+              }
+            } catch (error) {
+              console.error("Canvas error:", error);
+              resolve(null);
+            }
+          };
+          
+          img.onerror = () => resolve(null);
+          
+          // CORS 우회를 위해 프록시 사용 (필요시)
+          img.src = imageUrl;
+        });
+      }
+
+      // RGB to HSL 변환
+      function rgbToHsl(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        
+        if (max === min) {
+          h = s = 0;
+        } else {
+          const d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          
+          switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
           }
         }
         
-        return ids;
+        return { h, s, l };
       }
 
-      // 재생 시간 포맷
+      // HSL to RGB 변환
+      function hslToRgb(h, s, l) {
+        let r, g, b;
+        
+        if (s === 0) {
+          r = g = b = l;
+        } else {
+          const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+          };
+          
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          
+          r = hue2rgb(p, q, h + 1/3);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1/3);
+        }
+        
+        return {
+          r: Math.round(r * 255),
+          g: Math.round(g * 255),
+          b: Math.round(b * 255)
+        };
+      }
+
+      /* ================= 🎵 플레이어 함수 ================= */
+
       function formatDuration(ms) {
         if (!ms) return "--:--";
         const minutes = Math.floor(ms / 60000);
@@ -930,7 +1073,6 @@
         return `${minutes}:${seconds.toString().padStart(2, "0")}`;
       }
 
-      // 트랙 리스트 렌더링
       function renderTrackList(tracks) {
         const container = document.getElementById("trackListContainer");
 
@@ -981,7 +1123,6 @@
         });
       }
 
-      // 재생 UI 업데이트
       function updatePlayingUI() {
         document.querySelectorAll(".track-item").forEach((item, idx) => {
           if (idx === currentPlayingIndex) {
@@ -992,7 +1133,6 @@
         });
       }
 
-      // 그라데이션 적용
       function applyMoodGradient(colors) {
         const gradientEl = document.querySelector(".playlist-mood-gradient");
         if (!gradientEl) return;
@@ -1001,24 +1141,17 @@
         gradientEl.style.setProperty("--mood-c2", colors[1]);
         gradientEl.style.setProperty("--mood-c3", colors[2]);
         
-        console.log("🎨 Applied gradient:", colors);
+        console.log("🎨 Applied gradient from album covers:", colors);
       }
 
-      // 모달 열기
       async function openPlaylist(u) {
-        console.log("\n═══════════════════════════════════════");
-        console.log("🎵 OPENING PLAYLIST - " + new Date().toLocaleTimeString());
-        console.log("═══════════════════════════════════════");
+        console.log("🎵 Opening playlist for:", u.first_name || u.firstName);
         
         selectedUser = u;
         playlistTracks = u.playlist || [];
         currentPlayingIndex = -1;
 
         const firstName = u.first_name || u.firstName;
-
-        console.log("👤 User:", firstName);
-        console.log("📀 Total tracks:", playlistTracks.length);
-        console.log("📋 Playlist data:", playlistTracks);
 
         // 제목 설정
         document.getElementById("playlistTitle").textContent =
@@ -1029,10 +1162,10 @@
         // 모달 표시
         document.getElementById("playlistModal").classList.add("active");
 
-        // iframe 숨기기
+        // UI 초기화
         document.getElementById("spotifyEmbedContainer").style.display = "none";
-        document.getElementById("playbackStatus").style.display = "block";
-        document.getElementById("playbackStatus").textContent = "loading...";
+        document.getElementById("spotifyConnectBtn").style.display = "none";
+        document.getElementById("playbackStatus").style.display = "none";
 
         // 로딩 표시
         document.getElementById("trackListContainer").innerHTML = `
@@ -1042,100 +1175,48 @@
     </div>
   `;
 
-        // 기본 그라데이션
-        console.log("🎨 Applying default gradient...");
-        applyMoodGradient(getDefaultGradient());
-
-        if (playlistTracks.length === 0) {
-          console.log("⚠️ No tracks in playlist");
-          renderTrackList([]);
-          document.getElementById("playbackStatus").textContent = "no tracks available";
-          console.log("═══════════════════════════════════════\n");
-          return;
+        // 앨범 커버 기반 그라데이션 생성
+        if (playlistTracks.length > 0) {
+          const colors = await extractColorsFromAlbumCovers(playlistTracks);
+          applyMoodGradient(colors);
         }
 
-        // 트랙 리스트 먼저 렌더링
+        // 트랙 리스트 렌더링
         renderTrackList(playlistTracks);
-        document.getElementById("playbackStatus").textContent = "tap any track to play";
 
-        // Audio Features 분석
-        console.log("───────────────────────────────────────");
-        console.log("🎨 AUDIO FEATURES REQUEST");
-        console.log("───────────────────────────────────────");
-
-        try {
-          const trackIds = extractTrackIds(playlistTracks);
-          console.log("🔑 Extracted track IDs:", trackIds);
-
-          if (trackIds.length === 0) {
-            console.warn("⚠️ No valid track IDs found!");
-            console.log("📋 Sample track:", JSON.stringify(playlistTracks[0], null, 2));
-            console.log("═══════════════════════════════════════\n");
-            return;
-          }
-
-          // Preview URL 로깅
-          console.log("───────────────────────────────────────");
-          console.log("🎧 TRACK DETAILS (first 3):");
-          playlistTracks.slice(0, 3).forEach((track, idx) => {
-            console.log(`\nTrack ${idx + 1}:`);
-            console.log(`  Name: ${track?.name || 'Unknown'}`);
-            console.log(`  Artist: ${track?.artist || 'Unknown'}`);
-            console.log(`  ID: ${track?.id || 'N/A'}`);
-            console.log(`  URI: ${track?.uri || track?.spotify_uri || track?.spotifyUri || 'N/A'}`);
-            console.log(`  Preview URL: ${track?.preview_url || track?.previewUrl || 'N/A'}`);
-          });
-          console.log("───────────────────────────────────────");
-
-          console.log("📡 Calling /api/spotify/audio-features...");
-          console.log("📤 Payload:", { track_ids: trackIds });
-
-          const startTime = performance.now();
-          const features = await apiCall("/spotify/audio-features", "POST", {
-            track_ids: trackIds,
-          });
-          const duration = Math.round(performance.now() - startTime);
-
-          console.log(`📥 Response received (${duration}ms)`);
-          console.log("🎨 Received features:", features);
-
-          if (!features || typeof features !== "object") {
-            console.error("❌ Invalid response type");
-            console.log("═══════════════════════════════════════\n");
-            return;
-          }
-
-          // 기본값 체크
-          const isDefault = (
-            features.energy === 0.5 &&
-            features.danceability === 0.5 &&
-            features.valence === 0.5 &&
-            features.acousticness === 0.5 &&
-            features.tempo === 120
-          );
-
-          if (isDefault) {
-            console.warn("⚠️ ============================================");
-            console.warn("⚠️ RECEIVED DEFAULT VALUES!");
-            console.warn("⚠️ Backend API call likely failed");
-            console.warn("⚠️ Check server logs for more details");
-            console.warn("⚠️ ============================================");
-          } else {
-            console.log("✅ Valid features received");
-            const colors = featuresToGradient(features);
-            console.log("🌈 Generated colors:", colors);
-            applyMoodGradient(colors);
-          }
-        } catch (error) {
-          console.error("❌ ERROR in audio features:");
-          console.error("  Message:", error.message);
-          console.error("  Stack:", error.stack);
+        // Spotify 연결 상태에 따라 UI 표시
+        if (!isSpotifyConnected) {
+          document.getElementById("spotifyConnectBtn").style.display = "block";
+        } else {
+          document.getElementById("playbackStatus").style.display = "block";
+          document.getElementById("playbackStatus").textContent = "tap any track to play";
         }
-
-        console.log("═══════════════════════════════════════\n");
       }
 
-      // Spotify iframe으로 트랙 재생
+      function extractTrackIds(tracks) {
+        const ids = [];
+        
+        for (const track of tracks || []) {
+          let trackId = null;
+          
+          if (track?.id && /^[A-Za-z0-9]{22}$/.test(track.id)) {
+            trackId = track.id;
+          } else if (track?.uri && track.uri.startsWith("spotify:track:")) {
+            trackId = track.uri.split(":")[2];
+          } else if (track?.spotify_uri && track.spotify_uri.startsWith("spotify:track:")) {
+            trackId = track.spotify_uri.split(":")[2];
+          } else if (track?.spotifyUri && track.spotifyUri.startsWith("spotify:track:")) {
+            trackId = track.spotifyUri.split(":")[2];
+          }
+          
+          if (trackId && /^[A-Za-z0-9]{22}$/.test(trackId)) {
+            ids.push(trackId);
+          }
+        }
+        
+        return ids;
+      }
+
       function playTrack(index) {
         if (!playlistTracks || !playlistTracks[index]) return;
 
@@ -1143,12 +1224,11 @@
         const trackId = track.id || extractTrackIds([track])[0];
 
         if (!trackId) {
-          console.error("❌ No track ID for:", track.name);
+          console.error("❌ No track ID found");
           return;
         }
 
-        console.log("▶️ Playing track:", track.name);
-        console.log("  Track ID:", trackId);
+        console.log("▶️ Playing:", track.name);
 
         // Spotify embed URL
         const embedUrl = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0`;
@@ -1157,11 +1237,10 @@
         const iframe = document.getElementById("spotifyEmbed");
         iframe.src = embedUrl;
 
-        // iframe 표시, status 숨기기
+        // UI 업데이트
         document.getElementById("spotifyEmbedContainer").style.display = "block";
         document.getElementById("playbackStatus").style.display = "none";
 
-        // UI 업데이트
         currentPlayingIndex = index;
         updatePlayingUI();
 
@@ -1173,7 +1252,6 @@
         }, 30000);
       }
 
-      // 모달 닫기
       function closePlaylistModal() {
         console.log("🔒 Closing modal");
         
@@ -1185,7 +1263,6 @@
           iframe.src = "";
         }
         document.getElementById("spotifyEmbedContainer").style.display = "none";
-        document.getElementById("playbackStatus").style.display = "block";
         
         currentPlayingIndex = -1;
         selectedUser = null;
@@ -1208,6 +1285,12 @@
         }
       });
 
+      document
+        .getElementById("spotifyConnectBtn")
+        ?.addEventListener("click", () => {
+          window.location.href = spotifyLoginUrl;
+        });
+
       /* ====================== init ====================== */
 
       window.onload = async () => {
@@ -1228,6 +1311,7 @@
 
         renderBottomNav("lounge");
         await updateLocation();
+        await checkSpotifyConnection();
         listenPresence();
         await loadUsers();
         if (isAIMatchTime()) {
