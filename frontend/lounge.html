@@ -257,29 +257,6 @@
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
 
-      .spotify-connect {
-        width: 100%;
-        padding: 14px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, #1db954, #1ed760);
-        color: white;
-        border: none;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
-      }
-
-      .spotify-connect:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(29, 185, 84, 0.4);
-      }
-
-      .spotify-connect:active {
-        transform: translateY(0);
-      }
-
       /* 로딩 상태 */
       .loading-playlist {
         padding: 60px 20px;
@@ -428,16 +405,7 @@
 
           <!-- 하단 컨트롤 -->
           <div class="modal-footer">
-            <!-- Connect Spotify 버튼 (로그인 전) -->
-            <button
-              class="spotify-connect"
-              id="spotifyConnectBtn"
-              style="display: none"
-            >
-              connect spotify
-            </button>
-            
-            <!-- 재생 상태 (로그인 후) -->
+            <!-- 재생 상태 -->
             <div class="playback-status" id="playbackStatus" style="display: none">
               tap any track to play
             </div>
@@ -471,15 +439,10 @@
       let selectedUser = null;
       let presenceData = {};
       let currentUserProfile = null;
-      let isSpotifyConnected = false;
 
       let playlistTracks = [];
       let currentPlayingIndex = -1;
       let spotifyTimer = null;
-
-      const spotifyLoginUrl = `/api/spotify/login?next=${encodeURIComponent(
-        window.location.pathname,
-      )}`;
 
       /* ====================== 주제 설정 ====================== */
 
@@ -540,19 +503,6 @@
       function isAIMatchTime() {
         const h = new Date().getHours();
         return h >= 20 || h < 2;
-      }
-
-      /* ====================== Spotify 연결 상태 확인 ====================== */
-
-      async function checkSpotifyConnection() {
-        try {
-          const res = await apiCall("/spotify/status");
-          isSpotifyConnected = res.connected || false;
-          console.log("🎵 Spotify connected:", isSpotifyConnected);
-        } catch (error) {
-          console.error("Failed to check Spotify status:", error);
-          isSpotifyConnected = false;
-        }
       }
 
       /* ====================== 위치 업데이트 ====================== */
@@ -1120,7 +1070,6 @@
 
         // UI 초기화
         document.getElementById("spotifyEmbedContainer").style.display = "none";
-        document.getElementById("spotifyConnectBtn").style.display = "none";
         document.getElementById("playbackStatus").style.display = "none";
 
         // 로딩 표시
@@ -1140,13 +1089,10 @@
         // 트랙 리스트 렌더링
         renderTrackList(playlistTracks);
 
-        // Spotify 연결 상태에 따라 UI 표시
-        if (!isSpotifyConnected) {
-          document.getElementById("spotifyConnectBtn").style.display = "block";
-        } else {
-          document.getElementById("playbackStatus").style.display = "block";
-          document.getElementById("playbackStatus").textContent = "tap any track to play";
-        }
+        // 재생 안내 표시
+        document.getElementById("playbackStatus").style.display = "block";
+        document.getElementById("playbackStatus").textContent =
+          "tap any track to play";
 
         updatePlayingUI();
       }
@@ -1239,12 +1185,6 @@
         }
       });
 
-      document
-        .getElementById("spotifyConnectBtn")
-        ?.addEventListener("click", () => {
-          window.location.href = spotifyLoginUrl;
-        });
-
       /* ====================== init ====================== */
 
       window.onload = async () => {
@@ -1265,7 +1205,6 @@
 
         renderBottomNav("lounge");
         await updateLocation();
-        await checkSpotifyConnection();
         listenPresence();
         await loadUsers();
         if (isAIMatchTime()) {
