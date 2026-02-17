@@ -189,6 +189,10 @@
           if (fromProfile) {
             navigateTo("edit-profile.html");
           } else {
+            if (getFromLocal("just_completed_onboarding")) {
+              saveToLocal("show_ai_closed_screen", true);
+              removeFromLocal("just_completed_onboarding");
+            }
             navigateTo("lounge.html");
           }
         } catch (error) {
@@ -203,6 +207,10 @@
         if (fromProfile) {
           navigateTo("edit-profile.html");
         } else {
+          if (getFromLocal("just_completed_onboarding")) {
+            saveToLocal("show_ai_closed_screen", true);
+            removeFromLocal("just_completed_onboarding");
+          }
           navigateTo("lounge.html");
         }
       }

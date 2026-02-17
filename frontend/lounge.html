@@ -40,6 +40,83 @@
         overflow: hidden;
       }
 
+      body.ai-closed {
+        overflow: hidden;
+      }
+
+      .ai-closed-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        background: linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 100%);
+        z-index: 12000;
+        color: var(--text-primary);
+      }
+
+      .ai-closed-overlay.active {
+        display: flex;
+      }
+
+      .ai-closed-inner {
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        padding: calc(48px + var(--safe-top)) 24px
+          calc(40px + var(--safe-bottom));
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+      }
+
+      .ai-closed-brand {
+        font-family: "Merriweather", serif;
+        font-size: 22px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.55);
+        text-align: left;
+        letter-spacing: -0.5px;
+      }
+
+      .ai-closed-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        text-align: center;
+        padding: 0 12px;
+      }
+
+      .ai-closed-title {
+        font-family: "Merriweather", serif;
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1.5;
+      }
+
+      .ai-closed-asterisk {
+        font-size: 44px;
+        line-height: 1;
+        letter-spacing: -2px;
+      }
+
+      .ai-closed-subtitle {
+        font-family: "Merriweather", serif;
+        font-size: 20px;
+        font-weight: 400;
+      }
+
+      .ai-closed-link {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        text-decoration: underline;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 4px 6px;
+      }
+
       .subtitle-text {
         text-align: center;
         color: var(--text-secondary);
@@ -447,6 +524,23 @@
     <!-- 하단 네비게이션 -->
     <nav id="bottomNav" class="bottom-nav"></nav>
 
+    <!-- AI 매칭 시간 외 안내 -->
+    <div class="ai-closed-overlay" id="aiClosedOverlay" aria-hidden="true">
+      <div class="ai-closed-inner">
+        <div class="ai-closed-brand">about nine</div>
+        <div class="ai-closed-body">
+          <div class="ai-closed-title">
+            just to let you know,<br />ai match officially begins at 9 p.m.
+          </div>
+          <div class="ai-closed-asterisk">*</div>
+          <div class="ai-closed-subtitle">see you then</div>
+          <button class="ai-closed-link" id="aiClosedGoBtn" type="button">
+            go to lounge
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 🎵 Spotify 모달 -->
     <div class="modal" id="playlistModal">
       <div class="modal-content">
@@ -572,6 +666,39 @@
         const h = new Date().getHours();
         return h >= 21 || h < 2;
       }
+
+      const AI_CLOSED_FLAG = "show_ai_closed_screen";
+
+      function shouldShowAiClosedOverlay() {
+        const flag = getFromLocal(AI_CLOSED_FLAG);
+        if (!flag) return false;
+        if (isAIMatchTime()) {
+          removeFromLocal(AI_CLOSED_FLAG);
+          return false;
+        }
+        return true;
+      }
+
+      function showAiClosedOverlay() {
+        const overlay = document.getElementById("aiClosedOverlay");
+        if (!overlay) return;
+        overlay.classList.add("active");
+        overlay.setAttribute("aria-hidden", "false");
+        document.body.classList.add("ai-closed");
+      }
+
+      function hideAiClosedOverlay() {
+        const overlay = document.getElementById("aiClosedOverlay");
+        if (!overlay) return;
+        overlay.classList.remove("active");
+        overlay.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("ai-closed");
+        removeFromLocal(AI_CLOSED_FLAG);
+      }
+
+      document
+        .getElementById("aiClosedGoBtn")
+        ?.addEventListener("click", hideAiClosedOverlay);
 
       /* ====================== 위치 업데이트 ====================== */
 
@@ -1314,6 +1441,10 @@
           switchTab("lounge");
         }
         listenMatchRequests();
+
+        if (shouldShowAiClosedOverlay()) {
+          showAiClosedOverlay();
+        }
       };
     </script>
   </body>
