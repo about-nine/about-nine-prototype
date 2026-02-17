@@ -174,7 +174,6 @@
 
       .track-item:hover {
         background: rgba(255, 255, 255, 0.15);
-        transform: translateX(4px);
         border-color: rgba(255, 255, 255, 0.25);
       }
 
@@ -227,13 +226,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-      }
-
-      .track-duration {
-        font-size: 13px;
-        color: rgba(255, 255, 255, 0.5);
-        flex-shrink: 0;
-        font-weight: 500;
       }
 
       /* Play indicator */
@@ -299,11 +291,12 @@
         overflow: hidden;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #000;
       }
 
       #spotifyEmbed {
         width: 100%;
-        height: 100px;
+        height: 152px;
         border: none;
         display: block;
       }
@@ -1066,13 +1059,6 @@
 
       /* ================= 🎵 플레이어 함수 ================= */
 
-      function formatDuration(ms) {
-        if (!ms) return "--:--";
-        const minutes = Math.floor(ms / 60000);
-        const seconds = Math.floor((ms % 60000) / 1000);
-        return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-      }
-
       function renderTrackList(tracks) {
         const container = document.getElementById("trackListContainer");
 
@@ -1090,9 +1076,6 @@
           .map((track, index) => {
             const name = track?.name || "Unknown Track";
             const artist = track?.artist || "Unknown Artist";
-            const duration = formatDuration(
-              track?.duration_ms || track?.durationMs,
-            );
 
             return `
         <div class="track-item" data-index="${index}">
@@ -1106,7 +1089,6 @@
             <span></span>
             <span></span>
           </div>
-          <div class="track-duration">${duration}</div>
         </div>
       `;
           })
@@ -1244,12 +1226,7 @@
         currentPlayingIndex = index;
         updatePlayingUI();
 
-        // 자동 넘김 (30초)
         clearTimeout(spotifyTimer);
-        spotifyTimer = setTimeout(() => {
-          const nextIndex = (index + 1) % playlistTracks.length;
-          playTrack(nextIndex);
-        }, 30000);
       }
 
       function closePlaylistModal() {
