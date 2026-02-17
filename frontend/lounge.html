@@ -890,7 +890,7 @@
         console.log("🎨 Extracting colors from album covers...");
         
         const albumImages = tracks
-          .map(track => track.album_image || track.albumImage)
+          .map(track => track.image)
           .filter(img => img);
         
         if (albumImages.length === 0) {
