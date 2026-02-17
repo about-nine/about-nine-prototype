@@ -1053,17 +1053,13 @@
       /* ================= 한 명이라도 NO ================= */
 
       async function handleSomeoneNo(partnerResponse) {
-        if (partnerResponse === "no") {
-          await addCocoMessage(
-            `sorry, ${getPartnerName()} decided not to continue`,
-            500,
-          );
-        } else {
-          await addCocoMessage(
-            "that's okay, there are more people waiting for you",
-            500,
-          );
-        }
+        await addCocoMessage(
+          "well, well, it looks like this one wasn't your one and only",
+          500,
+        );
+        await addCocoMessage("the match ends here", 900);
+        await addCocoMessage("we'll recommend someone new for you", 1300);
+        await addCocoMessage("see u later", 1700);
 
         showLoungeButton(1000);
       }
