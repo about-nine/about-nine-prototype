@@ -559,7 +559,7 @@
           document.getElementById("aiUserList").innerHTML = `
       <div class="empty-state-box">
         <img src="images/asterisk.png" alt="asterisk">
-        <div class="message">the matching begins at 8 p.m.<br>and closes at 2 a.m.</div>
+        <div class="message">the matching begins at 9 p.m.<br>and closes at 2 a.m.</div>
       </div>
     `;
           return;
@@ -570,7 +570,7 @@
 
       function isAIMatchTime() {
         const h = new Date().getHours();
-        return h >= 20 || h < 2;
+        return h >= 21 || h < 2;
       }
 
       /* ====================== 위치 업데이트 ====================== */
@@ -671,7 +671,7 @@
           )
           .join("");
 
-        const duration = 36;
+        const duration = 48;
 
         return `<div class="playlist-ticker" style="--ticker-duration: ${duration}s;"><div class="playlist-ticker-track"><div class="playlist-ticker-seq">${itemsHtml}</div><div class="playlist-ticker-seq" aria-hidden="true">${itemsHtml}</div></div></div>`;
       }
