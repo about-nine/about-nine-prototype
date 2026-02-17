@@ -30,6 +30,16 @@
         font-size: 14px;
       }
 
+      .user-card {
+        overflow: hidden;
+      }
+
+      .user-card-content {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+      }
+
       .subtitle-text {
         text-align: center;
         color: var(--text-secondary);
@@ -46,6 +56,8 @@
         line-height: 1.3;
         position: relative;
         pointer-events: none;
+        width: 100%;
+        max-width: 100%;
       }
 
       .playlist-ticker.empty {
@@ -700,10 +712,10 @@
             return `
       <div class="user-card-wrapper ${online ? "" : "offline"}">
         <div 
-          class="card"
+          class="card user-card"
           ${!isAi ? `data-id="${uid}" style="cursor:pointer; padding-right:120px;"` : `style="padding-right:120px;"`}
         >
-          <div style="flex:1;">
+          <div class="user-card-content">
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:16px;font-weight:600;">
                 ${u.first_name || u.firstName} ${u.last_name || u.lastName}
