@@ -77,33 +77,43 @@ def _robust_z(x, mask=None):
     return np.clip(z, -5, 5)
 
 
-def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=400, vad_db=-35):
-    """WAV 파일에서 F0 + VAD 마스크 추출"""
-    y, file_sr = librosa.load(path, sr=None, mono=True)
-    if file_sr != sr:
-        y = librosa.resample(y, orig_sr=file_sr, target_sr=sr)
-
+# ✅ 수정: librosa.load에서 바로 sr 지정 + duration 제한 + 청크 처리
+def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=300, vad_db=-35, max_duration=3600):
+    
+    # 파일 길이 먼저 확인
+    info = librosa.get_duration(path=path)
+    duration = min(info, max_duration)
+    
+    # sr 직접 지정으로 로드 (resample 단계 제거)
+    y, _ = librosa.load(path, sr=sr, mono=True, duration=duration)
+    
     hop_length = int(sr * hop_ms / 1000)
     frame_length = hop_length * 4
-
-    rms = _rms_envelope(y, frame_length, hop_length)
-    vad = _vad_mask(rms, thresh_db=vad_db)
-
-    f0, _, _ = librosa.pyin(
-        y, fmin=fmin, fmax=fmax, sr=sr,
-        frame_length=frame_length, hop_length=hop_length,
-    )
-
-    f0_clean = f0.copy()
-    f0_clean[~vad] = np.nan
-
+    chunk_samples = sr * 30  # 30초 청크
+    
+    all_f0, all_vad = [], []
+    
+    for start in range(0, len(y), chunk_samples):
+        chunk = y[start:start + chunk_samples]
+        rms = _rms_envelope(chunk, frame_length, hop_length)
+        vad = _vad_mask(rms, thresh_db=vad_db)
+        f0, _, _ = librosa.pyin(
+            chunk, fmin=fmin, fmax=fmax, sr=sr,
+            frame_length=frame_length, hop_length=hop_length,
+        )
+        all_f0.append(f0)
+        all_vad.append(vad)
+        del chunk
+    
+    del y
+    import gc; gc.collect()
+    
     return {
-        "f0": f0_clean,
-        "vad": vad,
+        "f0": np.concatenate(all_f0),
+        "vad": np.concatenate(all_vad),
         "hop_length": hop_length,
         "sr": sr,
     }
-
 
 def _best_lag_sync(z_a, z_b, mask_a, mask_b, max_lag_frames=200):
     L = min(len(z_a), len(z_b))
@@ -162,17 +172,21 @@ def _analyze_separate_wavs(wav_paths: Dict[str, str], call_id: str) -> Dict[str,
     corr, lag = _best_lag_sync(z_a, z_b, voiced_a, voiced_b, max_lag_frames=max_lag)
     score = _corr_to_score(corr)
 
-    # Median F0 per speaker
     f0_a_voiced = f0_a[np.isfinite(f0_a)]
     f0_b_voiced = f0_b[np.isfinite(f0_b)]
+    median_a = round(float(np.median(f0_a_voiced)), 2) if len(f0_a_voiced) > 0 else 0
+    median_b = round(float(np.median(f0_b_voiced)), 2) if len(f0_b_voiced) > 0 else 0
+
+    del f0_a, f0_b, z_a, z_b, f0_a_i, f0_b_i, voiced_a, voiced_b, f0_a_voiced, f0_b_voiced
+    import gc; gc.collect()
 
     return {
         "score": score,
         "best_corr": round(corr, 4),
         "best_lag_frames": lag,
         "best_lag_seconds": round(lag * hop_sec, 4),
-        "speaker_a_median_hz": round(float(np.median(f0_a_voiced)), 2) if len(f0_a_voiced) > 0 else 0,
-        "speaker_b_median_hz": round(float(np.median(f0_b_voiced)), 2) if len(f0_b_voiced) > 0 else 0,
+        "speaker_a_median_hz": median_a,
+        "speaker_b_median_hz": median_b,
         "method": "separate_wavs",
     }
 

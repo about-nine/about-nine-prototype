@@ -76,6 +76,7 @@ class AudioBuilder:
                     "uid": uid,
                     "wav_path": wav_path,
                     "speaker_hint": f"uid_{uid}" if uid else None,
+                    "_temp_wav": True,  # ✅ 임시 생성 표시
                 }
             )
 

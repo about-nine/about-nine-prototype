@@ -74,15 +74,11 @@ def _write_wav_np(data: np.ndarray, sr: int, path: str):
     w.close()
 
 
-def _compute_rms_frames(data: np.ndarray, sr: int, frame_ms: int = 30) -> np.ndarray:
-    """프레임별 RMS 에너지 계산"""
+def _compute_rms_frames(data, sr, frame_ms=30):
     frame_size = int(sr * frame_ms / 1000)
     n_frames = len(data) // frame_size
-    rms = np.zeros(n_frames)
-    for i in range(n_frames):
-        chunk = data[i * frame_size:(i + 1) * frame_size]
-        rms[i] = np.sqrt(np.mean(chunk ** 2))
-    return rms
+    frames = data[:n_frames * frame_size].reshape(n_frames, frame_size)
+    return np.sqrt(np.mean(frames ** 2, axis=1))
 
 
 def _vad_segments(

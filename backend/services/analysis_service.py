@@ -336,6 +336,7 @@ class AnalysisService:
             return
         try:
             shutil.rmtree(target_dir, ignore_errors=True)
+            print(f"🗑️ [{talk_id}] Cleaned up temp recordings")  # ✅ 로그 추가
         except Exception:
             pass
 
@@ -521,12 +522,19 @@ class AnalysisService:
                 }
                 print(f"  ⊘ pitch disabled")
             else:
+                # ✅ pitch 분석 직후 wav 참조 해제
                 pitch_out = self.pitch.score(
                     wav_paths_by_speaker=wav_paths_by_speaker if isinstance(wav_paths_by_speaker, dict) else {},
                     wav_paths=wav_paths_all if isinstance(wav_paths_all, list) else [],
                     call_id=talk_id,
                 )
                 print(f"  ✓ pitch done")
+                
+            # ✅ 추가: pitch 끝나면 즉시 wav 참조 해제 + 로컬 파일 삭제
+            wav_paths_all = []
+            wav_paths_by_speaker = {}
+            self._cleanup_local_recordings(talk_id)  # ← 여기서 한번 더 호출
+            import gc; gc.collect()
             
             print(f"✅ [{talk_id}] All analyzers complete")
             
