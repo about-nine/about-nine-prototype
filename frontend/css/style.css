@@ -17,6 +17,7 @@
   --error-red: #ff6b6b;
   --success-green: #4ecb71;
   --border-color: #4a4a4a;
+  --overlay-bg: rgba(0, 0, 0, 0.9);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -321,7 +322,7 @@ a:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--overlay-bg);
   display: flex;
   justify-content: center;
   align-items: center;
