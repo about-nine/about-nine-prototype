@@ -292,7 +292,7 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
       }
 
-      /* 🎵 Spotify Embed iframe (모든 브라우저 공통) */
+      /* 🎵 Spotify Embed iframe (높이 감소: 152px -> 100px) */
       #spotifyEmbedContainer {
         width: 100%;
         border-radius: 12px;
@@ -303,7 +303,7 @@
 
       #spotifyEmbed {
         width: 100%;
-        height: 152px;
+        height: 100px;
         border: none;
         display: block;
       }
@@ -890,7 +890,7 @@
         return ["#667eea", "#764ba2", "#f093fb"];
       }
 
-      // Track ID 추출 (개선됨)
+      // Track ID 추출
       function extractTrackIds(tracks) {
         const ids = [];
         
@@ -1001,22 +1001,24 @@
         gradientEl.style.setProperty("--mood-c2", colors[1]);
         gradientEl.style.setProperty("--mood-c3", colors[2]);
         
-        console.log("🎨 Applied gradient colors:", colors);
+        console.log("🎨 Applied gradient:", colors);
       }
 
-      // 모달 열기 - 개선된 버전
+      // 모달 열기
       async function openPlaylist(u) {
+        console.log("\n═══════════════════════════════════════");
+        console.log("🎵 OPENING PLAYLIST - " + new Date().toLocaleTimeString());
+        console.log("═══════════════════════════════════════");
+        
         selectedUser = u;
         playlistTracks = u.playlist || [];
         currentPlayingIndex = -1;
 
         const firstName = u.first_name || u.firstName;
 
-        console.log("═══════════════════════════════════════");
-        console.log("🎵 OPENING PLAYLIST");
-        console.log("═══════════════════════════════════════");
         console.log("👤 User:", firstName);
         console.log("📀 Total tracks:", playlistTracks.length);
+        console.log("📋 Playlist data:", playlistTracks);
 
         // 제목 설정
         document.getElementById("playlistTitle").textContent =
@@ -1048,6 +1050,7 @@
           console.log("⚠️ No tracks in playlist");
           renderTrackList([]);
           document.getElementById("playbackStatus").textContent = "no tracks available";
+          console.log("═══════════════════════════════════════\n");
           return;
         }
 
@@ -1055,86 +1058,81 @@
         renderTrackList(playlistTracks);
         document.getElementById("playbackStatus").textContent = "tap any track to play";
 
-        // ========== Audio Features API 호출 (개선됨) ==========
+        // Audio Features 분석
         console.log("───────────────────────────────────────");
-        console.log("🎨 AUDIO FEATURES ANALYSIS");
+        console.log("🎨 AUDIO FEATURES REQUEST");
         console.log("───────────────────────────────────────");
 
         try {
           const trackIds = extractTrackIds(playlistTracks);
           console.log("🔑 Extracted track IDs:", trackIds);
-          console.log("📊 Track ID count:", trackIds.length);
 
           if (trackIds.length === 0) {
             console.warn("⚠️ No valid track IDs found!");
-            console.log("📋 Sample track structure:");
-            console.log(JSON.stringify(playlistTracks[0], null, 2));
+            console.log("📋 Sample track:", JSON.stringify(playlistTracks[0], null, 2));
+            console.log("═══════════════════════════════════════\n");
             return;
           }
 
-          // Preview URL 확인
+          // Preview URL 로깅
           console.log("───────────────────────────────────────");
-          console.log("🎧 PREVIEW URL CHECK");
-          console.log("───────────────────────────────────────");
+          console.log("🎧 TRACK DETAILS (first 3):");
           playlistTracks.slice(0, 3).forEach((track, idx) => {
-            console.log(`Track ${idx + 1}: "${track?.name || 'Unknown'}"`);
-            console.log(`  - ID: ${track?.id || 'N/A'}`);
-            console.log(`  - URI: ${track?.uri || track?.spotify_uri || track?.spotifyUri || 'N/A'}`);
-            console.log(`  - Preview URL: ${track?.preview_url || track?.previewUrl || 'N/A'}`);
+            console.log(`\nTrack ${idx + 1}:`);
+            console.log(`  Name: ${track?.name || 'Unknown'}`);
+            console.log(`  Artist: ${track?.artist || 'Unknown'}`);
+            console.log(`  ID: ${track?.id || 'N/A'}`);
+            console.log(`  URI: ${track?.uri || track?.spotify_uri || track?.spotifyUri || 'N/A'}`);
+            console.log(`  Preview URL: ${track?.preview_url || track?.previewUrl || 'N/A'}`);
           });
           console.log("───────────────────────────────────────");
 
-          console.log("📡 Calling /spotify/audio-features API...");
-          console.log("📤 Request:", { track_ids: trackIds });
+          console.log("📡 Calling /api/spotify/audio-features...");
+          console.log("📤 Payload:", { track_ids: trackIds });
 
-          const startTime = Date.now();
+          const startTime = performance.now();
           const features = await apiCall("/spotify/audio-features", "POST", {
             track_ids: trackIds,
           });
-          const duration = Date.now() - startTime;
+          const duration = Math.round(performance.now() - startTime);
 
           console.log(`📥 Response received (${duration}ms)`);
-          console.log("📊 Response data:", features);
+          console.log("🎨 Received features:", features);
 
           if (!features || typeof features !== "object") {
-            console.error("❌ Invalid response:", features);
+            console.error("❌ Invalid response type");
+            console.log("═══════════════════════════════════════\n");
             return;
           }
 
-          // Feature 값 로깅
-          console.log("───────────────────────────────────────");
-          console.log("📈 FEATURE VALUES:");
-          console.log(`  Energy:       ${(features.energy || 0).toFixed(3)}`);
-          console.log(`  Danceability: ${(features.danceability || 0).toFixed(3)}`);
-          console.log(`  Valence:      ${(features.valence || 0).toFixed(3)}`);
-          console.log(`  Acousticness: ${(features.acousticness || 0).toFixed(3)}`);
-          console.log(`  Tempo:        ${(features.tempo || 0).toFixed(1)} BPM`);
-          console.log("───────────────────────────────────────");
-
           // 기본값 체크
-          const isDefaultValues =
+          const isDefault = (
             features.energy === 0.5 &&
             features.danceability === 0.5 &&
             features.valence === 0.5 &&
             features.acousticness === 0.5 &&
-            features.tempo === 120;
+            features.tempo === 120
+          );
 
-          if (isDefaultValues) {
-            console.warn("⚠️ WARNING: Received default fallback values!");
+          if (isDefault) {
+            console.warn("⚠️ ============================================");
+            console.warn("⚠️ RECEIVED DEFAULT VALUES!");
             console.warn("⚠️ Backend API call likely failed");
+            console.warn("⚠️ Check server logs for more details");
+            console.warn("⚠️ ============================================");
           } else {
+            console.log("✅ Valid features received");
             const colors = featuresToGradient(features);
             console.log("🌈 Generated colors:", colors);
             applyMoodGradient(colors);
-            console.log("✅ Gradient applied");
           }
         } catch (error) {
-          console.error("❌ AUDIO FEATURES ERROR:");
+          console.error("❌ ERROR in audio features:");
           console.error("  Message:", error.message);
           console.error("  Stack:", error.stack);
         }
 
-        console.log("═══════════════════════════════════════");
+        console.log("═══════════════════════════════════════\n");
       }
 
       // Spotify iframe으로 트랙 재생
@@ -1145,20 +1143,15 @@
         const trackId = track.id || extractTrackIds([track])[0];
 
         if (!trackId) {
-          console.error("❌ No track ID found for:", track.name);
+          console.error("❌ No track ID for:", track.name);
           return;
         }
 
-        console.log("═══════════════════════════════════════");
-        console.log("🎵 PLAYING TRACK");
-        console.log("═══════════════════════════════════════");
-        console.log("Track:", track.name);
-        console.log("Artist:", track.artist);
-        console.log("Track ID:", trackId);
+        console.log("▶️ Playing track:", track.name);
+        console.log("  Track ID:", trackId);
 
         // Spotify embed URL
         const embedUrl = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0`;
-        console.log("🔗 Embed URL:", embedUrl);
 
         // iframe 업데이트
         const iframe = document.getElementById("spotifyEmbed");
@@ -1176,15 +1169,14 @@
         clearTimeout(spotifyTimer);
         spotifyTimer = setTimeout(() => {
           const nextIndex = (index + 1) % playlistTracks.length;
-          console.log("⏭️ Auto-playing next track...");
           playTrack(nextIndex);
         }, 30000);
-
-        console.log("═══════════════════════════════════════");
       }
 
       // 모달 닫기
       function closePlaylistModal() {
+        console.log("🔒 Closing modal");
+        
         clearTimeout(spotifyTimer);
         
         // iframe 정리
@@ -1196,6 +1188,8 @@
         document.getElementById("playbackStatus").style.display = "block";
         
         currentPlayingIndex = -1;
+        selectedUser = null;
+        
         document.getElementById("playlistModal").classList.remove("active");
       }
 

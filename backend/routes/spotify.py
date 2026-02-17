@@ -1,6 +1,7 @@
 import base64
 import os
 import secrets
+import sys
 import time
 from urllib.parse import urlencode
 
@@ -195,232 +196,97 @@ def spotify_token():
         expires_at=session.get("spotify_expires_at"),
     )
 
+
 @spotify_bp.route("/audio-features", methods=["POST"])
 def get_audio_features():
-    """
-    Get average audio features for a playlist
+    """Get average audio features for a playlist - Improved with logging"""
     
-    Spotify API Reference:
-    https://developer.spotify.com/documentation/web-api/reference/get-several-audio-features
+    def log(msg):
+        """Force stdout flush for immediate logging"""
+        print(msg, flush=True)
+        sys.stdout.flush()
     
-    Request body:
-    {
-        "track_ids": ["trackId1", "trackId2", ...]
-    }
-    
-    Response:
-    {
-        "energy": 0.0-1.0,
-        "danceability": 0.0-1.0,
-        "valence": 0.0-1.0,
-        "acousticness": 0.0-1.0,
-        "tempo": BPM
-    }
-    """
     try:
         data = request.get_json()
         track_ids = data.get("track_ids", [])
         
-        print("═══════════════════════════════════════")
-        print("🎨 AUDIO FEATURES API REQUEST")
-        print("═══════════════════════════════════════")
-        print(f"📥 Received {len(track_ids)} track IDs")
+        log("═══════════════════════════════════════")
+        log("🎨 AUDIO FEATURES API - NEW REQUEST")
+        log("═══════════════════════════════════════")
+        log(f"📥 Received {len(track_ids)} track IDs")
+        log(f"🔑 IDs: {track_ids}")
         
-        # Validate track IDs
         if not track_ids:
-            print("⚠️ No track IDs provided")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
+            log("⚠️ No track IDs - returning defaults")
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
         
-        # Validate track ID format (22 characters, alphanumeric)
-        valid_ids = []
-        for tid in track_ids:
-            if isinstance(tid, str) and len(tid) == 22 and tid.isalnum():
-                valid_ids.append(tid)
-            else:
-                print(f"⚠️ Invalid track ID format: {tid}")
+        # Validate
+        valid_ids = [tid for tid in track_ids if isinstance(tid, str) and len(tid) == 22 and tid.isalnum()]
+        log(f"✅ Valid IDs: {len(valid_ids)}/{len(track_ids)}")
         
         if not valid_ids:
-            print("❌ No valid track IDs found")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
+            log("❌ No valid IDs - returning defaults")
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
         
-        print(f"✅ Valid track IDs: {len(valid_ids)}")
-        print(f"🔑 Sample IDs: {valid_ids[:3]}")
-        
-        # Try user token first, fallback to app token
+        # Get token
         access_token, error = get_valid_access_token()
         if error:
-            print(f"⚠️ User token failed: {error}, trying app token...")
+            log(f"⚠️ User token failed: {error}")
             access_token = get_app_access_token()
-            if not access_token:
-                print("❌ No access token available")
-                return jsonify({
-                    "energy": 0.5,
-                    "danceability": 0.5,
-                    "valence": 0.5,
-                    "acousticness": 0.5,
-                    "tempo": 120
-                }), 200
-            print("✅ Using app token")
+            log("✅ Using app token" if access_token else "❌ No token available")
         else:
-            print("✅ Using user token")
+            log("✅ Using user token")
         
-        # Spotify API: Get Audio Features for Several Tracks
-        # Max 100 tracks per request
+        if not access_token:
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
+        
+        # Call Spotify
         ids_str = ",".join(valid_ids[:100])
+        log(f"📡 Calling Spotify API...")
         
-        print(f"📡 Calling Spotify API...")
-        print(f"🔗 Endpoint: GET https://api.spotify.com/v1/audio-features")
-        print(f"📊 Query params: ids={ids_str[:100]}...")
-        
-        try:
-            r = requests.get(
-                "https://api.spotify.com/v1/audio-features",
-                params={"ids": ids_str},
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10,
-            )
-            
-            print(f"📡 Spotify API response: {r.status_code}")
-            
-            if r.status_code != 200:
-                error_body = r.text[:200]
-                print(f"❌ Spotify API error: {r.status_code}")
-                print(f"📄 Error body: {error_body}")
-                return jsonify({
-                    "energy": 0.5,
-                    "danceability": 0.5,
-                    "valence": 0.5,
-                    "acousticness": 0.5,
-                    "tempo": 120
-                }), 200
-            
-            response_data = r.json()
-            audio_features = response_data.get("audio_features", [])
-            
-            print(f"✅ Got response from Spotify")
-            print(f"📊 Total features: {len(audio_features)}")
-            
-        except requests.exceptions.Timeout:
-            print("❌ Spotify API timeout")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Spotify API request failed: {e}")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
-        
-        # Calculate averages (filter out None values)
-        valid_features = [f for f in audio_features if f is not None]
-        print(f"📊 Valid features: {len(valid_features)}/{len(audio_features)}")
-        
-        if not valid_features:
-            print("⚠️ No valid features found (all None)")
-            print(f"📋 Sample response: {audio_features[:3]}")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
-        
-        # Calculate average for each feature
-        total_energy = 0.0
-        total_danceability = 0.0
-        total_valence = 0.0
-        total_acousticness = 0.0
-        total_tempo = 0.0
-        count = 0
-        
-        for feature in valid_features:
-            if feature.get("energy") is not None:
-                total_energy += float(feature.get("energy", 0))
-            if feature.get("danceability") is not None:
-                total_danceability += float(feature.get("danceability", 0))
-            if feature.get("valence") is not None:
-                total_valence += float(feature.get("valence", 0))
-            if feature.get("acousticness") is not None:
-                total_acousticness += float(feature.get("acousticness", 0))
-            if feature.get("tempo") is not None:
-                total_tempo += float(feature.get("tempo", 120))
-            count += 1
-        
-        if count == 0:
-            print("⚠️ No features to average")
-            return jsonify({
-                "energy": 0.5,
-                "danceability": 0.5,
-                "valence": 0.5,
-                "acousticness": 0.5,
-                "tempo": 120
-            }), 200
-        
-        avg_features = {
-            "energy": total_energy / count,
-            "danceability": total_danceability / count,
-            "valence": total_valence / count,
-            "acousticness": total_acousticness / count,
-            "tempo": total_tempo / count,
-        }
-        
-        print("───────────────────────────────────────")
-        print("📈 CALCULATED AVERAGES:")
-        print(f"  Energy:       {avg_features['energy']:.3f}")
-        print(f"  Danceability: {avg_features['danceability']:.3f}")
-        print(f"  Valence:      {avg_features['valence']:.3f}")
-        print(f"  Acousticness: {avg_features['acousticness']:.3f}")
-        print(f"  Tempo:        {avg_features['tempo']:.1f} BPM")
-        print("───────────────────────────────────────")
-        
-        # Check if we got default values (would indicate all features were 0.5)
-        is_default = (
-            abs(avg_features['energy'] - 0.5) < 0.01 and
-            abs(avg_features['danceability'] - 0.5) < 0.01 and
-            abs(avg_features['valence'] - 0.5) < 0.01 and
-            abs(avg_features['acousticness'] - 0.5) < 0.01 and
-            abs(avg_features['tempo'] - 120) < 1
+        r = requests.get(
+            "https://api.spotify.com/v1/audio-features",
+            params={"ids": ids_str},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
         )
         
-        if is_default:
-            print("⚠️ WARNING: Results are suspiciously close to defaults")
-            print("⚠️ This might indicate an issue with the source data")
-        else:
-            print("✅ Features calculated successfully")
+        log(f"📡 Response: {r.status_code}")
         
-        print("═══════════════════════════════════════")
+        if r.status_code != 200:
+            log(f"❌ API Error: {r.text[:100]}")
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
         
-        return jsonify(avg_features), 200
-    
+        features = r.json().get("audio_features", [])
+        valid = [f for f in features if f is not None]
+        log(f"✅ Got {len(valid)}/{len(features)} valid features")
+        
+        if not valid:
+            log("⚠️ No valid features")
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
+        
+        # Calculate
+        avg = {
+            "energy": sum(f.get("energy", 0) for f in valid) / len(valid),
+            "danceability": sum(f.get("danceability", 0) for f in valid) / len(valid),
+            "valence": sum(f.get("valence", 0) for f in valid) / len(valid),
+            "acousticness": sum(f.get("acousticness", 0) for f in valid) / len(valid),
+            "tempo": sum(f.get("tempo", 120) for f in valid) / len(valid),
+        }
+        
+        log("📊 RESULTS:")
+        log(f"  Energy: {avg['energy']:.3f}")
+        log(f"  Dance: {avg['danceability']:.3f}")
+        log(f"  Valence: {avg['valence']:.3f}")
+        log(f"  Acoustic: {avg['acousticness']:.3f}")
+        log(f"  Tempo: {avg['tempo']:.1f}")
+        log("═══════════════════════════════════════")
+        
+        return jsonify(avg), 200
+        
     except Exception as e:
-        print(f"❌ Error in get_audio_features: {e}")
+        log(f"❌ EXCEPTION: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({
-            "energy": 0.5,
-            "danceability": 0.5,
-            "valence": 0.5,
-            "acousticness": 0.5,
-            "tempo": 120
-        }), 200
+        sys.stdout.flush()
+        return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
