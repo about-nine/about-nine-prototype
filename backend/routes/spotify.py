@@ -21,6 +21,12 @@ _spotify_app_token = None
 _spotify_app_expires_at = 0
 
 
+def log(msg):
+    """Force stdout flush for immediate logging"""
+    print(msg, flush=True)
+    sys.stdout.flush()
+
+
 def spotify_config_ready():
     return bool(SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET and SPOTIFY_REDIRECT_URI)
 
@@ -62,25 +68,52 @@ def get_app_access_token():
     global _spotify_app_token, _spotify_app_expires_at
 
     if _spotify_app_token and time.time() < _spotify_app_expires_at - 30:
+        log(f"🔄 Using cached app token (expires in {int(_spotify_app_expires_at - time.time())}s)")
         return _spotify_app_token
 
+    log("🔑 Requesting new app access token...")
+    log(f"   CLIENT_ID: {SPOTIFY_CLIENT_ID[:10]}..." if SPOTIFY_CLIENT_ID else "   CLIENT_ID: NOT SET!")
+    log(f"   CLIENT_SECRET: {'*' * 10}..." if SPOTIFY_CLIENT_SECRET else "   CLIENT_SECRET: NOT SET!")
+
     if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+        log("❌ Missing Spotify credentials!")
         return None
 
-    auth = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
-    encoded = base64.b64encode(auth.encode("utf-8")).decode("utf-8")
-    r = requests.post(
-        "https://accounts.spotify.com/api/token",
-        data={"grant_type": "client_credentials"},
-        headers={"Authorization": f"Basic {encoded}"},
-        timeout=5,
-    )
-    r.raise_for_status()
-    data = r.json()
-    _spotify_app_token = data.get("access_token")
-    expires_in = data.get("expires_in", 3600)
-    _spotify_app_expires_at = time.time() + int(expires_in)
-    return _spotify_app_token
+    try:
+        auth = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
+        encoded = base64.b64encode(auth.encode("utf-8")).decode("utf-8")
+        
+        log("📡 POST https://accounts.spotify.com/api/token")
+        r = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={"grant_type": "client_credentials"},
+            headers={"Authorization": f"Basic {encoded}"},
+            timeout=5,
+        )
+        
+        log(f"📡 Token response: {r.status_code}")
+        
+        if r.status_code != 200:
+            log(f"❌ Token request failed: {r.status_code}")
+            log(f"📄 Response: {r.text}")
+            return None
+        
+        data = r.json()
+        _spotify_app_token = data.get("access_token")
+        expires_in = data.get("expires_in", 3600)
+        _spotify_app_expires_at = time.time() + int(expires_in)
+        
+        log(f"✅ Got app token (expires in {expires_in}s)")
+        log(f"   Token preview: {_spotify_app_token[:20]}..." if _spotify_app_token else "   Token: NONE")
+        
+        return _spotify_app_token
+    
+    except Exception as e:
+        log(f"❌ Exception getting app token: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        return None
 
 
 def get_valid_access_token():
@@ -201,11 +234,6 @@ def spotify_token():
 def get_audio_features():
     """Get average audio features for a playlist - Improved with logging"""
     
-    def log(msg):
-        """Force stdout flush for immediate logging"""
-        print(msg, flush=True)
-        sys.stdout.flush()
-    
     try:
         data = request.get_json()
         track_ids = data.get("track_ids", [])
@@ -232,34 +260,61 @@ def get_audio_features():
         access_token, error = get_valid_access_token()
         if error:
             log(f"⚠️ User token failed: {error}")
+            log("🔄 Trying app token...")
             access_token = get_app_access_token()
-            log("✅ Using app token" if access_token else "❌ No token available")
+            
+            if not access_token:
+                log("❌ No token available - cannot call Spotify API")
+                return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
+            
+            log(f"✅ Using app token: {access_token[:20]}...")
         else:
-            log("✅ Using user token")
-        
-        if not access_token:
-            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
+            log(f"✅ Using user token: {access_token[:20]}...")
         
         # Call Spotify
         ids_str = ",".join(valid_ids[:100])
+        url = "https://api.spotify.com/v1/audio-features"
+        
         log(f"📡 Calling Spotify API...")
+        log(f"   URL: {url}")
+        log(f"   IDs: {ids_str[:80]}...")
+        log(f"   Authorization: Bearer {access_token[:20]}...")
         
-        r = requests.get(
-            "https://api.spotify.com/v1/audio-features",
-            params={"ids": ids_str},
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10,
-        )
-        
-        log(f"📡 Response: {r.status_code}")
-        
-        if r.status_code != 200:
-            log(f"❌ API Error: {r.text[:100]}")
+        try:
+            r = requests.get(
+                url,
+                params={"ids": ids_str},
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
+            )
+            
+            log(f"📡 Response: {r.status_code}")
+            log(f"📄 Response headers: {dict(r.headers)}")
+            
+            if r.status_code != 200:
+                log(f"❌ API Error: {r.status_code}")
+                log(f"📄 Full response: {r.text}")
+                log("═══════════════════════════════════════")
+                return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
+            
+            response_json = r.json()
+            features = response_json.get("audio_features", [])
+            valid = [f for f in features if f is not None]
+            
+            log(f"✅ Got {len(valid)}/{len(features)} valid features")
+            
+            if valid:
+                log(f"📋 First feature sample: {valid[0]}")
+            
+        except requests.exceptions.Timeout:
+            log("❌ Spotify API timeout")
             return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
-        
-        features = r.json().get("audio_features", [])
-        valid = [f for f in features if f is not None]
-        log(f"✅ Got {len(valid)}/{len(features)} valid features")
+        except Exception as e:
+            log(f"❌ Request exception: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+            return jsonify({"energy": 0.5, "danceability": 0.5, "valence": 0.5, "acousticness": 0.5, "tempo": 120}), 200
         
         if not valid:
             log("⚠️ No valid features")
