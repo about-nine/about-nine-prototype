@@ -178,9 +178,9 @@
       }
 
       .track-item.playing {
-        background: rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.22);
         border-color: rgba(255, 255, 255, 0.4);
-        box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
+        box-shadow: 0 6px 18px rgba(255, 255, 255, 0.15);
       }
 
       .track-number {
@@ -196,11 +196,6 @@
         font-weight: 600;
         flex-shrink: 0;
         transition: all 0.3s;
-      }
-
-      .track-item.playing .track-number {
-        background: white;
-        color: #000;
       }
 
       .track-info {
@@ -226,54 +221,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-      }
-
-      /* Play indicator */
-      .play-indicator {
-        width: 18px;
-        height: 18px;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        gap: 2px;
-        flex-shrink: 0;
-      }
-
-      .track-item.playing .play-indicator {
-        display: flex;
-      }
-
-      .play-indicator span {
-        width: 3px;
-        background: white;
-        border-radius: 2px;
-        animation: playAnimation 0.7s ease-in-out infinite;
-        box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
-      }
-
-      .play-indicator span:nth-child(1) {
-        height: 10px;
-        animation-delay: 0s;
-      }
-
-      .play-indicator span:nth-child(2) {
-        height: 16px;
-        animation-delay: 0.15s;
-      }
-
-      .play-indicator span:nth-child(3) {
-        height: 8px;
-        animation-delay: 0.3s;
-      }
-
-      @keyframes playAnimation {
-        0%,
-        100% {
-          transform: scaleY(1);
-        }
-        50% {
-          transform: scaleY(0.4);
-        }
       }
 
       /* 하단 컨트롤 */
@@ -1063,6 +1010,8 @@
         const container = document.getElementById("trackListContainer");
 
         if (!tracks || !tracks.length) {
+          container.style.maxHeight = "";
+          container.style.overflowY = "";
           container.innerHTML = `
       <div class="empty-playlist">
         <div class="empty-playlist-icon">🎵</div>
@@ -1084,11 +1033,6 @@
             <div class="track-name">${name}</div>
             <div class="track-artist">${artist}</div>
           </div>
-          <div class="play-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
         </div>
       `;
           })
@@ -1103,6 +1047,8 @@
             playTrack(index);
           };
         });
+
+        updateTrackListHeight();
       }
 
       function updatePlayingUI() {
@@ -1113,6 +1059,34 @@
             item.classList.remove("playing");
           }
         });
+      }
+
+      function updateTrackListHeight() {
+        const container = document.getElementById("trackListContainer");
+        const items = Array.from(container.querySelectorAll(".track-item"));
+
+        if (items.length <= 3) {
+          container.style.maxHeight = "";
+          container.style.overflowY = "";
+          return;
+        }
+
+        let height = 0;
+        items.slice(0, 3).forEach((item) => {
+          const rect = item.getBoundingClientRect();
+          const style = getComputedStyle(item);
+          const marginTop = parseFloat(style.marginTop) || 0;
+          const marginBottom = parseFloat(style.marginBottom) || 0;
+          height += rect.height + marginTop + marginBottom;
+        });
+
+        const containerStyle = getComputedStyle(container);
+        const paddingTop = parseFloat(containerStyle.paddingTop) || 0;
+        const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
+        height += paddingTop + paddingBottom;
+
+        container.style.maxHeight = `${Math.ceil(height)}px`;
+        container.style.overflowY = "auto";
       }
 
       function applyMoodGradient(colors) {
@@ -1173,6 +1147,8 @@
           document.getElementById("playbackStatus").style.display = "block";
           document.getElementById("playbackStatus").textContent = "tap any track to play";
         }
+
+        updatePlayingUI();
       }
 
       function extractTrackIds(tracks) {
@@ -1242,6 +1218,7 @@
         document.getElementById("spotifyEmbedContainer").style.display = "none";
         
         currentPlayingIndex = -1;
+        updatePlayingUI();
         selectedUser = null;
         
         document.getElementById("playlistModal").classList.remove("active");
