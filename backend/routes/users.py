@@ -179,13 +179,21 @@ def list_users():
     print(f"My gender: {my_gender}, age: {my_age}")
     print(f"My preferences: orientation={my_sexual_orientation}, age_range={my_age_pref}")
 
+    if not my_loc or my_loc.get("lat") is None or my_loc.get("lng") is None:
+        return jsonify(success=False, message="missing my location"), 400
+
+    if not my_gender or my_age is None:
+        return jsonify(success=False, message="missing my profile"), 400
+
     users = []
     total_count = 0
     filtered_stats = {
         "same_user": 0,
+        "blocked": 0,
         "no_onboarding": 0,
         "no_location": 0,
         "too_far": 0,
+        "missing_gender_age": 0,
         "orientation_mismatch": 0,
         "age_mismatch": 0,
         "reverse_orientation": 0,
@@ -207,7 +215,7 @@ def list_users():
         # 차단 확인 (양방향)
         other_blocked = set(u.get("blocked_users") or [])
         if u.get("id") in my_blocked or uid in other_blocked:
-            filtered_stats["same_user"] += 1
+            filtered_stats["blocked"] += 1
             continue
 
         # 온보딩 완료 확인
@@ -217,7 +225,7 @@ def list_users():
 
         # 위치 확인
         loc = u.get("location")
-        if not loc or not my_loc:
+        if not loc:
             filtered_stats["no_location"] += 1
             continue
 
@@ -236,7 +244,7 @@ def list_users():
         other_age_pref = u.get("age_preference", {})
 
         if not other_gender or not other_age:
-            filtered_stats["no_location"] += 1
+            filtered_stats["missing_gender_age"] += 1
             continue
 
         # 내가 상대를 선호하는지
