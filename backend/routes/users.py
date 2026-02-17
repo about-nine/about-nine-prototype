@@ -17,7 +17,7 @@ import math
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 
 # DEBUG: set True to return all users without filters
-BYPASS_USER_FILTERS = True
+BYPASS_USER_FILTERS = False
 
 # =========================
 # Playlist

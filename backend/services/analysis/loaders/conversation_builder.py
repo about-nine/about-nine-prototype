@@ -381,8 +381,7 @@ def _transcribe_wav(wav_path: str, speaker_id: str) -> List[Dict]:
                 file=f,
                 response_format="verbose_json",
                 timestamp_granularities=["segment"],
-                language="ko",
-                prompt="이 오디오는 한국어 대화입니다.",  # 한국어 힌트
+                language="en"
             )
     except Exception as e:
         print(f"⚠️ STT 실패 ({wav_path}): {e}")
