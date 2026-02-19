@@ -604,7 +604,7 @@
         if (!track) return "";
         const name   = (track.name || "").trim();
         const artist = (track.artist || track.artists || track.artist_name || track.artistName || "").trim();
-        return name && artist ? `${name} — ${artist}` : name || artist;
+        return name && artist ? `${name} - ${artist}` : name || artist;
       }
 
       function renderPlaylistTicker(user) {

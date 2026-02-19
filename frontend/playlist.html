@@ -147,7 +147,7 @@
           const d = document.createElement("div");
           d.className = "track-chip";
           d.innerHTML = `
-            <span class="track-chip-text">${t.name}</span>
+            <span class="track-chip-text">${t.name} - ${t.artist}</span>
             <button class="track-chip-remove" onclick="removeTrack(${i})">×</button>
           `;
           chips.appendChild(d);

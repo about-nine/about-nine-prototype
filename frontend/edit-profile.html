@@ -316,7 +316,7 @@
         container.innerHTML = playlist.length
           ? playlist.map((track) => `
               <div class="track-chip">
-                <span class="track-chip-text">${track.name}</span>
+                <span class="track-chip-text">${track.name} - ${track.artist}</span>
               </div>
             `).join("")
           : '<div class="playlist-empty-state">tap to select songs</div>';

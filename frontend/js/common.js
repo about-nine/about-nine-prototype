@@ -145,7 +145,7 @@ function getOrdinal(n) {
  * history.html, history-detail.html, talk-result.html에서 중복 정의되던 것을 통합
  */
 function roundLabel(topic) {
-  if (topic === "life") return "values";
+  if (topic === "life") return "life";
   return topic || "";
 }
 

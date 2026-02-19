@@ -835,7 +835,7 @@
             <div class="profile-label">${getPartnerName()}'s playlist</div>
             <div class="playlist-chips">
               ${playlist.length
-                ? playlist.slice(0, 6).map((t) => `<div class="playlist-chip">${t.name || "track"}</div>`).join("")
+                ? playlist.slice(0, 6).map((t) => `<div class="playlist-chip">${t.name || "track"} - ${t.artist || "artist"}</div>`).join("")
                 : `<div class="playlist-chip">no playlist</div>`}
             </div>
           </div>
