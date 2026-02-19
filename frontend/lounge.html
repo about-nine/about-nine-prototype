@@ -4,21 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>About Nine</title>
-
     <link rel="stylesheet" href="css/style.css" />
-
-    <!-- firebase -->
     <script type="module" src="js/firebase.js"></script>
     <script type="module" src="js/presence.js"></script>
 
     <style>
-      .user-card-wrapper {
-        position: relative;
-      }
+      /* ── 유저 카드 ───────────────────────────────────── */
 
-      .user-card-wrapper.offline {
-        opacity: 0.6;
-      }
+      .user-card-wrapper { position: relative; }
+      .user-card-wrapper.offline { opacity: 0.6; }
 
       .user-card-button {
         position: absolute;
@@ -30,9 +24,7 @@
         font-size: 14px;
       }
 
-      .user-card {
-        overflow: hidden;
-      }
+      .user-card { overflow: hidden; }
 
       .user-card-content {
         flex: 1;
@@ -40,9 +32,16 @@
         overflow: hidden;
       }
 
-      body.ai-closed {
-        overflow: hidden;
+      .subtitle-text {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 400;
       }
+
+      /* ── AI 닫힘 오버레이 ────────────────────────────── */
+
+      body.ai-closed { overflow: hidden; }
 
       .ai-closed-overlay {
         position: fixed;
@@ -53,28 +52,16 @@
         color: var(--text-primary);
       }
 
-      .ai-closed-overlay.active {
-        display: flex;
-      }
+      .ai-closed-overlay.active { display: flex; }
 
       .ai-closed-inner {
         width: 100%;
         max-width: 480px;
         margin: 0 auto;
-        padding: calc(48px + var(--safe-top)) 24px
-          calc(40px + var(--safe-bottom));
+        padding: calc(48px + var(--safe-top)) 24px calc(40px + var(--safe-bottom));
         display: flex;
         flex-direction: column;
         min-height: 100%;
-      }
-
-      .ai-closed-brand {
-        font-family: "Merriweather", serif;
-        font-size: 22px;
-        font-weight: 600;
-        color: rgba(255, 255, 255, 0.55);
-        text-align: left;
-        letter-spacing: -0.5px;
       }
 
       .ai-closed-body {
@@ -88,41 +75,28 @@
         padding: 0 12px;
       }
 
-      .ai-closed-title {
+      /* 공통: font-family / line-height */
+      .ai-closed-title,
+      .ai-closed-subtitle {
         font-family: "Merriweather", serif;
-        font-size: 22px;
-        font-weight: 600;
         line-height: 1.5;
       }
 
-      .ai-closed-asterisk {
-        font-size: 44px;
-        line-height: 1;
-        letter-spacing: -2px;
-      }
-
-      .ai-closed-subtitle {
-        font-family: "Merriweather", serif;
-        font-size: 20px;
-        font-weight: 400;
-      }
+      .ai-closed-title    { font-size: 16px; font-weight: 600; }
+      .ai-closed-asterisk { font-size: 44px; line-height: 1; letter-spacing: -2px; }
+      .ai-closed-subtitle { font-size: 16px; font-weight: 400; }
 
       .ai-closed-link {
         background: none;
         border: none;
         color: var(--text-secondary);
         text-decoration: underline;
-        font-size: 14px;
+        font-size: 12px;
         cursor: pointer;
         padding: 4px 6px;
       }
 
-      .subtitle-text {
-        text-align: center;
-        color: var(--text-secondary);
-        font-size: 14px;
-        font-weight: 400;
-      }
+      /* ── 플레이리스트 티커 ────────────────────────────── */
 
       .playlist-ticker {
         margin-top: 4px;
@@ -137,9 +111,7 @@
         max-width: 100%;
       }
 
-      .playlist-ticker.empty {
-        opacity: 0.7;
-      }
+      .playlist-ticker.empty { opacity: 0.7; }
 
       .playlist-ticker-track {
         display: inline-flex;
@@ -162,27 +134,19 @@
         gap: 6px;
       }
 
-      .playlist-track-text {
-        color: var(--text-secondary);
-        font-size: 12px;
-      }
+      .playlist-track-text { color: var(--text-secondary); font-size: 12px; }
 
       @keyframes playlistTicker {
-        0% {
-          transform: translateX(0);
-        }
-        100% {
-          transform: translateX(-50%);
-        }
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .playlist-ticker-track {
-          animation: none;
-        }
+        .playlist-ticker-track { animation: none; }
       }
 
-      /* 빈 상태 박스 */
+      /* ── 빈 상태 박스 ────────────────────────────────── */
+
       .empty-state-box {
         background: var(--bg-card);
         border-radius: 16px;
@@ -195,12 +159,7 @@
         min-height: calc(100vh - 260px);
       }
 
-      .empty-state-box img {
-        width: 48px;
-        height: 48px;
-        margin-bottom: 24px;
-        opacity: 0.9;
-      }
+      .empty-state-box img { width: 48px; height: 48px; margin-bottom: 24px; opacity: 0.9; }
 
       .empty-state-box .message {
         font-size: 16px;
@@ -210,7 +169,7 @@
         text-align: center;
       }
 
-      /* ================= 🎨 앨범 커버 그라데이션 플레이어 ================= */
+      /* ── 플레이리스트 모달 ───────────────────────────── */
 
       .modal {
         display: none;
@@ -224,9 +183,7 @@
         backdrop-filter: blur(12px);
       }
 
-      .modal.active {
-        display: flex;
-      }
+      .modal.active { display: flex; }
 
       .modal-content {
         position: relative;
@@ -238,7 +195,6 @@
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       }
 
-      /* 🌊 앨범 커버 기반 그라데이션 배경 */
       .playlist-mood-gradient {
         position: absolute;
         inset: 0;
@@ -252,15 +208,10 @@
       }
 
       @keyframes moodFlow {
-        0% {
-          transform: scale(1) rotate(0deg);
-        }
-        100% {
-          transform: scale(1.1) rotate(2deg);
-        }
+        0%   { transform: scale(1) rotate(0deg); }
+        100% { transform: scale(1.1) rotate(2deg); }
       }
 
-      /* 오버레이 컨테이너 */
       .playlist-overlay {
         position: relative;
         z-index: 1;
@@ -269,18 +220,20 @@
         height: 100%;
         background: linear-gradient(
           180deg,
-          rgba(0, 0, 0, 0.3) 0%,
-          rgba(0, 0, 0, 0.5) 20%,
-          rgba(0, 0, 0, 0.7) 100%
+          rgba(0,0,0,0.3) 0%,
+          rgba(0,0,0,0.5) 20%,
+          rgba(0,0,0,0.7) 100%
         );
       }
 
-      /* 헤더 */
-      .modal-header {
-        padding: 32px 24px 20px;
+      /* 공통: backdrop-filter */
+      .modal-header,
+      .modal-footer {
         backdrop-filter: blur(8px);
         background: rgba(0, 0, 0, 0.2);
       }
+
+      .modal-header { padding: 32px 24px 20px; }
 
       .modal-title {
         font-size: 22px;
@@ -296,12 +249,15 @@
         text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
-      /* 트랙 리스트 */
-      .track-list-container {
-        flex: 1;
-        overflow-y: auto;
-        padding: 8px;
+      .modal-footer {
+        padding: 20px 24px;
+        background: rgba(0, 0, 0, 0.4);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
       }
+
+      /* ── 트랙 리스트 ─────────────────────────────────── */
+
+      .track-list-container { flex: 1; overflow-y: auto; padding: 8px; }
 
       .track-item {
         display: flex;
@@ -317,15 +273,11 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
 
-      .track-item:hover {
-        background: rgba(255, 255, 255, 0.15);
-        border-color: rgba(255, 255, 255, 0.25);
-      }
-
+      .track-item:hover  { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.25); }
       .track-item.playing {
-        background: rgba(255, 255, 255, 0.22);
-        border-color: rgba(255, 255, 255, 0.4);
-        box-shadow: 0 6px 18px rgba(255, 255, 255, 0.15);
+        background: rgba(255,255,255,0.22);
+        border-color: rgba(255,255,255,0.4);
+        box-shadow: 0 6px 18px rgba(255,255,255,0.15);
       }
 
       .track-number {
@@ -343,55 +295,21 @@
         transition: all 0.3s;
       }
 
-      .track-info {
-        flex: 1;
-        min-width: 0;
-      }
+      .track-info { flex: 1; min-width: 0; }
 
-      .track-name {
-        font-size: 15px;
-        font-weight: 500;
-        color: white;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-bottom: 3px;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-      }
-
+      /* 공통: 말줄임 + 텍스트 섀도 */
+      .track-name,
       .track-artist {
-        font-size: 13px;
-        color: rgba(255, 255, 255, 0.7);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
 
-      /* 하단 컨트롤 */
-      .modal-footer {
-        padding: 20px 24px;
-        backdrop-filter: blur(12px);
-        background: rgba(0, 0, 0, 0.4);
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-      }
+      .track-name   { font-size: 15px; font-weight: 500; color: white; margin-bottom: 3px; }
+      .track-artist { font-size: 13px; color: rgba(255, 255, 255, 0.7); }
 
-      /* 🎵 Spotify Embed iframe */
-      #spotifyEmbedContainer {
-        width: 100%;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: #000;
-      }
-
-      #spotifyEmbed {
-        width: 100%;
-        height: 152px;
-        border: none;
-        display: block;
-      }
+      /* ── 로딩 / 빈 플레이리스트 ─────────────────────── */
 
       .playback-status {
         text-align: center;
@@ -402,8 +320,9 @@
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
 
-      /* 로딩 상태 */
-      .loading-playlist {
+      /* 공통: padding / text-align */
+      .loading-playlist,
+      .empty-playlist {
         padding: 60px 20px;
         text-align: center;
       }
@@ -414,92 +333,51 @@
         border: 3px solid rgba(255, 255, 255, 0.2);
         border-top-color: white;
         border-radius: 50%;
+        /* @keyframes spin은 style.css에 정의 */
         animation: spin 0.8s linear infinite;
         margin: 0 auto 16px;
       }
 
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      /* style.css의 .loading-text와 충돌하지 않도록 스코핑 */
+      .loading-playlist .loading-text { font-size: 14px; color: rgba(255, 255, 255, 0.7); }
+
+      .empty-playlist-icon { font-size: 54px; margin-bottom: 16px; opacity: 0.4; }
+      .empty-playlist-text { font-size: 15px; color: rgba(255, 255, 255, 0.6); }
+
+      /* ── Spotify Embed ───────────────────────────────── */
+
+      #spotifyEmbedContainer {
+        width: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #000;
       }
 
-      .loading-text {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.7);
-      }
+      #spotifyEmbed { width: 100%; height: 152px; border: none; display: block; }
 
-      .empty-playlist {
-        padding: 60px 20px;
-        text-align: center;
-      }
+      /* ── 스크롤바 ────────────────────────────────────── */
 
-      .empty-playlist-icon {
-        font-size: 54px;
-        margin-bottom: 16px;
-        opacity: 0.4;
-      }
-
-      .empty-playlist-text {
-        font-size: 15px;
-        color: rgba(255, 255, 255, 0.6);
-      }
-
-      /* 스크롤바 스타일링 */
-      .track-list-container::-webkit-scrollbar {
-        width: 6px;
-      }
-
-      .track-list-container::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 3px;
-      }
-
-      .track-list-container::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 3px;
-      }
-
-      .track-list-container::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.5);
-      }
+      .track-list-container::-webkit-scrollbar       { width: 6px; }
+      .track-list-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 3px; }
+      .track-list-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+      .track-list-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
 
       @media (max-width: 420px) {
-        .modal-content {
-          width: 96%;
-          max-height: 92vh;
-        }
-
-        .modal-header {
-          padding: 28px 20px 16px;
-        }
-
-        .modal-title {
-          font-size: 20px;
-        }
-
-        .track-item {
-          padding: 12px 14px;
-          gap: 12px;
-        }
-
-        .track-name {
-          font-size: 14px;
-        }
-
-        .track-artist {
-          font-size: 12px;
-        }
+        .modal-content { width: 96%; max-height: 92vh; }
+        .modal-header  { padding: 28px 20px 16px; }
+        .modal-title   { font-size: 20px; }
+        .track-item    { padding: 12px 14px; gap: 12px; }
+        .track-name    { font-size: 14px; }
+        .track-artist  { font-size: 12px; }
       }
     </style>
   </head>
 
   <body>
     <div class="main-container">
-      <div
-        class="chat-header brand-text"
-        style="text-align: left; color: #8e8e8e"
-      >
+      <div class="chat-header brand-text" style="text-align:left;color:#8e8e8e">
         about nine
       </div>
 
@@ -509,71 +387,49 @@
       </div>
 
       <div class="content">
-        <!-- lounge -->
         <div id="loungeContent">
           <div id="userList" class="card-list"></div>
         </div>
-
-        <!-- ai -->
-        <div id="aiContent" style="display: none">
+        <div id="aiContent" style="display:none">
           <div id="aiUserList" class="card-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- 하단 네비게이션 -->
     <nav id="bottomNav" class="bottom-nav"></nav>
 
-    <!-- AI 매칭 시간 외 안내 -->
     <div class="ai-closed-overlay" id="aiClosedOverlay" aria-hidden="true">
       <div class="ai-closed-inner">
-        <div class="ai-closed-brand">about nine</div>
         <div class="ai-closed-body">
           <div class="ai-closed-title">
             just to let you know,<br />ai match officially begins at 9 p.m.
           </div>
           <div class="ai-closed-asterisk">*</div>
           <div class="ai-closed-subtitle">see you then</div>
-          <button class="ai-closed-link" id="aiClosedGoBtn" type="button">
-            go to lounge
-          </button>
+          <button class="ai-closed-link" id="aiClosedGoBtn" type="button">go to lounge</button>
         </div>
       </div>
     </div>
 
-    <!-- 🎵 Spotify 모달 -->
     <div class="modal" id="playlistModal">
       <div class="modal-content">
-        <!-- 🌊 앨범 커버 기반 그라데이션 -->
         <div class="playlist-mood-gradient"></div>
-
-        <!-- 오버레이 컨텐츠 -->
         <div class="playlist-overlay">
-          <!-- 헤더 -->
           <div class="modal-header">
             <div class="modal-title" id="playlistTitle">loading...</div>
-            <div class="modal-subtitle">
-              <span id="trackCount">0</span> tracks
-            </div>
+            <div class="modal-subtitle"><span id="trackCount">0</span> tracks</div>
           </div>
-
-          <!-- 트랙 리스트 -->
           <div class="track-list-container" id="trackListContainer">
             <div class="loading-playlist">
               <div class="loading-spinner"></div>
               <div class="loading-text">loading playlist...</div>
             </div>
           </div>
-
-          <!-- 하단 컨트롤 -->
           <div class="modal-footer">
-            <!-- 재생 상태 -->
-            <div class="playback-status" id="playbackStatus" style="display: none">
+            <div class="playback-status" id="playbackStatus" style="display:none">
               tap any track to play
             </div>
-            
-            <!-- Spotify Embed iframe (재생 중) -->
-            <div id="spotifyEmbedContainer" style="display: none">
+            <div id="spotifyEmbedContainer" style="display:none">
               <iframe
                 id="spotifyEmbed"
                 frameborder="0"
@@ -592,38 +448,18 @@
       import { rtdb, ref, onValue, set, push } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
-      if (!userId) {
-        navigateTo("index.html");
-      }
+      if (!userId) navigateTo("index.html");
 
       let users = [];
       let aiUsers = [];
       let selectedUser = null;
       let presenceData = {};
       let currentUserProfile = null;
-
       let playlistTracks = [];
       let currentPlayingIndex = -1;
       let spotifyTimer = null;
 
-      /* ====================== 주제 설정 ====================== */
-
-      const TOPICS = {
-        1: {
-          name: "food",
-          question: "let's see if you two vibe when it comes to food",
-        },
-        2: {
-          name: "visual",
-          question: "let's see if you two vibe when it comes to visual taste",
-        },
-        3: {
-          name: "life",
-          question: "feel free to be open about your expectations for life",
-        },
-      };
-
-      /* ====================== 탭 ====================== */
+      /* ── 탭 ──────────────────────────────────────────── */
 
       const loungeTab = document.getElementById("loungeTab");
       const aiTab = document.getElementById("aiTab");
@@ -631,12 +467,10 @@
       const aiContent = document.getElementById("aiContent");
 
       loungeTab.onclick = () => switchTab("lounge");
-      aiTab.onclick = () => switchTab("ai");
+      aiTab.onclick    = () => switchTab("ai");
 
       function switchTab(tab) {
-        document
-          .querySelectorAll(".tab")
-          .forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
 
         if (tab === "lounge") {
           loungeTab.classList.add("active");
@@ -651,11 +485,11 @@
 
         if (!isAIMatchTime()) {
           document.getElementById("aiUserList").innerHTML = `
-      <div class="empty-state-box">
-        <img src="images/asterisk.png" alt="asterisk">
-        <div class="message">the matching begins at 9 p.m.<br>and closes at 2 a.m.</div>
-      </div>
-    `;
+            <div class="empty-state-box">
+              <img src="images/asterisk.png" alt="asterisk">
+              <div class="message">the matching begins at 9 p.m.<br>and closes at 2 a.m.</div>
+            </div>
+          `;
           return;
         }
 
@@ -667,15 +501,13 @@
         return h >= 21 || h < 2;
       }
 
+      /* ── AI 닫힘 오버레이 ────────────────────────────── */
+
       const AI_CLOSED_FLAG = "show_ai_closed_screen";
 
       function shouldShowAiClosedOverlay() {
-        const flag = getFromLocal(AI_CLOSED_FLAG);
-        if (!flag) return false;
-        if (isAIMatchTime()) {
-          removeFromLocal(AI_CLOSED_FLAG);
-          return false;
-        }
+        if (!getFromLocal(AI_CLOSED_FLAG)) return false;
+        if (isAIMatchTime()) { removeFromLocal(AI_CLOSED_FLAG); return false; }
         return true;
       }
 
@@ -696,43 +528,29 @@
         removeFromLocal(AI_CLOSED_FLAG);
       }
 
-      document
-        .getElementById("aiClosedGoBtn")
-        ?.addEventListener("click", hideAiClosedOverlay);
+      document.getElementById("aiClosedGoBtn")?.addEventListener("click", hideAiClosedOverlay);
 
-      /* ====================== 위치 업데이트 ====================== */
+      /* ── 위치 업데이트 ───────────────────────────────── */
 
       async function updateLocation() {
         const stored = getFromLocal("location");
-        if (stored && stored.lat && stored.lng) {
-          try {
-            await apiCall("/users/update-location", "POST", {
-              lat: stored.lat,
-              lng: stored.lng,
-            });
-          } catch (error) {
-            console.error("Failed to update location:", error);
-          }
-          return;
+        if (!stored?.lat || !stored?.lng) return;
+        try {
+          await apiCall("/users/update-location", "POST", { lat: stored.lat, lng: stored.lng });
+        } catch (error) {
+          console.error("Failed to update location:", error);
         }
       }
 
-      /* ====================== 유저 불러오기 ====================== */
+      /* ── 유저 로드 / AI 추천 ─────────────────────────── */
 
       async function loadUsers() {
-        console.log("🔍 Loading users...");
         try {
           const res = await apiCall("/users/list");
           users = res.users || [];
-          renderUsers(users, "userList", "lounge");
-        } catch (error) {
-          console.error("Failed to load users:", error);
-          users = [];
-          renderUsers(users, "userList", "lounge");
-        }
+        } catch { users = []; }
+        renderUsers(users, "userList", "lounge");
       }
-
-      /* ====================== AI 추천 ====================== */
 
       async function buildAIMatch() {
         try {
@@ -743,15 +561,11 @@
               ? res.users
               : Object.values(res?.users || {});
           aiUsers = list.slice(0, 5);
-          renderUsers(aiUsers, "aiUserList", "ai");
-        } catch (error) {
-          console.error("Failed to load ai match:", error);
-          aiUsers = [];
-          renderUsers(aiUsers, "aiUserList", "ai");
-        }
+        } catch { aiUsers = []; }
+        renderUsers(aiUsers, "aiUserList", "ai");
       }
 
-      /* ====================== 온라인 상태 확인 ====================== */
+      /* ── 온라인 상태 ─────────────────────────────────── */
 
       function getUserId(u) {
         return u?.id || u?.user_id || u?.uid || u?.userId || null;
@@ -759,197 +573,141 @@
 
       const PRESENCE_TTL_MS = 90000;
 
-      function isOnline(userId) {
-        if (!userId) return false;
-        const presence = presenceData[userId];
-        if (!presence || presence.online !== true) return false;
-        const updatedAt = Number(presence.updated_at || 0);
-        if (!updatedAt) return false;
-        return Date.now() - updatedAt <= PRESENCE_TTL_MS;
+      function isOnline(uid) {
+        if (!uid) return false;
+        const p = presenceData[uid];
+        if (!p || p.online !== true) return false;
+        const updatedAt = Number(p.updated_at || 0);
+        return updatedAt && Date.now() - updatedAt <= PRESENCE_TTL_MS;
       }
+
+      /* ── 플레이리스트 티커 ────────────────────────────── */
 
       function formatTrackLabel(track) {
         if (!track) return "";
-        const name = (track.name || "").trim();
-        const artist = (
-          track.artist ||
-          track.artists ||
-          track.artist_name ||
-          track.artistName ||
-          ""
-        ).trim();
-
-        if (name && artist) return `${name} — ${artist}`;
-        return name || artist;
+        const name   = (track.name || "").trim();
+        const artist = (track.artist || track.artists || track.artist_name || track.artistName || "").trim();
+        return name && artist ? `${name} — ${artist}` : name || artist;
       }
 
       function renderPlaylistTicker(user) {
-        const tracks = Array.isArray(user?.playlist) ? user.playlist : [];
-        const labels = tracks.map(formatTrackLabel).filter(Boolean);
+        const labels = (Array.isArray(user?.playlist) ? user.playlist : [])
+          .map(formatTrackLabel).filter(Boolean);
 
-        if (!labels.length) {
-          return `<div class="playlist-ticker empty">no playlist yet</div>`;
-        }
+        if (!labels.length) return `<div class="playlist-ticker empty">no playlist yet</div>`;
 
         const itemsHtml = labels
-          .map(
-            (label) =>
-              `<span class="playlist-track-item">🎵<span class="playlist-track-text">${label}</span></span>`
-          )
+          .map((label) => `<span class="playlist-track-item">🎵<span class="playlist-track-text">${label}</span></span>`)
           .join("");
 
-        const duration = 60;
-
-        return `<div class="playlist-ticker" style="--ticker-duration: ${duration}s;"><div class="playlist-ticker-track"><div class="playlist-ticker-seq">${itemsHtml}</div><div class="playlist-ticker-seq" aria-hidden="true">${itemsHtml}</div></div></div>`;
+        return `<div class="playlist-ticker" style="--ticker-duration:60s;">
+          <div class="playlist-ticker-track">
+            <div class="playlist-ticker-seq">${itemsHtml}</div>
+            <div class="playlist-ticker-seq" aria-hidden="true">${itemsHtml}</div>
+          </div>
+        </div>`;
       }
 
-      /* ====================== 렌더 ====================== */
+      /* ── 유저 렌더 ───────────────────────────────────── */
 
       function renderUsers(list, containerId, mode = "lounge") {
         const el = document.getElementById(containerId);
 
         if (!list.length) {
           el.innerHTML = `
-      <div class="empty-state-box">
-        <img src="images/asterisk.png" alt="asterisk">
-        <div class="message">no one nearby right now.<br>check back soon!</div>
-      </div>
-    `;
+            <div class="empty-state-box">
+              <img src="images/asterisk.png" alt="asterisk">
+              <div class="message">no one nearby right now.<br>check back soon!</div>
+            </div>
+          `;
           return;
         }
 
         const isAi = mode === "ai";
-        const subtitleText = isAi
-          ? "our recommended matches"
-          : "pick whoever feels right";
 
         const sortedList = [...list].sort((a, b) => {
-          const aOnline = isOnline(getUserId(a));
-          const bOnline = isOnline(getUserId(b));
-          if (aOnline && !bOnline) return -1;
-          if (!aOnline && bOnline) return 1;
-          return 0;
+          const aOn = isOnline(getUserId(a)), bOn = isOnline(getUserId(b));
+          return aOn === bOn ? 0 : aOn ? -1 : 1;
         });
 
-        const cardsHtml = sortedList
-          .map((u) => {
+        el.innerHTML = `
+          <div class="subtitle-text">${isAi ? "our recommended matches" : "pick whoever feels right"}</div>
+          ${sortedList.map((u) => {
             const uid = getUserId(u);
             const online = isOnline(uid);
-
             return `
-      <div class="user-card-wrapper ${online ? "" : "offline"}">
-        <div 
-          class="card user-card"
-          ${!isAi ? `data-id="${uid}" style="cursor:pointer; padding-right:120px;"` : `style="padding-right:120px;"`}
-        >
-          <div class="user-card-content">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:16px;font-weight:600;">
-                ${u.first_name || u.firstName} ${u.last_name || u.lastName}
-              </span>
-              <span class="status-dot ${online ? "online" : "offline"}"></span>
-            </div>
-
-            ${
-              !isAi
-                ? renderPlaylistTicker(u)
-                : ""
-            }
-          </div>
-        </div>
-
-        <button class="primary user-card-button" data-user-id="${uid}" ${
-          online ? "" : "disabled"
-        }>
-          start talk
-        </button>
-      </div>
-    `;
-          })
-          .join("");
-
-        el.innerHTML = `
-    <div class="subtitle-text">${subtitleText}</div>
-    ${cardsHtml}
-  `;
+              <div class="user-card-wrapper ${online ? "" : "offline"}">
+                <div class="card user-card"
+                  ${!isAi ? `data-id="${uid}" style="cursor:pointer;padding-right:120px;"` : `style="padding-right:120px;"`}
+                >
+                  <div class="user-card-content">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <span style="font-size:16px;font-weight:600;">
+                        ${u.first_name || u.firstName} ${u.last_name || u.lastName}
+                      </span>
+                      <span class="status-dot ${online ? "online" : "offline"}"></span>
+                    </div>
+                    ${!isAi ? renderPlaylistTicker(u) : ""}
+                  </div>
+                </div>
+                <button class="primary user-card-button" data-user-id="${uid}" ${online ? "" : "disabled"}>
+                  start talk
+                </button>
+              </div>
+            `;
+          }).join("")}
+        `;
 
         if (!isAi) {
           el.querySelectorAll(".card").forEach((card) => {
-            card.onclick = (e) => {
-              const id = card.dataset.id;
-              const user = sortedList.find((x) => getUserId(x) === id);
-              openPlaylist(user);
-            };
+            card.onclick = () => openPlaylist(sortedList.find((x) => getUserId(x) === card.dataset.id));
           });
         }
 
         el.querySelectorAll(".user-card-button").forEach((btn) => {
-          btn.onclick = async (e) => {
-            const id = btn.dataset.userId;
-            const user = sortedList.find((x) => getUserId(x) === id);
-            await startMatchRequest(user);
+          btn.onclick = async () => {
+            await startMatchRequest(sortedList.find((x) => getUserId(x) === btn.dataset.userId));
           };
         });
       }
 
-      /* ====================== 매칭 요청 시작 ====================== */
+      /* ── 매칭 요청 ───────────────────────────────────── */
 
       async function startMatchRequest(partner) {
         saveToLocal("chat_partner", partner);
-
         try {
           showLoading("preparing...");
-
           const roundRes = await apiCall("/talks/calculate-round", "POST", {
             partner_id: getUserId(partner),
           });
-
           hideLoading();
 
-          if (!roundRes.success) {
-            alert("failed to calculate round");
-            return;
-          }
+          if (!roundRes.success) { alert("failed to calculate round"); return; }
 
-          const round = roundRes.round;
-          const topic = roundRes.topic;
-          const question = roundRes.question;
-          const options = roundRes.options;
-
-          console.log(`🎯 Backend calculated - Round ${round}: ${topic}`);
-
-          const requestsRef = ref(rtdb, "match_requests");
-          const newRequestRef = push(requestsRef);
+          const { round, topic, question, options } = roundRes;
+          const newRequestRef = push(ref(rtdb, "match_requests"));
           const requestId = newRequestRef.key;
           saveToLocal("match_request_id", requestId);
-
-          const initiatorProfile = currentUserProfile || {
-            id: userId,
-            first_name: getFromLocal("firstName"),
-            last_name: getFromLocal("lastName"),
-            age: getFromLocal("age"),
-            gender: getFromLocal("gender"),
-          };
 
           const matchData = {
             initiator: userId,
             receiver: getUserId(partner),
             status: "waiting",
-            round: round,
-            topic: topic,
+            round,
+            topic,
             timestamp: Date.now(),
-            initiator_profile: initiatorProfile,
+            initiator_profile: currentUserProfile || {
+              id: userId,
+              first_name: getFromLocal("firstName"),
+              last_name: getFromLocal("lastName"),
+              age: getFromLocal("age"),
+              gender: getFromLocal("gender"),
+            },
           };
-
-          if (question) {
-            matchData.question = question;
-          }
-          if (options) {
-            matchData.options = options;
-          }
+          if (question) matchData.question = question;
+          if (options)  matchData.options  = options;
 
           await set(newRequestRef, matchData);
-
           navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
         } catch (error) {
           hideLoading();
@@ -958,15 +716,12 @@
         }
       }
 
-      /* ====================== 매칭 요청 리스닝 ====================== */
+      /* ── Firebase 리스닝 ─────────────────────────────── */
 
       function listenMatchRequests() {
-        const requestsRef = ref(rtdb, "match_requests");
-
-        onValue(requestsRef, (snapshot) => {
+        onValue(ref(rtdb, "match_requests"), (snapshot) => {
           const requests = snapshot.val();
           if (!requests) return;
-
           for (const [requestId, request] of Object.entries(requests)) {
             if (request.receiver === userId && request.status === "waiting") {
               const initiator = users.find((u) => u.id === request.initiator);
@@ -980,250 +735,130 @@
         });
       }
 
-      /* ====================== presence 리스닝 ====================== */
-
       function listenPresence() {
         onValue(ref(rtdb, "presence"), (snap) => {
           presenceData = snap.val() || {};
-
-          const currentTab = loungeTab.classList.contains("active")
-            ? "lounge"
-            : "ai";
-
-          if (currentTab === "lounge" && users.length > 0) {
-            renderUsers(users, "userList", "lounge");
-          } else if (
-            currentTab === "ai" &&
-            aiUsers.length > 0 &&
-            isAIMatchTime()
-          ) {
-            renderUsers(aiUsers, "aiUserList", "ai");
-          }
+          const isLounge = loungeTab.classList.contains("active");
+          if (isLounge && users.length)                       renderUsers(users,   "userList",   "lounge");
+          else if (!isLounge && aiUsers.length && isAIMatchTime()) renderUsers(aiUsers, "aiUserList", "ai");
         });
       }
 
-      /* ================= 🎨 앨범 커버 색상 추출 ================= */
+      /* ── 앨범 커버 색상 추출 ─────────────────────────── */
+
+      const DEFAULT_COLORS = ["#667eea", "#764ba2", "#f093fb"];
 
       async function extractColorsFromAlbumCovers(tracks) {
-        console.log("🎨 Extracting colors from album covers...");
-        
-        const albumImages = tracks
-          .map(track => track.image)
-          .filter(img => img);
-        
-        if (albumImages.length === 0) {
-          console.log("⚠️ No album images found, using default gradient");
-          return ["#667eea", "#764ba2", "#f093fb"];
-        }
-
-        console.log(`📸 Found ${albumImages.length} album images`);
-
+        const images = tracks.map((t) => t.image).filter(Boolean);
+        if (!images.length) return DEFAULT_COLORS;
         try {
-          // 처음 3개 앨범 커버에서 색상 추출
-          const colors = await Promise.all(
-            albumImages.slice(0, 3).map(imageUrl => extractDominantColor(imageUrl))
-          );
-          
-          const validColors = colors.filter(c => c !== null);
-          
-          if (validColors.length === 0) {
-            console.log("⚠️ Color extraction failed, using default gradient");
-            return ["#667eea", "#764ba2", "#f093fb"];
-          }
-          
-          // 3개 미만이면 기본 색상으로 채우기
-          while (validColors.length < 3) {
-            validColors.push(["#667eea", "#764ba2", "#f093fb"][validColors.length]);
-          }
-          
-          console.log("✅ Extracted colors:", validColors);
-          return validColors;
-        } catch (error) {
-          console.error("❌ Color extraction error:", error);
-          return ["#667eea", "#764ba2", "#f093fb"];
-        }
+          const colors = await Promise.all(images.slice(0, 3).map(extractDominantColor));
+          const valid = colors.filter(Boolean);
+          if (!valid.length) return DEFAULT_COLORS;
+          while (valid.length < 3) valid.push(DEFAULT_COLORS[valid.length]);
+          return valid;
+        } catch { return DEFAULT_COLORS; }
       }
 
       async function extractDominantColor(imageUrl) {
         return new Promise((resolve) => {
           const img = new Image();
           img.crossOrigin = "Anonymous";
-          
+          img.onerror = () => resolve(null);
           img.onload = () => {
             try {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              
-              // 작은 크기로 리샘플링 (성능 향상)
-              const size = 50;
-              canvas.width = size;
-              canvas.height = size;
-              
-              ctx.drawImage(img, 0, 0, size, size);
-              const imageData = ctx.getImageData(0, 0, size, size);
-              const pixels = imageData.data;
-              
-              // 색상 빈도 계산
-              const colorCounts = {};
-              
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+              canvas.width = canvas.height = 50;
+              ctx.drawImage(img, 0, 0, 50, 50);
+              const pixels = ctx.getImageData(0, 0, 50, 50).data;
+              const counts = {};
+
               for (let i = 0; i < pixels.length; i += 4) {
-                const r = pixels[i];
-                const g = pixels[i + 1];
-                const b = pixels[i + 2];
-                const a = pixels[i + 3];
-                
-                // 투명하거나 너무 어둡거나 밝은 색상 제외
-                if (a < 128) continue;
-                if (r + g + b < 50) continue;
-                if (r + g + b > 720) continue;
-                
-                // 색상을 그룹화 (정확도를 위해)
-                const rr = Math.floor(r / 32) * 32;
-                const gg = Math.floor(g / 32) * 32;
-                const bb = Math.floor(b / 32) * 32;
-                
-                const key = `${rr},${gg},${bb}`;
-                colorCounts[key] = (colorCounts[key] || 0) + 1;
+                const [r, g, b, a] = [pixels[i], pixels[i+1], pixels[i+2], pixels[i+3]];
+                if (a < 128 || r+g+b < 50 || r+g+b > 720) continue;
+                const key = `${Math.floor(r/32)*32},${Math.floor(g/32)*32},${Math.floor(b/32)*32}`;
+                counts[key] = (counts[key] || 0) + 1;
               }
-              
-              // 가장 빈번한 색상 찾기
-              let maxCount = 0;
-              let dominantColor = null;
-              
-              for (const [color, count] of Object.entries(colorCounts)) {
-                if (count > maxCount) {
-                  maxCount = count;
-                  dominantColor = color;
-                }
-              }
-              
-              if (dominantColor) {
-                const [r, g, b] = dominantColor.split(',').map(Number);
-                
-                // 채도와 밝기 조정 (더 선명한 색상)
-                const hsl = rgbToHsl(r, g, b);
-                hsl.s = Math.min(1, hsl.s * 1.3); // 채도 증가
-                hsl.l = Math.max(0.35, Math.min(0.65, hsl.l)); // 밝기 조정
-                
-                const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
-                const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
-                
-                resolve(hex);
-              } else {
-                resolve(null);
-              }
-            } catch (error) {
-              console.error("Canvas error:", error);
-              resolve(null);
-            }
+
+              const dominant = Object.entries(counts).reduce(
+                (best, cur) => cur[1] > best[1] ? cur : best, [null, 0]
+              )[0];
+
+              if (!dominant) { resolve(null); return; }
+
+              const [r, g, b] = dominant.split(",").map(Number);
+              const hsl = rgbToHsl(r, g, b);
+              hsl.s = Math.min(1, hsl.s * 1.3);
+              hsl.l = Math.max(0.35, Math.min(0.65, hsl.l));
+              const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+              resolve(`#${rgb.r.toString(16).padStart(2,"0")}${rgb.g.toString(16).padStart(2,"0")}${rgb.b.toString(16).padStart(2,"0")}`);
+            } catch { resolve(null); }
           };
-          
-          img.onerror = () => resolve(null);
-          
-          // CORS 우회를 위해 프록시 사용 (필요시)
           img.src = imageUrl;
         });
       }
 
-      // RGB to HSL 변환
       function rgbToHsl(r, g, b) {
-        r /= 255;
-        g /= 255;
-        b /= 255;
-        
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
         let h, s, l = (max + min) / 2;
-        
-        if (max === min) {
-          h = s = 0;
-        } else {
+        if (max === min) { h = s = 0; } else {
           const d = max - min;
           s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          
           switch (max) {
             case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
             case g: h = ((b - r) / d + 2) / 6; break;
             case b: h = ((r - g) / d + 4) / 6; break;
           }
         }
-        
         return { h, s, l };
       }
 
-      // HSL to RGB 변환
       function hslToRgb(h, s, l) {
-        let r, g, b;
-        
-        if (s === 0) {
-          r = g = b = l;
-        } else {
-          const hue2rgb = (p, q, t) => {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-          };
-          
-          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-          const p = 2 * l - q;
-          
-          r = hue2rgb(p, q, h + 1/3);
-          g = hue2rgb(p, q, h);
-          b = hue2rgb(p, q, h - 1/3);
-        }
-        
+        if (s === 0) { const v = Math.round(l * 255); return { r: v, g: v, b: v }; }
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1; if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q-p)*6*t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+          return p;
+        };
+        const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
         return {
-          r: Math.round(r * 255),
-          g: Math.round(g * 255),
-          b: Math.round(b * 255)
+          r: Math.round(hue2rgb(p, q, h+1/3) * 255),
+          g: Math.round(hue2rgb(p, q, h)     * 255),
+          b: Math.round(hue2rgb(p, q, h-1/3) * 255),
         };
       }
 
-      /* ================= 🎵 플레이어 함수 ================= */
+      /* ── 플레이어 ────────────────────────────────────── */
 
       function renderTrackList(tracks) {
         const container = document.getElementById("trackListContainer");
-
-        if (!tracks || !tracks.length) {
-          container.style.maxHeight = "";
-          container.style.overflowY = "";
+        if (!tracks?.length) {
+          container.style.maxHeight = container.style.overflowY = "";
           container.innerHTML = `
-      <div class="empty-playlist">
-        <div class="empty-playlist-icon">🎵</div>
-        <div class="empty-playlist-text">no tracks in this playlist</div>
-      </div>
-    `;
+            <div class="empty-playlist">
+              <div class="empty-playlist-icon">🎵</div>
+              <div class="empty-playlist-text">no tracks in this playlist</div>
+            </div>
+          `;
           return;
         }
 
-        const html = tracks
-          .map((track, index) => {
-            const name = track?.name || "Unknown Track";
-            const artist = track?.artist || "Unknown Artist";
-
-            return `
-        <div class="track-item" data-index="${index}">
-          <div class="track-number">${index + 1}</div>
-          <div class="track-info">
-            <div class="track-name">${name}</div>
-            <div class="track-artist">${artist}</div>
+        container.innerHTML = tracks.map((t, i) => `
+          <div class="track-item" data-index="${i}">
+            <div class="track-number">${i + 1}</div>
+            <div class="track-info">
+              <div class="track-name">${t?.name || "Unknown Track"}</div>
+              <div class="track-artist">${t?.artist || "Unknown Artist"}</div>
+            </div>
           </div>
-        </div>
-      `;
-          })
-          .join("");
+        `).join("");
 
-        container.innerHTML = html;
-
-        // 트랙 클릭 이벤트
         container.querySelectorAll(".track-item").forEach((item) => {
-          item.onclick = () => {
-            const index = parseInt(item.dataset.index);
-            playTrack(index);
-          };
+          item.onclick = () => playTrack(parseInt(item.dataset.index));
         });
 
         updateTrackListHeight();
@@ -1231,189 +866,109 @@
 
       function updatePlayingUI() {
         document.querySelectorAll(".track-item").forEach((item, idx) => {
-          if (idx === currentPlayingIndex) {
-            item.classList.add("playing");
-          } else {
-            item.classList.remove("playing");
-          }
+          item.classList.toggle("playing", idx === currentPlayingIndex);
         });
       }
 
       function updateTrackListHeight() {
         const container = document.getElementById("trackListContainer");
         const items = Array.from(container.querySelectorAll(".track-item"));
-
-        if (items.length <= 3) {
-          container.style.maxHeight = "";
-          container.style.overflowY = "";
-          return;
-        }
+        if (items.length <= 3) { container.style.maxHeight = container.style.overflowY = ""; return; }
 
         let height = 0;
         items.slice(0, 3).forEach((item) => {
-          const rect = item.getBoundingClientRect();
-          const style = getComputedStyle(item);
-          const marginTop = parseFloat(style.marginTop) || 0;
-          const marginBottom = parseFloat(style.marginBottom) || 0;
-          height += rect.height + marginTop + marginBottom;
+          const s = getComputedStyle(item);
+          height += item.getBoundingClientRect().height
+            + parseFloat(s.marginTop || 0) + parseFloat(s.marginBottom || 0);
         });
-
-        const containerStyle = getComputedStyle(container);
-        const paddingTop = parseFloat(containerStyle.paddingTop) || 0;
-        const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
-        height += paddingTop + paddingBottom;
-
+        const cs = getComputedStyle(container);
+        height += parseFloat(cs.paddingTop || 0) + parseFloat(cs.paddingBottom || 0);
         container.style.maxHeight = `${Math.ceil(height)}px`;
         container.style.overflowY = "auto";
       }
 
       function applyMoodGradient(colors) {
-        const gradientEl = document.querySelector(".playlist-mood-gradient");
-        if (!gradientEl) return;
-
-        gradientEl.style.setProperty("--mood-c1", colors[0]);
-        gradientEl.style.setProperty("--mood-c2", colors[1]);
-        gradientEl.style.setProperty("--mood-c3", colors[2]);
-        
-        console.log("🎨 Applied gradient from album covers:", colors);
+        const el = document.querySelector(".playlist-mood-gradient");
+        if (!el) return;
+        el.style.setProperty("--mood-c1", colors[0]);
+        el.style.setProperty("--mood-c2", colors[1]);
+        el.style.setProperty("--mood-c3", colors[2]);
       }
 
       async function openPlaylist(u) {
-        console.log("🎵 Opening playlist for:", u.first_name || u.firstName);
-        
         selectedUser = u;
         playlistTracks = u.playlist || [];
         currentPlayingIndex = -1;
 
-        const firstName = u.first_name || u.firstName;
-
-        // 제목 설정
-        document.getElementById("playlistTitle").textContent =
-          `${firstName}'s playlist`;
-        document.getElementById("trackCount").textContent =
-          playlistTracks.length;
-
-        // 모달 표시
+        document.getElementById("playlistTitle").textContent = `${u.first_name || u.firstName}'s playlist`;
+        document.getElementById("trackCount").textContent = playlistTracks.length;
         document.getElementById("playlistModal").classList.add("active");
-
-        // UI 초기화
         document.getElementById("spotifyEmbedContainer").style.display = "none";
         document.getElementById("playbackStatus").style.display = "none";
-
-        // 로딩 표시
         document.getElementById("trackListContainer").innerHTML = `
-    <div class="loading-playlist">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">loading playlist...</div>
-    </div>
-  `;
+          <div class="loading-playlist">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">loading playlist...</div>
+          </div>
+        `;
 
-        // 앨범 커버 기반 그라데이션 생성
-        if (playlistTracks.length > 0) {
-          const colors = await extractColorsFromAlbumCovers(playlistTracks);
-          applyMoodGradient(colors);
+        if (playlistTracks.length) {
+          applyMoodGradient(await extractColorsFromAlbumCovers(playlistTracks));
         }
 
-        // 트랙 리스트 렌더링
         renderTrackList(playlistTracks);
-
-        // 재생 안내 표시
-        document.getElementById("playbackStatus").style.display = "block";
-        document.getElementById("playbackStatus").textContent =
-          "tap any track to play";
-
+        const status = document.getElementById("playbackStatus");
+        status.style.display = "block";
+        status.textContent = "tap any track to play";
         updatePlayingUI();
       }
 
-      function extractTrackIds(tracks) {
-        const ids = [];
-        
-        for (const track of tracks || []) {
-          let trackId = null;
-          
-          if (track?.id && /^[A-Za-z0-9]{22}$/.test(track.id)) {
-            trackId = track.id;
-          } else if (track?.uri && track.uri.startsWith("spotify:track:")) {
-            trackId = track.uri.split(":")[2];
-          } else if (track?.spotify_uri && track.spotify_uri.startsWith("spotify:track:")) {
-            trackId = track.spotify_uri.split(":")[2];
-          } else if (track?.spotifyUri && track.spotifyUri.startsWith("spotify:track:")) {
-            trackId = track.spotifyUri.split(":")[2];
-          }
-          
-          if (trackId && /^[A-Za-z0-9]{22}$/.test(trackId)) {
-            ids.push(trackId);
+      function extractTrackId(track) {
+        if (track?.id && /^[A-Za-z0-9]{22}$/.test(track.id)) return track.id;
+        for (const key of ["uri", "spotify_uri", "spotifyUri"]) {
+          if (track?.[key]?.startsWith("spotify:track:")) {
+            const id = track[key].split(":")[2];
+            if (/^[A-Za-z0-9]{22}$/.test(id)) return id;
           }
         }
-        
-        return ids;
+        return null;
       }
 
       function playTrack(index) {
-        if (!playlistTracks || !playlistTracks[index]) return;
+        const track = playlistTracks?.[index];
+        if (!track) return;
+        const trackId = extractTrackId(track);
+        if (!trackId) { console.error("No track ID found"); return; }
 
-        const track = playlistTracks[index];
-        const trackId = track.id || extractTrackIds([track])[0];
-
-        if (!trackId) {
-          console.error("❌ No track ID found");
-          return;
-        }
-
-        console.log("▶️ Playing:", track.name);
-
-        // Spotify embed URL
-        const embedUrl = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0`;
-
-        // iframe 업데이트
-        const iframe = document.getElementById("spotifyEmbed");
-        iframe.src = embedUrl;
-
-        // UI 업데이트
+        document.getElementById("spotifyEmbed").src =
+          `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0`;
         document.getElementById("spotifyEmbedContainer").style.display = "block";
         document.getElementById("playbackStatus").style.display = "none";
-
         currentPlayingIndex = index;
         updatePlayingUI();
-
         clearTimeout(spotifyTimer);
       }
 
       function closePlaylistModal() {
-        console.log("🔒 Closing modal");
-        
         clearTimeout(spotifyTimer);
-        
-        // iframe 정리
         const iframe = document.getElementById("spotifyEmbed");
-        if (iframe) {
-          iframe.src = "";
-        }
+        if (iframe) iframe.src = "";
         document.getElementById("spotifyEmbedContainer").style.display = "none";
-        
         currentPlayingIndex = -1;
         updatePlayingUI();
         selectedUser = null;
-        
         document.getElementById("playlistModal").classList.remove("active");
       }
 
-      // 이벤트 리스너
-      document
-        .getElementById("playlistModal")
-        ?.addEventListener("click", (e) => {
-          if (e.target.id === "playlistModal") {
-            closePlaylistModal();
-          }
-        });
-
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          closePlaylistModal();
-        }
+      document.getElementById("playlistModal")?.addEventListener("click", (e) => {
+        if (e.target.id === "playlistModal") closePlaylistModal();
       });
 
-      /* ====================== init ====================== */
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closePlaylistModal();
+      });
+
+      /* ── Init ────────────────────────────────────────── */
 
       window.onload = async () => {
         try {
@@ -1426,25 +981,15 @@
           return;
         }
 
-        if (!getFromLocal("location")) {
-          navigateTo("location-permission.html");
-          return;
-        }
+        if (!getFromLocal("location")) { navigateTo("location-permission.html"); return; }
 
         renderBottomNav("lounge");
         await updateLocation();
         listenPresence();
         await loadUsers();
-        if (isAIMatchTime()) {
-          switchTab("ai");
-        } else {
-          switchTab("lounge");
-        }
+        isAIMatchTime() ? switchTab("ai") : switchTab("lounge");
         listenMatchRequests();
-
-        if (shouldShowAiClosedOverlay()) {
-          showAiClosedOverlay();
-        }
+        if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
       };
     </script>
   </body>

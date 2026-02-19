@@ -6,53 +6,8 @@
     <title>History Detail</title>
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
+
     <style>
-      .history-card {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .history-card.offline {
-        opacity: 0.6;
-      }
-
-      .history-card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-      }
-
-      .history-name-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .history-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .history-meta {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 6px;
-        color: var(--text-secondary);
-        font-size: 12px;
-        flex-wrap: wrap;
-      }
-
-      .history-btn {
-        width: 100%;
-        padding: 8px 20px;
-        font-size: 14px;
-        margin-top: 6px;
-      }
-
       .history-phone {
         width: 100%;
         padding: 8px 20px;
@@ -90,10 +45,7 @@
         object-fit: contain;
       }
 
-      .section {
-        padding: 0 16px;
-        margin-bottom: 16px;
-      }
+      .section { padding: 0 16px; margin-bottom: 16px; }
 
       .section-title {
         font-size: 16px;
@@ -117,12 +69,7 @@
         height: 120px;
       }
 
-      .selection-card img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
+      .selection-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
       .selection-tag {
         position: absolute;
@@ -148,15 +95,12 @@
         padding: 16px;
         margin-bottom: 16px;
       }
-
     </style>
   </head>
+
   <body>
     <div class="main-container">
-      <div
-        class="chat-header brand-text"
-        style="text-align: left; color: #8e8e8e"
-      >
+      <div class="chat-header brand-text" style="text-align:left;color:#8e8e8e">
         about nine
       </div>
       <button class="back-btn" onclick="navigateTo('history.html')">
@@ -164,11 +108,11 @@
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
+
       <div class="content">
         <div class="history-card" id="partnerCard"></div>
-
-        <div class="tabs" id="roundTabs" style="margin-top: 20px;"></div>
-        <div id="roundContent" style="margin-top: 20px;"></div>
+        <div class="tabs" id="roundTabs" style="margin-top:20px;"></div>
+        <div id="roundContent" style="margin-top:20px;"></div>
       </div>
     </div>
 
@@ -180,15 +124,11 @@
       import { rtdb, ref, onValue, push, set } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
-      if (!userId) {
-        navigateTo("index.html");
-      }
+      if (!userId) navigateTo("index.html");
 
-      const params = new URLSearchParams(window.location.search);
+      const params    = new URLSearchParams(window.location.search);
       const partnerId = params.get("partnerId");
-      if (!partnerId) {
-        navigateTo("history.html");
-      }
+      if (!partnerId) navigateTo("history.html");
 
       let partner = null;
       let currentUserProfile = null;
@@ -198,104 +138,61 @@
       let maxRound = 0;
       let isBlocked = false;
 
-      function roundLabel(topic) {
-        if (topic === "life") return "values";
-        return topic || "";
-      }
-
       function getPartnerName() {
         const first = partner?.first_name || partner?.firstName || "";
-        const last = partner?.last_name || partner?.lastName || "";
+        const last  = partner?.last_name  || partner?.lastName  || "";
         return `${first} ${last}`.trim() || "your match";
       }
 
       function isOnline(uid) {
-        const presence = presenceData[uid];
-        return presence && presence.online === true;
+        const p = presenceData[uid];
+        return p && p.online === true;
       }
 
-      function buildSelectionCard(selection, options, topic, label) {
-        let img = "";
-        if (Array.isArray(options) && options.length) {
-          const opt = options.find((o) => o.category === selection);
-          if (opt) {
-            img = `<img src="/images/${topic}/${opt.category}/${opt.fileName}" alt="${opt.fileName}">`;
-          }
-        }
+      /* ── 라운드 탭 렌더 ──────────────────────────────── */
 
-        return `
-          <div class="selection-card">
-            ${img}
-            <div class="selection-tag">${label}</div>
-          </div>
-        `;
+      function getRoundTabLabel(n) {
+        return Array.from({ length: n })
+          .map(() => `<img class="round-star" src="/images/asterisk.png" alt="*">`)
+          .join("");
       }
 
       function renderRounds() {
-        const tabEl = document.getElementById("roundTabs");
+        const tabEl     = document.getElementById("roundTabs");
         const contentEl = document.getElementById("roundContent");
-        const rounds = [1, 2, 3].filter((r) => roundsMap[r]);
+        const rounds    = [1, 2, 3].filter((r) => roundsMap[r]);
 
-        if (!rounds.length) {
-          tabEl.innerHTML = "";
-          contentEl.innerHTML = "";
-          return;
-        }
+        if (!rounds.length) { tabEl.innerHTML = contentEl.innerHTML = ""; return; }
 
         const activeRound = rounds.includes(maxRound) ? maxRound : rounds[0];
 
-        tabEl.innerHTML = rounds
-          .map(
-            (r) =>
-              `<button class="tab ${r === activeRound ? "active" : ""}" data-round="${r}">${getRoundTabLabel(
-                r,
-              )}</button>`,
-          )
-          .join("");
+        tabEl.innerHTML = rounds.map((r) =>
+          `<button class="tab ${r === activeRound ? "active" : ""}" data-round="${r}">${getRoundTabLabel(r)}</button>`
+        ).join("");
 
         renderRoundContent(activeRound);
 
         tabEl.querySelectorAll(".tab").forEach((tab) => {
           tab.onclick = () => {
-            const r = Number(tab.dataset.round);
-            tabEl
-              .querySelectorAll(".tab")
-              .forEach((t) => t.classList.remove("active"));
+            tabEl.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
             tab.classList.add("active");
-            renderRoundContent(r);
+            renderRoundContent(Number(tab.dataset.round));
           };
         });
       }
 
-      function renderRoundContent(roundNumber) {
-        const contentEl = document.getElementById("roundContent");
-        const talk = roundsMap[roundNumber];
-        if (!talk) {
-          contentEl.innerHTML = "";
-          return;
+      /* ── 라운드 콘텐츠 ───────────────────────────────── */
+
+      function buildSelectionCard(selection, options, topic, label) {
+        let img = "";
+        if (Array.isArray(options) && options.length) {
+          const opt = options.find((o) => o.category === selection);
+          if (opt) img = `<img src="/images/${topic}/${opt.category}/${opt.fileName}" alt="${opt.fileName}">`;
         }
-
-        const score = typeof talk.score === "number" ? talk.score : "--";
-        const mySel = talk.selections?.[userId] || "";
-        const partnerSel = talk.selections?.[partnerId] || "";
-        const partnerName = getPartnerName();
-
-        const conversation = Array.isArray(talk.conversation)
-          ? talk.conversation
-              .map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`)
-              .join("\n")
-          : "analysis pending";
-
-        contentEl.innerHTML = `
-          <div class="section">
-            <div class="section-title">${roundLabel(
-              talk.topic,
-            )}: ${score}</div>
-            <div class="selection-grid">
-              ${buildSelectionCard(mySel, talk.options, talk.topic, "you")}
-              ${buildSelectionCard(partnerSel, talk.options, talk.topic, partnerName)}
-            </div>
-            <div class="conversation">${conversation}</div>
+        return `
+          <div class="selection-card">
+            ${img}
+            <div class="selection-tag">${label}</div>
           </div>
         `;
       }
@@ -305,54 +202,64 @@
         const partnerName = getPartnerName();
         const mapping = talk?.uid_mapping || {};
 
-        if (rawSpeaker === userId) return "you";
+        if (rawSpeaker === userId)    return "you";
         if (rawSpeaker === partnerId) return partnerName;
 
         if (typeof rawSpeaker === "string") {
-          if (rawSpeaker.startsWith("uid_")) {
-            const numeric = rawSpeaker.replace("uid_", "");
-            const mapped = mapping[numeric];
-            if (mapped === userId) return "you";
-            if (mapped === partnerId) return partnerName;
-          }
-
-          const mapped = mapping[rawSpeaker];
-          if (mapped === userId) return "you";
+          const key = rawSpeaker.startsWith("uid_") ? rawSpeaker.replace("uid_", "") : rawSpeaker;
+          const mapped = mapping[key];
+          if (mapped === userId)    return "you";
           if (mapped === partnerId) return partnerName;
         }
 
         return rawSpeaker;
       }
 
+      function renderRoundContent(roundNumber) {
+        const contentEl = document.getElementById("roundContent");
+        const talk = roundsMap[roundNumber];
+        if (!talk) { contentEl.innerHTML = ""; return; }
+
+        const score       = typeof talk.score === "number" ? talk.score : "--";
+        const mySel       = talk.selections?.[userId]    || "";
+        const partnerSel  = talk.selections?.[partnerId] || "";
+        const partnerName = getPartnerName();
+
+        const conversation = Array.isArray(talk.conversation)
+          ? talk.conversation.map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`).join("\n")
+          : "analysis pending";
+
+        contentEl.innerHTML = `
+          <div class="section">
+            <div class="section-title">${roundLabel(talk.topic)}: ${score}</div>
+            <div class="selection-grid">
+              ${buildSelectionCard(mySel,       talk.options, talk.topic, "you")}
+              ${buildSelectionCard(partnerSel,  talk.options, talk.topic, partnerName)}
+            </div>
+            <div class="conversation">${conversation}</div>
+          </div>
+        `;
+      }
+
+      /* ── 파트너 카드 ─────────────────────────────────── */
+
       function renderPartnerCard() {
-        const cardEl = document.getElementById("partnerCard");
-        const name = getPartnerName();
-        const online = isOnline(partnerId);
-        const scores = [];
-        [1, 2, 3].forEach((r) => {
+        const cardEl  = document.getElementById("partnerCard");
+        const name    = getPartnerName();
+        const online  = isOnline(partnerId);
+
+        const scoreHtml = [1, 2, 3].flatMap((r) => {
           const t = roundsMap?.[r];
-          if (!t) return;
-          const label = roundLabel(t.topic);
-          const s =
-            t.score === null || typeof t.score === "undefined" ? "--" : t.score;
-          scores.push(`${label}: ${s}`);
-        });
-        const scoreHtml = scores.length
-          ? scores.map((s) => `<span>${s}</span>`).join("")
-          : "<span>no scores yet</span>";
+          if (!t) return [];
+          const s = t.score === null || t.score === undefined ? "--" : t.score;
+          return [`<span>${roundLabel(t.topic)}: ${s}</span>`];
+        }).join("") || "<span>no scores yet</span>";
 
-        const statusText = "";
+        const actionHtml = maxRound >= 3
+          ? `<div class="history-phone">${partner?.phone || "--"}</div>`
+          : `<button class="primary history-btn" ${online && !isBlocked ? "" : "disabled"} onclick="startTalk()">start talk</button>`;
 
-        let actionHtml = "";
-        if (maxRound >= 3) {
-          const phone = partner?.phone || "--";
-          actionHtml = `<div class="history-phone">${phone}</div>`;
-        } else {
-          const startEnabled = online && !isBlocked;
-          actionHtml = `
-            <button class="primary history-btn" ${startEnabled ? "" : "disabled"} onclick="startTalk()">start talk</button>
-          `;
-        }
+        const statusDot = isBlocked ? "blocked" : online ? "online" : "offline";
 
         cardEl.className = `history-card ${online ? "" : "offline"}`;
         cardEl.innerHTML = `
@@ -361,18 +268,68 @@
               <div class="history-card-header">
                 <div class="history-name-row">
                   <span style="font-size:16px;font-weight:600;">${name}</span>
-                  <span class="status-dot ${
-                    isBlocked ? "blocked" : online ? "online" : "offline"
-                  }"></span>
+                  <span class="status-dot ${statusDot}"></span>
                 </div>
               </div>
               <div class="history-meta">${scoreHtml}</div>
-              ${statusText}
               ${actionHtml}
             </div>
           </div>
         `;
       }
+
+      /* ── startTalk ───────────────────────────────────── */
+
+      window.startTalk = async () => {
+        if (hadNo || isBlocked) return;
+        if (!partner) {
+          const res = await apiCall(`/talks/history-detail/${partnerId}`);
+          if (!res.success || !res.partner) return;
+          partner = res.partner;
+        }
+
+        saveToLocal("chat_partner", { id: partnerId, ...partner });
+
+        try {
+          showLoading("preparing...");
+          const roundRes = await apiCall("/talks/calculate-round", "POST", { partner_id: partnerId });
+          hideLoading();
+
+          if (!roundRes.success) { alert("failed to calculate round"); return; }
+
+          const { round, topic, question, options } = roundRes;
+          const newRequestRef = push(ref(rtdb, "match_requests"));
+          const requestId = newRequestRef.key;
+          saveToLocal("match_request_id", requestId);
+
+          const matchData = {
+            initiator: userId,
+            receiver: partnerId,
+            status: "waiting",
+            round,
+            topic,
+            timestamp: Date.now(),
+            initiator_profile: currentUserProfile || {
+              id: userId,
+              first_name: getFromLocal("firstName"),
+              last_name: getFromLocal("lastName"),
+              age: getFromLocal("age"),
+              gender: getFromLocal("gender"),
+            },
+          };
+          if (question) matchData.question = question;
+          if (options)  matchData.options  = options;
+
+          await set(newRequestRef, matchData);
+          navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
+        } catch (error) {
+          hideLoading();
+          console.error("Failed to start talk:", error);
+          alert("failed to start match request");
+        }
+      };
+
+      /* ── 데이터 로드 ─────────────────────────────────── */
 
       async function loadData() {
         const profileRes = await apiCall("/users/profile");
@@ -385,10 +342,10 @@
         }
 
         isBlocked = detailRes.blocked === true;
-        partner = detailRes.partner || null;
-        roundsMap = detailRes.rounds || {};
-        hadNo = detailRes.had_no === true;
-        maxRound = detailRes.max_round || 0;
+        partner   = detailRes.partner || null;
+        roundsMap = detailRes.rounds  || {};
+        hadNo     = detailRes.had_no  === true;
+        maxRound  = detailRes.max_round || 0;
 
         renderPartnerCard();
         renderRounds();
@@ -399,84 +356,6 @@
           presenceData = snap.val() || {};
           renderPartnerCard();
         });
-      }
-
-      window.startTalk = async () => {
-        if (hadNo || isBlocked) return;
-        if (!partner) {
-          const detailRes = await apiCall(`/talks/history-detail/${partnerId}`);
-          if (!detailRes.success || !detailRes.partner) return;
-          partner = detailRes.partner;
-        }
-
-        const partnerData = { id: partnerId, ...partner };
-        saveToLocal("chat_partner", partnerData);
-
-        try {
-          showLoading("preparing...");
-          const roundRes = await apiCall("/talks/calculate-round", "POST", {
-            partner_id: partnerId,
-          });
-          hideLoading();
-
-          if (!roundRes.success) {
-            alert("failed to calculate round");
-            return;
-          }
-
-          const round = roundRes.round;
-          const topic = roundRes.topic;
-          const question = roundRes.question;
-          const options = roundRes.options;
-
-          const requestsRef = ref(rtdb, "match_requests");
-          const newRequestRef = push(requestsRef);
-          const requestId = newRequestRef.key;
-          saveToLocal("match_request_id", requestId);
-
-          const initiatorProfile = currentUserProfile || {
-            id: userId,
-            first_name: getFromLocal("firstName"),
-            last_name: getFromLocal("lastName"),
-            age: getFromLocal("age"),
-            gender: getFromLocal("gender"),
-          };
-
-          const matchData = {
-            initiator: userId,
-            receiver: partnerId,
-            status: "waiting",
-            round,
-            topic,
-            timestamp: Date.now(),
-            initiator_profile: initiatorProfile,
-          };
-
-          if (question) matchData.question = question;
-          if (options) matchData.options = options;
-
-          await set(newRequestRef, matchData);
-          navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
-        } catch (error) {
-          hideLoading();
-          console.error("Failed to start match request:", error);
-          alert("failed to start match request");
-        }
-      };
-
-      function getOrdinal(n) {
-        if (n === 1) return "1st";
-        if (n === 2) return "2nd";
-        if (n === 3) return "3rd";
-        return `${n}th`;
-      }
-
-      function getRoundTabLabel(n) {
-        return Array.from({ length: n })
-          .map(
-            () => `<img class="round-star" src="/images/asterisk.png" alt="*">`,
-          )
-          .join("");
       }
 
       window.onload = async () => {

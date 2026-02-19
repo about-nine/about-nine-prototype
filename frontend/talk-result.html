@@ -8,58 +8,10 @@
     <script type="module" src="js/firebase.js"></script>
 
     <style>
-      /* 챗 컨테이너 */
+      /* ── 컨테이너 ──────────────────────────────────── */
+
       .result-chat-container {
-        width: 100%;
-        max-width: 480px;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        font-family: "Merriweather", serif;
         overflow: hidden;
-        background: linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 100%);
-      }
-
-      /* 헤더 */
-      .result-header {
-        text-align: center;
-        padding: 30px 20px 20px;
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text-primary);
-      }
-
-      /* 챗 메시지 영역 */
-      .result-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 0 20px 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      /* 메시지 (COCO) */
-      .coco-message {
-        display: flex;
-        gap: 10px;
-        align-items: flex-start;
-        opacity: 0;
-        animation: fadeIn 0.3s forwards;
-      }
-
-      @keyframes fadeIn {
-        to {
-          opacity: 1;
-        }
-      }
-
-      .coco-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);
-        flex-shrink: 0;
       }
 
       .coco-avatar-spacer {
@@ -68,37 +20,8 @@
         flex-shrink: 0;
       }
 
-      .coco-bubble {
-        background: #525252;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        padding: 6px 14px;
-        border-radius: 22px;
-        max-width: 70%;
-        line-height: 1.5;
-        font-size: 14px;
-        color: var(--text-primary);
-      }
+      /* ── Chemistry Score 카드 ───────────────────────── */
 
-      /* 메시지 (USER) */
-      .user-message {
-        display: flex;
-        justify-content: flex-end;
-        opacity: 0;
-        animation: fadeIn 0.3s forwards;
-      }
-
-      .user-bubble {
-        background: linear-gradient(135deg, #5b7fff, #7b5bff);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        padding: 6px 14px;
-        border-radius: 22px;
-        max-width: 70%;
-        line-height: 1.5;
-        font-size: 14px;
-        color: var(--text-primary);
-      }
-
-      /* Chemistry Score 카드 */
       .chemistry-card {
         padding: 20px;
         cursor: pointer;
@@ -131,64 +54,8 @@
         width: auto;
       }
 
-      /* 입력 영역 (드롭다운 + 전송) */
-      .result-input-area {
-        padding: 16px 20px calc(30px + var(--safe-bottom));
-        background: transparent;
-        display: flex;
-        gap: 10px;
-        align-items: stretch;
-      }
+      /* ── Waiting 메시지 ─────────────────────────────── */
 
-      .choice-dropdown {
-        flex: 1;
-        background: #3a3a3a;
-        border: none;
-        border-radius: 28px;
-        padding: 12px 18px;
-        color: white;
-        font-size: 16px;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 18px center;
-        padding-right: 45px;
-        cursor: pointer;
-      }
-
-      .send-btn {
-        width: 47px;
-        height: 47px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #5b7fff, #7b5bff);
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        flex-shrink: 0;
-        transition: transform 0.2s;
-      }
-
-      .send-btn:active {
-        transform: scale(0.95);
-      }
-
-      .send-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .send-btn::before {
-        content: "";
-        width: 20px;
-        height: 20px;
-        background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 10H16M16 10L11 5M16 10L11 15' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: center;
-      }
-
-      /* Waiting 메시지 */
       .waiting-message {
         text-align: center;
         padding: 12px;
@@ -197,20 +64,8 @@
         font-style: italic;
       }
 
-      /* 프로필 카드 */
-      .profile-card {
-        padding: 20px;
-        cursor: pointer;
-        transition: transform 0.2s;
-      }
+      /* ── Go to Lounge 버튼 ──────────────────────────── */
 
-      .profile-name {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 12px;
-      }
-
-      /* Go to Lounge 버튼 */
       .lounge-button-container {
         padding: 16px 20px calc(30px + var(--safe-bottom));
         background: transparent;
@@ -228,7 +83,22 @@
         cursor: pointer;
       }
 
-      /* 바텀시트 오버레이 */
+      /* ── 프로필 카드 ────────────────────────────────── */
+
+      .profile-card {
+        padding: 20px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+
+      .profile-name {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      /* ── 바텀시트 ───────────────────────────────────── */
+
       .bottom-sheet-overlay {
         position: fixed;
         top: 0;
@@ -247,8 +117,9 @@
         pointer-events: auto;
       }
 
-      /* 분석 바텀시트 */
-      .analysis-bottom-sheet {
+      /* 공통 바텀시트 속성 */
+      .analysis-bottom-sheet,
+      .profile-bottom-sheet {
         position: fixed;
         bottom: 0;
         left: 50%;
@@ -256,24 +127,35 @@
         width: 100%;
         max-width: 480px;
         height: 90vh;
-        background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
         border-radius: 20px 20px 0 0;
-        padding: 20px;
         transition: transform 0.3s;
         z-index: 1000;
         overflow-y: auto;
+        font-family: "Merriweather", serif;
+      }
+
+      .analysis-bottom-sheet.active,
+      .profile-bottom-sheet.active {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .analysis-bottom-sheet {
+        background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+        padding: 20px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        font-family: "Merriweather", serif;
       }
 
-      .analysis-bottom-sheet.active {
-        transform: translateX(-50%) translateY(0);
+      .profile-bottom-sheet {
+        background: #1a1a1a;
+        padding: 40px 20px calc(30px + var(--safe-bottom));
       }
 
-      .sheet-handle {
+      /* 공통 핸들 */
+      .sheet-handle,
+      .profile-sheet-handle {
         width: 40px;
         height: 4px;
         background: rgba(255, 255, 255, 0.3);
@@ -284,7 +166,8 @@
         transform: translateX(-50%);
       }
 
-      /* 원형 그래픽 */
+      /* ── 원형 스코어 그래픽 ──────────────────────────── */
+
       .score-circle-container {
         position: relative;
         width: 280px;
@@ -310,17 +193,9 @@
         text-align: center;
       }
 
-      .score-rating {
-        font-size: 45px;
-        color: white;
-      }
+      .score-rating { font-size: 45px; color: white; }
+      .score-number { font-size: 38px; color: white; }
 
-      .score-number {
-        font-size: 38px;
-        color: white;
-      }
-
-      /* 키워드 영역 */
       .keywords-area {
         width: 100%;
         text-align: center;
@@ -330,37 +205,7 @@
         word-spacing: 0.5em;
       }
 
-      /* 프로필 바텀시트 (전체 화면) */
-      .profile-bottom-sheet {
-        position: fixed;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%) translateY(100%);
-        width: 100%;
-        max-width: 480px;
-        height: 90vh;
-        background: #1a1a1a;
-        transition: transform 0.3s;
-        z-index: 1000;
-        overflow-y: auto;
-        padding: 40px 20px calc(30px + var(--safe-bottom));
-        font-family: "Merriweather", serif;
-      }
-
-      .profile-bottom-sheet.active {
-        transform: translateX(-50%) translateY(0);
-      }
-
-      .profile-sheet-handle {
-        width: 40px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 2px;
-        position: absolute;
-        top: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-      }
+      /* ── 프로필 시트 내부 ────────────────────────────── */
 
       .profile-sheet-name {
         font-size: 20px;
@@ -404,35 +249,7 @@
         gap: 12px;
       }
 
-      .profile-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-      }
-
-      .profile-label {
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-
-      .profile-value {
-        font-size: 12px;
-        color: var(--text-primary);
-        font-weight: 500;
-        text-align: right;
-      }
-
-      .profile-info-label {
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-
-      .profile-info-value {
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--text-primary);
-      }
+      /* profile-label / profile-value: style.css로 이동 */
 
       .playlist-chips {
         display: flex;
@@ -481,100 +298,43 @@
         margin-top: 30px;
       }
 
+      /* ── Responsive ─────────────────────────────────── */
+
       @supports (height: 100svh) {
-        .result-chat-container {
-          height: 100svh;
-        }
+        .result-chat-container { height: 100svh; }
         .analysis-bottom-sheet,
-        .profile-bottom-sheet {
-          height: 90svh;
-        }
+        .profile-bottom-sheet   { height: 90svh; }
       }
 
       @media (max-width: 420px) {
-        .result-header {
-          padding: 20px 16px 12px;
-        }
-
-        .result-messages {
-          padding: 0 16px 16px;
-          gap: 10px;
-        }
-
-        .result-input-area {
-          padding: 12px 16px calc(20px + var(--safe-bottom));
-        }
-
-        .lounge-button-container {
-          padding: 12px 16px calc(20px + var(--safe-bottom));
-        }
-
-        .choice-dropdown {
-          font-size: 15px;
-          padding: 10px 16px;
-          padding-right: 40px;
-        }
-
-        .send-btn {
-          width: 44px;
-          height: 44px;
-        }
+        .result-header        { padding: 20px 16px 12px; }
+        .result-messages      { padding: 0 16px 16px; gap: 10px; }
+        .result-input-area    { padding: 12px 16px calc(20px + var(--safe-bottom)); }
+        .lounge-button-container { padding: 12px 16px calc(20px + var(--safe-bottom)); }
 
         .coco-bubble,
-        .user-bubble {
-          max-width: 78%;
-          font-size: 13px;
-        }
+        .user-bubble          { max-width: 78%; font-size: 13px; }
 
         .chemistry-card,
-        .profile-card {
-          padding: 16px;
-        }
+        .profile-card         { padding: 16px; }
 
         .analysis-bottom-sheet {
-          padding: calc(20px + var(--safe-top)) 16px
-            calc(24px + var(--safe-bottom));
+          padding: calc(20px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
         }
-
         .profile-bottom-sheet {
-          padding: calc(32px + var(--safe-top)) 16px
-            calc(24px + var(--safe-bottom));
+          padding: calc(32px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
         }
 
-        .score-circle-container {
-          width: 220px;
-          height: 220px;
-          margin-bottom: 28px;
-        }
-
-        .score-rating {
-          font-size: 36px;
-        }
-
-        .score-number {
-          font-size: 30px;
-        }
-
-        .keywords-area {
-          font-size: 13px;
-          word-spacing: 0.4em;
-        }
-
-        .profile-info-card {
-          padding: 14px 16px;
-        }
+        .score-circle-container { width: 220px; height: 220px; margin-bottom: 28px; }
+        .score-rating  { font-size: 36px; }
+        .score-number  { font-size: 30px; }
+        .keywords-area { font-size: 13px; word-spacing: 0.4em; }
+        .profile-info-card { padding: 14px 16px; }
       }
 
       @media (max-height: 700px) {
-        .score-circle-container {
-          width: 210px;
-          height: 210px;
-          margin-bottom: 24px;
-        }
-
-        .result-header {
-          padding-top: 18px;
-        }
+        .score-circle-container { width: 210px; height: 210px; margin-bottom: 24px; }
+        .result-header          { padding-top: 18px; }
       }
     </style>
   </head>
@@ -589,20 +349,16 @@
 
       <!-- 입력 영역 (드롭다운 + 전송) -->
       <div
-        class="result-input-area chat-input-area chat-input-wrap"
+        class="result-input-area chat-input-area"
         id="inputArea"
         style="display: none"
       >
-        <select class="choice-dropdown chat-select" id="choiceSelect">
+        <select class="chat-select" id="choiceSelect">
           <option value="">go or no</option>
           <option value="go">go</option>
           <option value="no">no</option>
         </select>
-        <button
-          class="send-btn chat-send"
-          id="sendBtn"
-          onclick="submitChoice()"
-        ></button>
+        <button class="chat-send" id="sendBtn" onclick="submitChoice()"></button>
       </div>
 
       <!-- Go to Lounge 버튼 -->
@@ -628,7 +384,6 @@
     <div class="analysis-bottom-sheet" id="analysisSheet">
       <div class="sheet-handle"></div>
 
-      <!-- 화학 이미지 -->
       <div class="score-circle-container">
         <img
           class="score-circle-image"
@@ -641,12 +396,7 @@
         </div>
       </div>
 
-      <!-- 키워드 -->
-      <div class="keywords-area" id="sheetKeywords">
-        empathic words empathic words empathic empathic words empathic words
-        empathic empathic words empathic words empathic empathic words empathic
-        words empathic empathic words empathic words empathic
-      </div>
+      <div class="keywords-area" id="sheetKeywords"></div>
     </div>
 
     <!-- 프로필 바텀시트 -->
@@ -655,11 +405,8 @@
       <div class="profile-sheet-header">
         <div class="profile-sheet-name" id="profileName">tommy hills</div>
       </div>
-
       <div class="profile-sheet-subtitle" id="profileTrials"></div>
-
       <div id="profileCards"></div>
-
       <div class="unlock-text" id="unlockText"></div>
     </div>
 
@@ -683,7 +430,6 @@
 
       window.onload = async () => {
         if (!userId || !partner) {
-          console.error("❌ 필수 데이터 없음");
           alert("invalid request");
           navigateTo("lounge.html");
           return;
@@ -692,7 +438,6 @@
         try {
           const res = await loadTalkHistory();
           if (!res?.talk) {
-            console.error("❌ talk_history 없음");
             removeFromLocal("current_talk_id");
             navigateTo("lounge.html");
             return;
@@ -702,11 +447,7 @@
           currentRound = talkData.round || 1;
           analysisScore = extractAnalysisScore(talkData);
 
-          console.log("✅ talk_history 로드:", talkData);
-
-          if (analysisScore === null) {
-            waitForAnalysis();
-          }
+          if (analysisScore === null) waitForAnalysis();
 
           startChat();
         } catch (e) {
@@ -719,17 +460,9 @@
 
       async function startChat() {
         await addCocoMessage("yes", 500);
-
-        const partnerName = getPartnerName();
-        await addCocoMessage(
-          `here's your chemistry score with ${partnerName}`,
-          1000,
-        );
-
+        await addCocoMessage(`here's your chemistry score with ${getPartnerName()}`, 1000);
         await addScoreCard(1500);
-
         await addCocoMessage("go or no?", 2000);
-
         showInputArea(2500);
       }
 
@@ -743,19 +476,19 @@
 
       async function addCocoMessage(text, delay = 0) {
         await sleep(delay);
-
         const messages = document.getElementById("messages");
         const showAvatar = lastMessageType !== "coco";
 
-        const messageDiv = document.createElement("div");
-        messageDiv.className = "coco-message chat-row";
-
-        messageDiv.innerHTML = `
-          ${showAvatar ? '<div class="coco-avatar chat-avatar"></div>' : '<div class="coco-avatar-spacer"></div>'}
+        const div = document.createElement("div");
+        div.className = "coco-message chat-row";
+        div.innerHTML = `
+          ${showAvatar
+            ? '<div class="coco-avatar chat-avatar"></div>'
+            : '<div class="coco-avatar-spacer"></div>'}
           <div class="coco-bubble chat-bubble">${text}</div>
         `;
 
-        messages.appendChild(messageDiv);
+        messages.appendChild(div);
         lastMessageType = "coco";
         scrollToBottom();
       }
@@ -763,29 +496,26 @@
       async function addUserMessage(text, delay = 0) {
         await sleep(delay);
         const messages = document.getElementById("messages");
-        const messageDiv = document.createElement("div");
-        messageDiv.className = "user-message chat-row mine";
-        messageDiv.innerHTML = `<div class="user-bubble chat-bubble mine">${text}</div>`;
-        messages.appendChild(messageDiv);
+        const div = document.createElement("div");
+        div.className = "user-message chat-row mine";
+        div.innerHTML = `<div class="user-bubble chat-bubble mine">${text}</div>`;
+        messages.appendChild(div);
         lastMessageType = "user";
         scrollToBottom();
       }
 
       async function addScoreCard(delay = 0) {
         await sleep(delay);
-
         const score = calculateScore();
         const rating = getScoreRating(score);
         const scoreText = score === null ? "--" : score;
-
         const messages = document.getElementById("messages");
 
-        const cardDiv = document.createElement("div");
-        cardDiv.className = "coco-message";
-
-        cardDiv.innerHTML = `
-          <div class="coco-avatar"></div>
-          <div class="coco-bubble" style="max-width: 80%; padding: 0;">
+        const div = document.createElement("div");
+        div.className = "coco-message";
+        div.innerHTML = `
+          <div class="coco-avatar chat-avatar"></div>
+          <div class="coco-bubble chat-bubble" style="max-width:80%;padding:0;">
             <div class="chemistry-card" onclick="openAnalysisSheet()">
               <div class="chemistry-score-text">
                 chemistry score:
@@ -797,11 +527,11 @@
           </div>
         `;
 
-        messages.appendChild(cardDiv);
+        messages.appendChild(div);
         scrollToBottom();
       }
 
-      /* ================= 입력 영역 표시 ================= */
+      /* ================= 입력 영역 ================= */
 
       async function showInputArea(delay = 0) {
         await sleep(delay);
@@ -820,47 +550,26 @@
         }
 
         myChoice = choice;
-        console.log(`✅ 선택: ${choice}`);
-
-        // 입력 영역 숨기기
         document.getElementById("inputArea").style.display = "none";
         document.getElementById("sendBtn").disabled = true;
 
-        // 사용자 선택 메시지 표시
         await addUserMessage(choice, 150);
 
         try {
           const ensured = await ensureTalkId(true);
-          if (!ensured) {
-            throw new Error("talk_id not ready");
-          }
+          if (!ensured) throw new Error("talk_id not ready");
 
-          const res = await apiCall("/talks/respond", "POST", {
-            talk_id: talkId,
-            choice,
-          });
-          if (!res.success) {
-            throw new Error(res.message || "failed to submit response");
-          }
+          const res = await apiCall("/talks/respond", "POST", { talk_id: talkId, choice });
+          if (!res.success) throw new Error(res.message || "failed to submit response");
 
-          // 🔎 서버 기준으로 내 user_id 재확인 (로컬 user_id가 어긋난 경우 대응)
           try {
             const rtdbRes = await fetchGoNoGoStatus();
-            const latest = rtdbRes
-              ? null
-              : await apiCall(`/talks/history/${talkId}`);
+            const latest = rtdbRes ? null : await apiCall(`/talks/history/${talkId}`);
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(latest?.talk);
             const ids = Object.keys(goNoGo);
-            if (ids.length === 1) {
-              effectiveUserId = ids[0];
-            } else if (effectiveUserId && ids.includes(effectiveUserId)) {
-              // keep as-is
-            } else if (userId && ids.includes(userId)) {
-              effectiveUserId = userId;
-            }
-          } catch (e) {
-            // ignore sync errors
-          }
+            if (ids.length === 1) effectiveUserId = ids[0];
+            else if (userId && ids.includes(userId)) effectiveUserId = userId;
+          } catch {}
         } catch (error) {
           console.error("Failed to submit response:", error);
           alert("failed to submit response");
@@ -869,25 +578,19 @@
           return;
         }
 
-        // 대기 메시지
         await addCocoMessage("waiting for your match's response...", 300);
-
-        // 상대방 응답 리스너
         listenForPartnerResponse();
       };
 
       /* ================= 상대방 응답 대기 ================= */
 
       function extractGoNoGoMap(talk) {
-        const map =
-          talk?.go_no_go && typeof talk.go_no_go === "object"
-            ? { ...talk.go_no_go }
-            : {};
+        const map = talk?.go_no_go && typeof talk.go_no_go === "object"
+          ? { ...talk.go_no_go } : {};
         if (talk && typeof talk === "object") {
           Object.keys(talk).forEach((key) => {
             if (key.startsWith("go_no_go.")) {
-              const id = key.slice("go_no_go.".length);
-              map[id] = talk[key];
+              map[key.slice("go_no_go.".length)] = talk[key];
             }
           });
         }
@@ -895,33 +598,25 @@
       }
 
       function getApiBase() {
-        try {
-          const stored = localStorage.getItem("api_base");
-          if (stored) return stored;
-        } catch {}
-        if (window.__API_BASE__) return window.__API_BASE__;
-        return `${window.location.origin}/api`;
+        try { const s = localStorage.getItem("api_base"); if (s) return s; } catch {}
+        return window.__API_BASE__ || `${window.location.origin}/api`;
       }
 
       async function fetchGoNoGoStatus() {
         const id = requestId || talkId;
         if (!id) return null;
         try {
-          const response = await fetch(`${getApiBase()}/talks/go-no-go/${id}`, {
-            credentials: "include",
-          });
+          const response = await fetch(`${getApiBase()}/talks/go-no-go/${id}`, { credentials: "include" });
           if (!response.ok) return null;
           const res = await response.json();
-          if (!res?.success) return null;
-          return res;
-        } catch (e) {
-          return null;
-        }
+          return res?.success ? res : null;
+        } catch { return null; }
       }
 
       function listenForPartnerResponse() {
         if (!talkId) return;
         if (partnerPollTimer) clearInterval(partnerPollTimer);
+
         partnerPollTimer = setInterval(async () => {
           try {
             const [res, rtdbRes] = await Promise.all([
@@ -929,87 +624,56 @@
               fetchGoNoGoStatus(),
             ]);
             if (!res.success || !res.talk) return;
+
             const data = res.talk;
             talkData = data || talkData;
+
             const freshScore = extractAnalysisScore(data);
             if (freshScore !== null && freshScore !== analysisScore) {
               analysisScore = freshScore;
               updateScoreUI();
             }
 
-            const participants =
-              rtdbRes?.participants ||
-              data?.participants ||
-              talkData?.participants ||
-              {};
-            const expectedCount =
-              Object.values(participants).filter(Boolean).length || 2;
+            const participants = rtdbRes?.participants || data?.participants || talkData?.participants || {};
+            const expectedCount = Object.values(participants).filter(Boolean).length || 2;
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(data);
-            const goNoGoValues = Object.values(goNoGo).filter(
-              (v) => v === true || v === false,
-            );
+            const goNoGoValues = Object.values(goNoGo).filter((v) => v === true || v === false);
 
-            // ✅ 둘 다 응답했는지 판단 (ID 매칭 실패해도 동작)
             if (goNoGoValues.length >= expectedCount) {
-              const anyNo = goNoGoValues.some((v) => v === false);
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
-              if (anyNo) {
-                console.log("✅ 최종 응답: someone chose NO");
-                await handleSomeoneNo("no");
-              } else {
-                console.log("✅ 최종 응답: both chose GO");
-                await handleBothGo();
-              }
+              goNoGoValues.some((v) => v === false)
+                ? await handleSomeoneNo("no")
+                : await handleBothGo();
               return;
             }
 
-            // fallback: 기존 파트너 ID 매칭
-            let partnerId =
-              participants.user_a === effectiveUserId
-                ? participants.user_b
-                : participants.user_a;
+            let partnerId = participants.user_a === effectiveUserId
+              ? participants.user_b : participants.user_a;
             if (!partnerId) {
               const ids = Object.keys(goNoGo);
               partnerId = ids.find((id) => id !== effectiveUserId);
             }
 
-            const partnerValue =
-              partnerId &&
-              Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
-                ? goNoGo[partnerId]
-                : null;
-
-            const partnerResponse =
-              partnerValue === true
-                ? "go"
-                : partnerValue === false
-                  ? "no"
-                  : null;
+            const partnerValue = partnerId && Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
+              ? goNoGo[partnerId] : null;
+            const partnerResponse = partnerValue === true ? "go" : partnerValue === false ? "no" : null;
 
             if (partnerResponse) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
-              console.log(`✅ 상대방 응답: ${partnerResponse}`);
-
-              if (myChoice === "go" && partnerResponse === "go") {
-                await handleBothGo();
-              } else {
-                await handleSomeoneNo(partnerResponse);
-              }
+              myChoice === "go" && partnerResponse === "go"
+                ? await handleBothGo()
+                : await handleSomeoneNo(partnerResponse);
             }
           } catch (error) {
-            if (
-              String(error?.message || "").includes("talk_history not found")
-            ) {
+            if (String(error?.message || "").includes("talk_history not found")) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");
-              return;
             }
-            console.error("Failed to poll response:", error);
           }
         }, 2000);
       }
@@ -1018,49 +682,36 @@
 
       async function handleBothGo() {
         await addCocoMessage("alright, this is the profile", 500);
-        await addCocoMessage(
-          `this might ease a bit of your curiosity about ${getPartnerName()}`,
-          1000,
-        );
-
+        await addCocoMessage(`this might ease a bit of your curiosity about ${getPartnerName()}`, 1000);
         await addProfileCard(1500);
-
         showLoungeButton(2000);
       }
 
       async function addProfileCard(delay = 0) {
         await sleep(delay);
-
         const messages = document.getElementById("messages");
-
-        const cardDiv = document.createElement("div");
-        cardDiv.className = "coco-message";
-
-        cardDiv.innerHTML = `
-          <div class="coco-avatar"></div>
-          <div class="coco-bubble" style="max-width: 80%; padding: 0;">
+        const div = document.createElement("div");
+        div.className = "coco-message";
+        div.innerHTML = `
+          <div class="coco-avatar chat-avatar"></div>
+          <div class="coco-bubble chat-bubble" style="max-width:80%;padding:0;">
             <div class="profile-card" onclick="openProfileSheet()">
               <div class="profile-name">${getPartnerName()}</div>
               <button class="view-details-btn">view profile</button>
             </div>
           </div>
         `;
-
-        messages.appendChild(cardDiv);
+        messages.appendChild(div);
         scrollToBottom();
       }
 
       /* ================= 한 명이라도 NO ================= */
 
-      async function handleSomeoneNo(partnerResponse) {
-        await addCocoMessage(
-          "well, well, it looks like this one wasn't your one and only",
-          500,
-        );
+      async function handleSomeoneNo() {
+        await addCocoMessage("well, well, it looks like this one wasn't your one and only", 500);
         await addCocoMessage("the match ends here", 900);
         await addCocoMessage("we'll recommend someone new for you", 1300);
         await addCocoMessage("see u later", 1700);
-
         showLoungeButton(1000);
       }
 
@@ -1082,108 +733,60 @@
           preference_sync: "Preference Sync",
           voice_pitch: "Voice Pitch",
         };
-        return (
-          mapping[key] ||
-          key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())
-        );
+        return mapping[key] || key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
       }
 
       function renderAnalysisFeatures() {
         const analysis = talkData?.analysis || {};
-        const baseFeatures =
-          analysis?.features || analysis?.details?.features || {};
-        const keys = [
-          "turn_taking",
-          "flow_continuity",
-          "romantic_intent",
-          "language_style_ma",
-          "preference_sync",
-          "voice_pitch",
-        ];
+        const baseFeatures = analysis?.features || analysis?.details?.features || {};
+        const keys = ["turn_taking", "flow_continuity", "romantic_intent", "language_style_ma", "preference_sync", "voice_pitch"];
 
         const entries = keys
-          .filter(
-            (key) =>
-              typeof baseFeatures[key] === "number" &&
-              !Number.isNaN(baseFeatures[key]),
-          )
+          .filter((key) => typeof baseFeatures[key] === "number" && !Number.isNaN(baseFeatures[key]))
           .map((key) => [key, baseFeatures[key]]);
 
-        if (!entries.length) {
-          return "<div class='waiting-message'>analysis details not ready</div>";
-        }
+        if (!entries.length) return "<div class='waiting-message'>analysis details not ready</div>";
 
         const warning = analysis?.analysis_warning;
-        const items = entries.sort((a, b) => b[1] - a[1]);
+        const warningHtml = warning ? `<div class='waiting-message'>analysis warning: ${warning}</div>` : "";
 
-        const warningHtml = warning
-          ? `<div class='waiting-message'>analysis warning: ${warning}</div>`
-          : "";
-
-        const featuresHtml = items
-          .map(
-            ([key, value]) =>
-              `<div>${formatFeatureLabel(key)} <strong>${Math.round(
-                value,
-              )}</strong></div>`,
-          )
+        return warningHtml + entries
+          .sort((a, b) => b[1] - a[1])
+          .map(([key, value]) => `<div>${formatFeatureLabel(key)} <strong>${Math.round(value)}</strong></div>`)
           .join("");
-
-        return `${warningHtml}${featuresHtml}`;
       }
 
       window.openAnalysisSheet = () => {
         const score = calculateScore();
-        const rating = getScoreRating(score);
-
-        document.getElementById("sheetScore").textContent =
-          score === null ? "--" : score;
-        document.getElementById("sheetRating").textContent = rating;
-        document.getElementById("sheetKeywords").innerHTML =
-          renderAnalysisFeatures();
-
+        document.getElementById("sheetScore").textContent = score === null ? "--" : score;
+        document.getElementById("sheetRating").textContent = getScoreRating(score);
+        document.getElementById("sheetKeywords").innerHTML = renderAnalysisFeatures();
         openSheet("analysisSheet");
       };
 
       async function fetchProfileRounds() {
-        const partnerId =
-          partner?.id || partner?.user_id || partner?.uid || partner?.userId;
+        const partnerId = partner?.id || partner?.user_id || partner?.uid || partner?.userId;
         if (!partnerId) return null;
         try {
           const res = await apiCall(`/talks/history-detail/${partnerId}`);
-          if (!res?.success) return null;
-          return res.rounds || null;
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function roundLabel(topic) {
-        if (topic === "life") return "values";
-        return topic || "trial";
+          return res?.success ? res.rounds || null : null;
+        } catch { return null; }
       }
 
       function renderProfileTrials(rounds) {
         if (!rounds || typeof rounds !== "object") return "";
-        const items = Object.entries(rounds)
+        return Object.entries(rounds)
           .map(([roundKey, info]) => {
-            const roundNum = Number(roundKey);
             const label = roundLabel(info?.topic);
-            const scoreText =
-              info?.score === null || info?.score === undefined
-                ? "--"
-                : info.score;
+            const scoreText = info?.score === null || info?.score === undefined ? "--" : info.score;
             return `
               <div class="profile-trial-item">
-                <div class="profile-trial-title">${getOrdinal(roundNum)} trial (${label})</div>
+                <div class="profile-trial-title">${getOrdinal(Number(roundKey))} trial (${label})</div>
                 <div class="profile-trial-score">chemistry score ${scoreText}</div>
               </div>
             `;
           })
-          .sort((a, b) => {
-            return 0;
-          });
-        return items.join("");
+          .join("");
       }
 
       window.openProfileSheet = async () => {
@@ -1195,141 +798,86 @@
         const trialsEl = document.getElementById("profileTrials");
         if (trialsEl) {
           const rounds = await fetchProfileRounds();
-          if (rounds) {
-            trialsEl.innerHTML = `<div class="profile-trials-list">${renderProfileTrials(rounds)}</div>`;
-          } else {
-            trialsEl.textContent = `${getOrdinal(currentRound)} trial · chemistry score ${
-              score === null ? "--" : score
-            }`;
-          }
+          trialsEl.innerHTML = rounds
+            ? `<div class="profile-trials-list">${renderProfileTrials(rounds)}</div>`
+            : `${getOrdinal(currentRound)} trial · chemistry score ${score === null ? "--" : score}`;
         }
 
-        const cardsHtml = generateProfileCards();
-        document.getElementById("profileCards").innerHTML = cardsHtml;
-
-        const unlockHtml = generateUnlockText();
-        document.getElementById("unlockText").innerHTML = unlockHtml;
-
+        document.getElementById("profileCards").innerHTML = generateProfileCards();
+        document.getElementById("unlockText").innerHTML = generateUnlockText();
         openSheet("profileSheet");
       };
 
       function generateProfileCards() {
         const unlocked = currentRound;
         const profile = partner?.onboarding_profile || {};
-
         const age = partner?.age ?? profile?.age ?? "--";
         const gender = partner?.gender || profile?.gender || "--";
         const drink = profile?.drink || partner?.drink || "Not provided";
         const smoke = profile?.smoke || partner?.smoke || "Not provided";
-        const marijuana =
-          profile?.marijuana || partner?.marijuana || "Not provided";
+        const marijuana = profile?.marijuana || partner?.marijuana || "Not provided";
         const bio = partner?.bio || profile?.bio || "Not provided";
-        const moreInfo =
-          partner?.more_info || profile?.more_info || "Not provided";
+        const moreInfo = partner?.more_info || profile?.more_info || "Not provided";
         const phone = partner?.phone || profile?.phone || "--";
-        const playlist = Array.isArray(partner?.playlist)
-          ? partner.playlist
-          : [];
+        const playlist = Array.isArray(partner?.playlist) ? partner.playlist : [];
 
-        const lockedAfterRound1 = unlocked < 2;
-        const lockedAfterRound2 = unlocked < 3;
+        const lock1 = unlocked < 2 ? "locked" : "";
+        const lock2 = unlocked < 3 ? "locked" : "";
 
         return `
           <div class="profile-info-card">
-            <div class="profile-row">
-              <span class="profile-info-label profile-label">${age} years old</span>
-              <span class="profile-info-value profile-value">${gender}</span>
+            <div class="profile-info-row">
+              <span class="profile-label">${age} years old</span>
+              <span class="profile-value">${gender}</span>
             </div>
           </div>
           <div class="profile-info-card stacked">
-            <div class="profile-info-label profile-label">${getPartnerName()}'s playlist</div>
+            <div class="profile-label">${getPartnerName()}'s playlist</div>
             <div class="playlist-chips">
-              ${
-                playlist.length
-                  ? playlist
-                      .slice(0, 6)
-                      .map(
-                        (t) =>
-                          `<div class="playlist-chip">${t.name || "track"}</div>`,
-                      )
-                      .join("")
-                  : `<div class="playlist-chip">no playlist</div>`
-              }
+              ${playlist.length
+                ? playlist.slice(0, 6).map((t) => `<div class="playlist-chip">${t.name || "track"}</div>`).join("")
+                : `<div class="playlist-chip">no playlist</div>`}
             </div>
           </div>
-          <div class="profile-info-card stacked ${lockedAfterRound1 ? "locked" : ""}">
-            <div class="profile-info-row profile-row">
-              <span class="profile-info-label profile-label">drinking</span>
-              <span class="profile-info-value profile-value">${drink}</span>
-            </div>
-            <div class="profile-info-row profile-row">
-              <span class="profile-info-label profile-label">smoking</span>
-              <span class="profile-info-value profile-value">${smoke}</span>
-            </div>
-            <div class="profile-info-row profile-row">
-              <span class="profile-info-label profile-label">marijuana</span>
-              <span class="profile-info-value profile-value">${marijuana}</span>
-            </div>
+          <div class="profile-info-card stacked ${lock1}">
+            <div class="profile-info-row"><span class="profile-label">drinking</span><span class="profile-value">${drink}</span></div>
+            <div class="profile-info-row"><span class="profile-label">smoking</span><span class="profile-value">${smoke}</span></div>
+            <div class="profile-info-row"><span class="profile-label">marijuana</span><span class="profile-value">${marijuana}</span></div>
           </div>
-          <div class="profile-info-card stacked ${lockedAfterRound1 ? "locked" : ""}">
-            <div class="profile-info-label profile-label">Additional information</div>
-            <div class="profile-info-value profile-value">${moreInfo !== "Not provided" ? moreInfo : bio}</div>
+          <div class="profile-info-card stacked ${lock1}">
+            <div class="profile-label">Additional information</div>
+            <div class="profile-value">${moreInfo !== "Not provided" ? moreInfo : bio}</div>
           </div>
-          <div class="profile-info-card ${lockedAfterRound2 ? "locked" : ""}">
-            <div class="profile-row">
-              <span class="profile-info-label profile-label">Contact</span>
-              <span class="profile-info-value profile-value">${phone}</span>
+          <div class="profile-info-card ${lock2}">
+            <div class="profile-info-row">
+              <span class="profile-label">Contact</span>
+              <span class="profile-value">${phone}</span>
             </div>
           </div>
         `;
       }
 
       function generateUnlockText() {
-        if (currentRound === 1) {
-          return "extra information unlocks after the 2nd chat";
-        }
-        if (currentRound === 2) {
-          return "one last chat left to reach your match";
-        }
+        if (currentRound === 1) return "extra information unlocks after the 2nd chat";
+        if (currentRound === 2) return "one last chat left to reach your match";
         return "";
-      }
-
-      function getOrdinal(n) {
-        if (n === 1) return "1st";
-        if (n === 2) return "2nd";
-        if (n === 3) return "3rd";
-        return `${n}th`;
       }
 
       function openSheet(sheetId) {
         document.getElementById("sheetOverlay").classList.add("active");
         document.getElementById(sheetId).classList.add("active");
-        if (sheetId === "profileSheet") {
-          document.getElementById("profileSheet").style.transform = "";
-        }
-        if (sheetId === "analysisSheet") {
-          document.getElementById("analysisSheet").style.transform = "";
-        }
       }
 
       window.closeSheet = () => {
         document.getElementById("sheetOverlay").classList.remove("active");
-        const analysisEl = document.getElementById("analysisSheet");
-        const profileEl = document.getElementById("profileSheet");
-        if (analysisEl) analysisEl.style.transform = "";
-        if (profileEl) profileEl.style.transform = "";
-        analysisEl?.classList.remove("active");
-        profileEl?.classList.remove("active");
+        document.getElementById("analysisSheet")?.classList.remove("active");
+        document.getElementById("profileSheet")?.classList.remove("active");
       };
 
       /* ================= Bottom Sheet Drag ================= */
-      const profileSheetEl = document.getElementById("profileSheet");
-      const analysisSheetEl = document.getElementById("analysisSheet");
 
       function attachSheetDragClose(sheetEl, { topOnly = true } = {}) {
-        let startY = null;
-        let lastDy = 0;
-        let dragging = false;
+        let startY = null, lastDy = 0, dragging = false;
 
         sheetEl.addEventListener("touchstart", (e) => {
           if (!sheetEl.classList.contains("active")) return;
@@ -1340,43 +888,32 @@
           sheetEl.style.transition = "none";
         });
 
-        sheetEl.addEventListener(
-          "touchmove",
-          (e) => {
-            if (!dragging) return;
-            const dy = e.touches[0].clientY - startY;
-            if (dy <= 0) return;
-            lastDy = dy;
-            // Prevent scroll bouncing while dragging the sheet
-            if (e.cancelable) e.preventDefault();
-            sheetEl.style.transform = `translateX(-50%) translateY(${dy}px)`;
-          },
-          { passive: false },
-        );
+        sheetEl.addEventListener("touchmove", (e) => {
+          if (!dragging) return;
+          const dy = e.touches[0].clientY - startY;
+          if (dy <= 0) return;
+          lastDy = dy;
+          if (e.cancelable) e.preventDefault();
+          sheetEl.style.transform = `translateX(-50%) translateY(${dy}px)`;
+        }, { passive: false });
 
         const finishDrag = () => {
           if (!dragging) return;
           dragging = false;
           sheetEl.style.transition = "";
-          if (lastDy > 120) {
-            closeSheet();
-          } else {
-            sheetEl.style.transform = "";
-          }
+          lastDy > 120 ? closeSheet() : (sheetEl.style.transform = "");
         };
 
         sheetEl.addEventListener("touchend", finishDrag);
         sheetEl.addEventListener("touchcancel", finishDrag);
       }
 
-      attachSheetDragClose(profileSheetEl, { topOnly: false });
-      attachSheetDragClose(analysisSheetEl, { topOnly: true });
+      attachSheetDragClose(document.getElementById("profileSheet"), { topOnly: false });
+      attachSheetDragClose(document.getElementById("analysisSheet"), { topOnly: true });
 
-      /* ================= Score 계산 ================= */
+      /* ================= Score ================= */
 
-      function calculateScore() {
-        return analysisScore;
-      }
+      function calculateScore() { return analysisScore; }
 
       function getScoreRating(score) {
         if (score === null) return "analyzing";
@@ -1394,7 +931,7 @@
       }
 
       async function waitForAnalysis(maxAttempts = 60, intervalMs = 3000) {
-        for (let i = 0; i < maxAttempts; i += 1) {
+        for (let i = 0; i < maxAttempts; i++) {
           await sleep(intervalMs);
           try {
             const res = await apiCall(`/talks/history/${talkId}`);
@@ -1402,33 +939,16 @@
 
             const fresh = res.talk;
 
-            // stuck 감지: running이 3분 넘었으면 재시도
             if (fresh.analysis_status === "running") {
-              const started = fresh.analysis_started_at || 0;
-              const elapsed = Date.now() - started;
+              const elapsed = Date.now() - (fresh.analysis_started_at || 0);
               if (elapsed > 180000) {
-                console.warn("⚠️ 분석 stuck 감지, 재시도 요청");
-                try {
-                  await fetch("/api/match/analyze-talk", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ talk_id: talkId }),
-                  });
-                } catch (_) {}
+                try { await fetch("/api/match/analyze-talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
               }
               continue;
             }
 
-            // 실패 시 자동 재시도 (최대 2회)
             if (fresh.analysis_status === "failed" && i < 40) {
-              console.warn("⚠️ 분석 실패, 재시도 요청");
-              try {
-                await fetch("/api/match/analyze-talk", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ talk_id: talkId }),
-                });
-              } catch (_) {}
+              try { await fetch("/api/match/analyze-talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
               await sleep(5000);
               continue;
             }
@@ -1441,9 +961,7 @@
               return;
             }
           } catch (error) {
-            if (
-              String(error?.message || "").includes("talk_history not found")
-            ) {
+            if (String(error?.message || "").includes("talk_history not found")) {
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");
@@ -1451,43 +969,26 @@
             }
           }
         }
-        if (analysisScore === null) {
-          // 최종 실패 시에도 UI는 유지 (score "--"로 표시)
-          console.error("❌ 분석 최종 실패");
-        }
       }
 
       function updateScoreUI() {
         const scoreText = analysisScore === null ? "--" : analysisScore;
         const ratingText = getScoreRating(analysisScore);
 
-        const scoreEl = document.getElementById("chemistryScoreValue");
-        if (scoreEl) scoreEl.textContent = scoreText;
+        document.getElementById("chemistryScoreValue")?.textContent !== undefined &&
+          (document.getElementById("chemistryScoreValue").textContent = scoreText);
+        document.getElementById("chemistryScoreRating") &&
+          (document.getElementById("chemistryScoreRating").textContent = ratingText);
+        document.getElementById("sheetScore") &&
+          (document.getElementById("sheetScore").textContent = scoreText);
+        document.getElementById("sheetRating") &&
+          (document.getElementById("sheetRating").textContent = ratingText);
 
-        const ratingEl = document.getElementById("chemistryScoreRating");
-        if (ratingEl) ratingEl.textContent = ratingText;
-
-        const sheetScoreEl = document.getElementById("sheetScore");
-        if (sheetScoreEl) sheetScoreEl.textContent = scoreText;
-
-        const sheetRatingEl = document.getElementById("sheetRating");
-        if (sheetRatingEl) sheetRatingEl.textContent = ratingText;
-        const sheetKeywordsEl = document.getElementById("sheetKeywords");
-        if (sheetKeywordsEl) {
-          sheetKeywordsEl.innerHTML = renderAnalysisFeatures();
-        }
-
-        const profileScoreEl = document.getElementById("profileScore");
-        if (profileScoreEl) {
-          profileScoreEl.textContent = `chemistry score ${scoreText}`;
-        }
+        const keywordsEl = document.getElementById("sheetKeywords");
+        if (keywordsEl) keywordsEl.innerHTML = renderAnalysisFeatures();
       }
 
       /* ================= 유틸 ================= */
-
-      function sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-      }
 
       function scrollToBottom() {
         const messages = document.getElementById("messages");
@@ -1495,16 +996,11 @@
       }
 
       async function loadTalkHistory() {
-        if (!requestId && !talkId) {
-          removeFromLocal("current_talk_id");
-          return null;
-        }
-
+        if (!requestId && !talkId) { removeFromLocal("current_talk_id"); return null; }
         if (!talkId || (requestId && talkId !== requestId)) {
           const newTalkId = await ensureTalkId(true);
           if (!newTalkId) return null;
         }
-
         try {
           return await apiCall(`/talks/history/${talkId}`);
         } catch (error) {
@@ -1522,18 +1018,13 @@
         if (!requestId) return null;
         if (talkId && talkId === requestId) return talkId;
         if (talkId && !force) return talkId;
-
         try {
-          const res = await apiCall("/talks/save-history", "POST", {
-            request_id: requestId,
-          });
+          const res = await apiCall("/talks/save-history", "POST", { request_id: requestId });
           if (!res?.success || !res.talk_id) return null;
           talkId = res.talk_id;
           saveToLocal("current_talk_id", talkId);
           return talkId;
-        } catch (error) {
-          return null;
-        }
+        } catch { return null; }
       }
     </script>
   </body>

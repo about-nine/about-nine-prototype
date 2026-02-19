@@ -82,19 +82,6 @@
         e.target.value = e.target.value.replace(/[^0-9]/g, "");
       });
 
-      function buildE164() {
-        const country = countrySelect.value;
-        let number = phoneInput.value.replace(/[^0-9]/g, "");
-
-        if (!number) return null;
-
-        if (number.startsWith("0")) {
-          number = number.slice(1);
-        }
-
-        return country + number;
-      }
-
       async function sendOTP() {
         hideError("error");
 

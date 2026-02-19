@@ -6,6 +6,7 @@
     <title>History</title>
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
+
     <style>
       .history-user-name {
         font-size: 22px;
@@ -19,37 +20,7 @@
         gap: 12px;
       }
 
-      .history-card {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .history-card.offline {
-        opacity: 0.6;
-      }
-
-      .history-card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-      }
-
-      .history-name-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
       .history-meta {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 6px;
-        color: var(--text-secondary);
-        font-size: 12px;
-        flex-wrap: wrap;
         max-width: 100%;
         row-gap: 4px;
       }
@@ -62,19 +33,9 @@
       }
 
       .history-list,
-      .card-list {
-        overflow-x: hidden;
-      }
+      .card-list { overflow-x: hidden; }
 
-      .history-card .card {
-        overflow: hidden;
-      }
-
-      .history-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+      .history-card .card { overflow: hidden; }
 
       .detail-btn {
         background: transparent;
@@ -84,14 +45,6 @@
         padding: 0;
       }
 
-      .history-btn {
-        width: 100%;
-        padding: 8px 20px;
-        font-size: 14px;
-        margin-top: 6px;
-      }
-
-      /* empty state (match lounge) */
       .empty-state-box {
         background: var(--bg-card);
         border-radius: 16px;
@@ -106,25 +59,14 @@
         color: var(--text-secondary);
       }
 
-      .empty-state-box img {
-        width: 48px;
-        height: 48px;
-        margin-bottom: 24px;
-        opacity: 0.9;
-      }
-
-      .empty-state-box .message {
-        font-size: 14px;
-        line-height: 1.4;
-      }
+      .empty-state-box img { width: 48px; height: 48px; margin-bottom: 24px; opacity: 0.9; }
+      .empty-state-box .message { font-size: 14px; line-height: 1.4; }
     </style>
   </head>
+
   <body>
     <div class="main-container">
-      <div
-        class="chat-header brand-text"
-        style="text-align: left; color: #8e8e8e"
-      >
+      <div class="chat-header brand-text" style="text-align:left;color:#8e8e8e">
         about nine
       </div>
       <div class="history-user-name" id="historyUserName"></div>
@@ -144,77 +86,57 @@
 
     <script type="module">
       import { rtdb, ref, onValue, push, set } from "/js/firebase.js";
+
       const userId = getFromLocal("user_id");
-      if (!userId) {
-        navigateTo("index.html");
-      }
+      if (!userId) navigateTo("index.html");
 
       let presenceData = {};
       let currentUserProfile = null;
 
-      function roundLabel(topic) {
-        if (topic === "life") return "value";
-        return topic || "";
-      }
-
       function isOnline(uid) {
-        const presence = presenceData[uid];
-        return presence && presence.online === true;
+        const p = presenceData[uid];
+        return p && p.online === true;
       }
 
       async function loadUserProfile() {
-        const profileRes = await apiCall("/users/profile");
-        currentUserProfile = profileRes?.user || null;
+        const res = await apiCall("/users/profile");
+        currentUserProfile = res?.user || null;
       }
 
       async function renderHistory() {
-        const listEl = document.getElementById("historyList");
+        const listEl  = document.getElementById("historyList");
         const emptyEl = document.getElementById("emptyState");
-        const nameEl = document.getElementById("historyUserName");
+        const nameEl  = document.getElementById("historyUserName");
 
-        const myFirst =
-          currentUserProfile?.first_name ||
-          currentUserProfile?.firstName ||
-          getFromLocal("firstName") ||
-          "";
-        const myLast =
-          currentUserProfile?.last_name ||
-          currentUserProfile?.lastName ||
-          getFromLocal("lastName") ||
-          "";
-        const myName = `${myFirst} ${myLast}`.trim();
-        nameEl.textContent = myName || "your profile";
+        const myFirst = currentUserProfile?.first_name || currentUserProfile?.firstName || getFromLocal("firstName") || "";
+        const myLast  = currentUserProfile?.last_name  || currentUserProfile?.lastName  || getFromLocal("lastName")  || "";
+        nameEl.textContent = `${myFirst} ${myLast}`.trim() || "your profile";
 
-        const res = await apiCall("/talks/history-list");
+        const res   = await apiCall("/talks/history-list");
         const items = res.items || [];
+
         if (!items.length) {
           listEl.innerHTML = "";
           emptyEl.classList.remove("hidden");
           return;
         }
-        const cards = items.map((item) => {
-          const id = item.partner_id;
-          const first = item.first_name || "";
-          const last = item.last_name || "";
-          const name = `${first} ${last}`.trim() || "your match";
 
-          const scores = [];
-          [1, 2, 3].forEach((r) => {
+        listEl.innerHTML = items.map((item) => {
+          const id   = item.partner_id;
+          const name = `${item.first_name || ""} ${item.last_name || ""}`.trim() || "your match";
+
+          const scores = [1, 2, 3].flatMap((r) => {
             const t = item.talks_by_round?.[r];
-            if (!t) return;
-            const label = roundLabel(t.topic);
-            const s = t.score === null ? "--" : t.score;
-            scores.push(`${label}: ${s}`);
+            if (!t) return [];
+            return [`${roundLabel(t.topic)}: ${t.score === null ? "--" : t.score}`];
           });
 
-          const startAllowed = !item.had_no;
-          const isBlocked = item.blocked === true;
-          const online = isOnline(id);
-          const startEnabled = startAllowed && online && !isBlocked;
-
-          const scoreHtml = scores.length
+          const online       = isOnline(id);
+          const startEnabled = !item.had_no && online && item.blocked !== true;
+          const scoreHtml    = scores.length
             ? scores.map((s) => `<span>${s}</span>`).join("")
             : "<span>no scores yet</span>";
+          const statusDot    = item.blocked === true ? "blocked" : online ? "online" : "offline";
 
           return `
             <div class="history-card ${online ? "" : "offline"}">
@@ -223,26 +145,23 @@
                   <div class="history-card-header">
                     <div class="history-name-row">
                       <span style="font-size:16px;font-weight:600;">${name}</span>
-                      <span class="status-dot ${
-                        isBlocked ? "blocked" : online ? "online" : "offline"
-                      }"></span>
+                      <span class="status-dot ${statusDot}"></span>
                     </div>
                     <div class="history-actions">
                       <button class="detail-btn" onclick="openDetail('${id}')">›</button>
                     </div>
                   </div>
                   <div class="history-meta">${scoreHtml}</div>
-                  <button class="primary history-btn" ${
-                    startEnabled ? "" : "disabled"
-                  } onclick="startTalk('${id}')">start talk</button>
+                  <button class="primary history-btn" ${startEnabled ? "" : "disabled"} onclick="startTalk('${id}')">
+                    start talk
+                  </button>
                 </div>
               </div>
             </div>
           `;
-        });
+        }).join("");
 
-        listEl.innerHTML = cards.join("");
-        emptyEl.classList.toggle("hidden", cards.length > 0);
+        emptyEl.classList.add("hidden");
       }
 
       window.openDetail = (partnerId) => {
@@ -253,38 +172,19 @@
         const partnerRes = await apiCall(`/talks/history-detail/${partnerId}`);
         if (!partnerRes.success || !partnerRes.partner) return;
 
-        const partner = { id: partnerId, ...partnerRes.partner };
-        saveToLocal("chat_partner", partner);
+        saveToLocal("chat_partner", { id: partnerId, ...partnerRes.partner });
 
         try {
           showLoading("preparing...");
-          const roundRes = await apiCall("/talks/calculate-round", "POST", {
-            partner_id: partnerId,
-          });
+          const roundRes = await apiCall("/talks/calculate-round", "POST", { partner_id: partnerId });
           hideLoading();
 
-          if (!roundRes.success) {
-            alert("failed to calculate round");
-            return;
-          }
+          if (!roundRes.success) { alert("failed to calculate round"); return; }
 
-          const round = roundRes.round;
-          const topic = roundRes.topic;
-          const question = roundRes.question;
-          const options = roundRes.options;
-
-          const requestsRef = ref(rtdb, "match_requests");
-          const newRequestRef = push(requestsRef);
+          const { round, topic, question, options } = roundRes;
+          const newRequestRef = push(ref(rtdb, "match_requests"));
           const requestId = newRequestRef.key;
           saveToLocal("match_request_id", requestId);
-
-          const initiatorProfile = currentUserProfile || {
-            id: userId,
-            first_name: getFromLocal("firstName"),
-            last_name: getFromLocal("lastName"),
-            age: getFromLocal("age"),
-            gender: getFromLocal("gender"),
-          };
 
           const matchData = {
             initiator: userId,
@@ -293,17 +193,22 @@
             round,
             topic,
             timestamp: Date.now(),
-            initiator_profile: initiatorProfile,
+            initiator_profile: currentUserProfile || {
+              id: userId,
+              first_name: getFromLocal("firstName"),
+              last_name: getFromLocal("lastName"),
+              age: getFromLocal("age"),
+              gender: getFromLocal("gender"),
+            },
           };
-
           if (question) matchData.question = question;
-          if (options) matchData.options = options;
+          if (options)  matchData.options  = options;
 
           await set(newRequestRef, matchData);
           navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
         } catch (error) {
           hideLoading();
-          console.error("Failed to start match request:", error);
+          console.error("Failed to start talk:", error);
           alert("failed to start match request");
         }
       };

@@ -14,30 +14,13 @@
         align-items: stretch;
       }
 
-      .card.clickable {
-        cursor: pointer;
-      }
-
-      .card.clickable:hover {
-        background: #2f2f2f;
-      }
+      .card.clickable { cursor: pointer; }
+      .card.clickable:hover { background: #2f2f2f; }
 
       .profile-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-      }
-
-      .profile-label {
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-
-      .profile-value {
-        font-size: 12px;
-        color: var(--text-primary);
-        font-weight: 500;
-        text-align: right;
       }
 
       .profile-value.editable {
@@ -47,9 +30,7 @@
         transition: background 0.2s;
       }
 
-      .profile-value.editable:hover {
-        background: var(--bg-card);
-      }
+      .profile-value.editable:hover { background: var(--bg-card); }
 
       .section-title {
         font-size: 14px;
@@ -58,7 +39,6 @@
         padding-left: 4px;
       }
 
-      /* Bio 텍스트 영역 */
       .card textarea {
         width: 100%;
         min-height: 80px;
@@ -72,22 +52,11 @@
         margin: 0;
       }
 
-      .card textarea:focus {
-        outline: none;
-        border: none;
-      }
+      .card textarea:focus { outline: none; }
+      .card textarea::placeholder { color: var(--text-secondary); opacity: 0.5; }
 
-      .card textarea::placeholder {
-        color: var(--text-secondary);
-        opacity: 0.5;
-      }
+      .age-slider-track::before { background: var(--border-color); }
 
-      /* 슬라이더 */
-      .age-slider-track::before {
-        background: var(--border-color);
-      }
-
-      /* 🔥 플레이리스트 칩 영역 */
       .playlist-chips-container {
         display: flex;
         flex-wrap: wrap;
@@ -104,7 +73,6 @@
         width: 100%;
       }
 
-      /* 🔥 select 스타일 */
       .profile-select {
         width: auto;
         padding: 4px 8px;
@@ -125,22 +93,10 @@
         border-radius: 6px;
       }
 
-      /* 하단 버튼들 */
-      .action-btn.sign-out {
-        color: var(--text-primary);
-      }
+      .action-btn.sign-out { color: var(--text-primary); }
+      .action-btn.delete   { color: var(--error-red); }
+      .action-btn:hover    { opacity: 0.7; transform: none; box-shadow: none; }
 
-      .action-btn.delete {
-        color: var(--error-red);
-      }
-
-      .action-btn:hover {
-        opacity: 0.7;
-        transform: none;
-        box-shadow: none;
-      }
-
-      /* 저장 중 표시 */
       .saving-indicator {
         position: fixed;
         top: 20px;
@@ -155,9 +111,7 @@
         z-index: 1000;
       }
 
-      .saving-indicator.show {
-        opacity: 1;
-      }
+      .saving-indicator.show { opacity: 1; }
     </style>
   </head>
 
@@ -165,10 +119,7 @@
     <div class="saving-indicator" id="savingIndicator">saved ✓</div>
 
     <div class="main-container">
-      <div
-        class="chat-header brand-text"
-        style="text-align: left; color: #8e8e8e"
-      >
+      <div class="chat-header brand-text" style="text-align:left;color:#8e8e8e">
         about nine
       </div>
 
@@ -180,7 +131,6 @@
       <div class="content">
         <!-- About You 탭 -->
         <div id="aboutContent" class="tab-pane active">
-          <!-- Age & Gender -->
           <div class="card">
             <div class="profile-row">
               <span class="profile-label">age</span>
@@ -192,109 +142,66 @@
             </div>
           </div>
 
-          <!-- 🔥 Playlist - 전체 클릭 가능 -->
           <div class="section-title">playlist</div>
           <div class="card clickable" onclick="editPlaylist()">
             <div id="playlistChips" class="playlist-chips-container"></div>
           </div>
 
-          <!-- Drinking, Smoking, Marijuana -->
           <div class="card">
             <div class="profile-row">
               <span class="profile-label">drinking</span>
-              <select
-                class="profile-select"
-                id="drinkSelect"
-                onchange="updateField('drink', this.value)"
-              >
+              <select class="profile-select" id="drinkSelect" onchange="updateField('drink', this.value)">
                 <option value="yes">yes</option>
                 <option value="no">no</option>
               </select>
             </div>
             <div class="profile-row">
               <span class="profile-label">smoking</span>
-              <select
-                class="profile-select"
-                id="smokeSelect"
-                onchange="updateField('smoke', this.value)"
-              >
+              <select class="profile-select" id="smokeSelect" onchange="updateField('smoke', this.value)">
                 <option value="yes">yes</option>
                 <option value="no">no</option>
               </select>
             </div>
             <div class="profile-row">
               <span class="profile-label">marijuana</span>
-              <select
-                class="profile-select"
-                id="marijuanaSelect"
-                onchange="updateField('marijuana', this.value)"
-              >
+              <select class="profile-select" id="marijuanaSelect" onchange="updateField('marijuana', this.value)">
                 <option value="yes">yes</option>
                 <option value="no">no</option>
               </select>
             </div>
           </div>
 
-          <!-- Bio -->
           <div class="section-title">additional information</div>
           <div class="card">
-            <textarea
-              id="bioText"
-              placeholder="tell us more about yourself..."
-            ></textarea>
+            <textarea id="bioText" placeholder="tell us more about yourself..."></textarea>
           </div>
 
-          <!-- Contact -->
           <div class="section-title">contact</div>
           <div class="card">
-            <div
-              style="color: var(--text-primary); font-size: 14px"
-              id="phoneValue"
-            >
-              -
-            </div>
+            <div style="color:var(--text-primary);font-size:14px" id="phoneValue">-</div>
           </div>
 
-          <!-- Bottom Actions -->
-          <button
-            id="saveButton1"
-            onclick="saveProfile()"
-            style="margin: 8px 0 20px 0"
-          >
-            save
-          </button>
+          <button id="saveButton1" onclick="saveProfile()" style="margin:8px 0 20px 0">save</button>
           <div class="bottom-text sign-out" onclick="signOut()">sign out</div>
-          <div class="bottom-text delete" onclick="deleteAccount()">
-            delete account
-          </div>
+          <div class="bottom-text delete" onclick="deleteAccount()">delete account</div>
         </div>
 
         <!-- Recommendation 탭 -->
         <div id="recommendationContent" class="tab-pane">
-          <!-- Who I Want to Meet -->
           <div class="card">
             <div class="profile-row">
               <span class="profile-label">who i want to meet</span>
-              <select
-                class="profile-select"
-                id="orientationSelect"
-                onchange="updateField('sexual_orientation', this.value)"
-              >
+              <select class="profile-select" id="orientationSelect" onchange="updateField('sexual_orientation', this.value)">
                 <option value="men">men</option>
                 <option value="women">women</option>
                 <option value="men and women">men and women</option>
-                <option value="men and non-binary people">
-                  men and non-binary
-                </option>
-                <option value="women and non-binary people">
-                  women and non-binary
-                </option>
+                <option value="men and non-binary people">men and non-binary</option>
+                <option value="women and non-binary people">women and non-binary</option>
                 <option value="all types of genders">all types</option>
               </select>
             </div>
           </div>
 
-          <!-- Age Range Slider -->
           <div class="section-title">age range</div>
           <div class="card">
             <div class="age-range-box active">
@@ -302,39 +209,19 @@
               <div class="age-slider-container">
                 <div class="age-slider-track">
                   <div class="age-slider-fill" id="sliderFill"></div>
-                  <input
-                    type="range"
-                    id="minAgeSlider"
-                    min="20"
-                    max="60"
-                    value="20"
-                  />
-                  <input
-                    type="range"
-                    id="maxAgeSlider"
-                    min="20"
-                    max="60"
-                    value="60"
-                  />
+                  <input type="range" id="minAgeSlider" min="20" max="60" value="20" />
+                  <input type="range" id="maxAgeSlider" min="20" max="60" value="60" />
                 </div>
               </div>
               <span class="age-value" id="maxAgeDisplay">60</span>
             </div>
           </div>
 
-          <!-- Bottom Actions -->
-          <button
-            id="saveButton2"
-            onclick="saveProfile()"
-            style="margin-top: 8px"
-          >
-            save
-          </button>
+          <button id="saveButton2" onclick="saveProfile()" style="margin-top:8px">save</button>
         </div>
       </div>
     </div>
 
-    <!-- 하단 네비게이션 -->
     <nav id="bottomNav" class="bottom-nav"></nav>
 
     <script src="js/common.js"></script>
@@ -344,15 +231,12 @@
       let profileData = null;
       let hasChanges = false;
 
-      /* ======================
-         탭 전환
-      ====================== */
-      const aboutTab = document.getElementById("aboutTab");
+      /* ── 탭 전환 ─────────────────────────────────────── */
+
+      const aboutTab          = document.getElementById("aboutTab");
       const recommendationTab = document.getElementById("recommendationTab");
-      const aboutContent = document.getElementById("aboutContent");
-      const recommendationContent = document.getElementById(
-        "recommendationContent",
-      );
+      const aboutContent      = document.getElementById("aboutContent");
+      const recommendationContent = document.getElementById("recommendationContent");
 
       aboutTab.onclick = () => {
         aboutTab.classList.add("active");
@@ -368,19 +252,14 @@
         aboutContent.classList.remove("active");
       };
 
-      /* ======================
-         프로필 로드
-      ====================== */
+      /* ── 프로필 로드 ─────────────────────────────────── */
+
       async function loadProfile() {
         try {
           userId = getFromLocal("user_id");
-          if (!userId) {
-            navigateTo("index.html");
-            return;
-          }
+          if (!userId) { navigateTo("index.html"); return; }
 
           showLoading("loading profile...");
-
           const res = await apiCall("/users/profile");
 
           if (!res.success) {
@@ -391,13 +270,8 @@
           }
 
           profileData = res.user;
-
-          if (!profileData.onboarding_profile) {
-            profileData.onboarding_profile = {};
-          }
-
+          if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
           hideLoading();
-
           updateUI();
         } catch (error) {
           hideLoading();
@@ -407,34 +281,22 @@
         }
       }
 
-      /* ======================
-         UI 업데이트
-      ====================== */
+      /* ── UI 업데이트 ─────────────────────────────────── */
+
       function updateUI() {
-        // About You 탭
-        document.getElementById("ageValue").textContent =
-          profileData.age || "-";
-        document.getElementById("genderValue").textContent =
-          profileData.gender_detail || profileData.gender || "-";
-        document.getElementById("phoneValue").textContent =
-          profileData.phone || "-";
+        document.getElementById("ageValue").textContent    = profileData.age || "-";
+        document.getElementById("genderValue").textContent = profileData.gender_detail || profileData.gender || "-";
+        document.getElementById("phoneValue").textContent  = profileData.phone || "-";
 
         const profile = profileData.onboarding_profile || {};
+        document.getElementById("drinkSelect").value     = profile.drink    || "no";
+        document.getElementById("smokeSelect").value     = profile.smoke    || "no";
+        document.getElementById("marijuanaSelect").value = profile.marijuana || "no";
+        document.getElementById("bioText").value         = profileData.bio  || "";
 
-        // 🔥 select 값 설정
-        document.getElementById("drinkSelect").value = profile.drink || "no";
-        document.getElementById("smokeSelect").value = profile.smoke || "no";
-        document.getElementById("marijuanaSelect").value =
-          profile.marijuana || "no";
-
-        document.getElementById("bioText").value = profileData.bio || "";
-
-        // 🔥 플레이리스트 칩 렌더링
         renderPlaylistChips();
 
-        // Recommendation 탭
-        document.getElementById("orientationSelect").value =
-          profile.sexual_orientation || "all types of genders";
+        document.getElementById("orientationSelect").value = profile.sexual_orientation || "all types of genders";
 
         const agePref = profile.age_preference || { min: 20, max: 60 };
         document.getElementById("minAgeSlider").value = agePref.min;
@@ -445,80 +307,52 @@
         updateSaveButton();
       }
 
-      /* ======================
-         🔥 플레이리스트 칩 렌더링
-      ====================== */
+      /* ── 플레이리스트 칩 ─────────────────────────────── */
+
       function renderPlaylistChips() {
         const container = document.getElementById("playlistChips");
         const playlist = profileData.playlist || [];
 
-        if (playlist.length === 0) {
-          container.innerHTML =
-            '<div class="playlist-empty-state">tap to select songs</div>';
-          return;
-        }
-
-        container.innerHTML = playlist
-          .map(
-            (track) => `
-          <div class="track-chip">
-            <span class="track-chip-text">${track.name}</span>
-          </div>
-        `,
-          )
-          .join("");
+        container.innerHTML = playlist.length
+          ? playlist.map((track) => `
+              <div class="track-chip">
+                <span class="track-chip-text">${track.name}</span>
+              </div>
+            `).join("")
+          : '<div class="playlist-empty-state">tap to select songs</div>';
       }
 
-      /* ======================
-         🔥 플레이리스트 편집
-      ====================== */
       function editPlaylist() {
         saveToLocal("selected_tracks", profileData.playlist || []);
         navigateTo("playlist.html");
       }
 
-      /* ======================
-         🔥 필드 업데이트 (select 변경 시)
-      ====================== */
-      function updateField(field, value) {
-        if (!profileData.onboarding_profile) {
-          profileData.onboarding_profile = {};
-        }
+      /* ── 필드 업데이트 ───────────────────────────────── */
 
+      function updateField(field, value) {
+        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
         profileData.onboarding_profile[field] = value;
         markChanged();
       }
 
-      /* ======================
-         변경사항 표시
-      ====================== */
       function markChanged() {
         hasChanges = true;
         updateSaveButton();
       }
 
       function updateSaveButton() {
-        const saveButton1 = document.getElementById("saveButton1");
-        const saveButton2 = document.getElementById("saveButton2");
-
-        if (hasChanges) {
-          saveButton1.disabled = false;
-          saveButton1.textContent = "save";
-          saveButton2.disabled = false;
-          saveButton2.textContent = "save";
-        } else {
-          saveButton1.disabled = true;
-          saveButton1.textContent = "no changes";
-          saveButton2.disabled = true;
-          saveButton2.textContent = "no changes";
-        }
+        const label = hasChanges ? "save" : "no changes";
+        ["saveButton1", "saveButton2"].forEach((id) => {
+          const btn = document.getElementById(id);
+          btn.disabled = !hasChanges;
+          btn.textContent = label;
+        });
       }
 
-      /* ======================
-         슬라이더 로직
-      ====================== */
-      const minSlider = document.getElementById("minAgeSlider");
-      const maxSlider = document.getElementById("maxAgeSlider");
+      /* ── 슬라이더 ────────────────────────────────────── */
+
+      const minSlider  = document.getElementById("minAgeSlider");
+      const maxSlider  = document.getElementById("maxAgeSlider");
       const sliderFill = document.getElementById("sliderFill");
       const minDisplay = document.getElementById("minAgeDisplay");
       const maxDisplay = document.getElementById("maxAgeDisplay");
@@ -526,81 +360,50 @@
       function updateSlider() {
         let min = parseInt(minSlider.value);
         let max = parseInt(maxSlider.value);
+        if (min > max) { [min, max] = [max, min]; minSlider.value = min; maxSlider.value = max; }
 
-        if (min > max) {
-          [min, max] = [max, min];
-          minSlider.value = min;
-          maxSlider.value = max;
-        }
-
-        const minPercent = ((min - 20) / 40) * 100;
-        const maxPercent = ((max - 20) / 40) * 100;
-
-        sliderFill.style.left = minPercent + "%";
-        sliderFill.style.width = maxPercent - minPercent + "%";
-
+        const minPct = ((min - 20) / 40) * 100;
+        const maxPct = ((max - 20) / 40) * 100;
+        sliderFill.style.left  = minPct + "%";
+        sliderFill.style.width = maxPct - minPct + "%";
         minDisplay.textContent = min;
         maxDisplay.textContent = max;
       }
 
-      minSlider.oninput = () => {
+      /* minSlider / maxSlider: 동일한 핸들러 공유 */
+      function onSliderInput() {
         updateSlider();
-
-        if (!profileData.onboarding_profile) {
-          profileData.onboarding_profile = {};
-        }
-
+        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
         profileData.onboarding_profile.age_preference = {
           min: parseInt(minSlider.value),
           max: parseInt(maxSlider.value),
         };
-
         markChanged();
-      };
+      }
 
-      maxSlider.oninput = () => {
-        updateSlider();
+      minSlider.oninput = onSliderInput;
+      maxSlider.oninput = onSliderInput;
 
-        if (!profileData.onboarding_profile) {
-          profileData.onboarding_profile = {};
-        }
+      /* ── Bio ─────────────────────────────────────────── */
 
-        profileData.onboarding_profile.age_preference = {
-          min: parseInt(minSlider.value),
-          max: parseInt(maxSlider.value),
-        };
-
-        markChanged();
-      };
-
-      /* ======================
-         Bio 변경 감지
-      ====================== */
       document.getElementById("bioText").addEventListener("input", (e) => {
         if (!profileData) return;
         profileData.bio = e.target.value;
         markChanged();
       });
 
-      /* ======================
-         저장
-      ====================== */
-      async function saveProfile() {
-        if (!hasChanges) {
-          return;
-        }
+      /* ── 저장 ────────────────────────────────────────── */
 
+      async function saveProfile() {
+        if (!hasChanges) return;
         try {
           showLoading("saving...");
-
           const res = await apiCall("/users/profile", "POST", {
             onboarding_profile: profileData.onboarding_profile,
             bio: profileData.bio || "",
-            sexual_orientation:
-              profileData.onboarding_profile.sexual_orientation,
+            sexual_orientation: profileData.onboarding_profile.sexual_orientation,
             age_preference: profileData.onboarding_profile.age_preference,
           });
-
           hideLoading();
 
           if (res.success) {
@@ -620,36 +423,21 @@
       function showSaveIndicator() {
         const indicator = document.getElementById("savingIndicator");
         indicator.classList.add("show");
-        setTimeout(() => {
-          indicator.classList.remove("show");
-        }, 2000);
+        setTimeout(() => indicator.classList.remove("show"), 2000);
       }
 
-      /* ======================
-         Actions
-      ====================== */
-      async function signOut() {
-        if (confirm("are you sure you want to sign out?")) {
-          try {
-            if (typeof firebaseLogout === "function") {
-              await firebaseLogout(); // Firebase Auth 정리
-            }
-          } catch (error) {
-            console.error("Logout error:", error);
-          }
+      /* ── 계정 액션 ───────────────────────────────────── */
 
-          apiCall("/auth/logout", "POST").catch(() => {}); // 서버 세션 정리
-          localStorage.clear(); // 로컬 정리
-          navigateTo("index.html");
-        }
+      async function signOut() {
+        if (!confirm("are you sure you want to sign out?")) return;
+        try { if (typeof firebaseLogout === "function") await firebaseLogout(); } catch {}
+        apiCall("/auth/logout", "POST").catch(() => {});
+        localStorage.clear();
+        navigateTo("index.html");
       }
 
       function deleteAccount() {
-        const confirmed = confirm(
-          "are you sure you want to delete your account? this can't be undone.",
-        );
-        if (!confirmed) return;
-
+        if (!confirm("are you sure you want to delete your account? this can't be undone.")) return;
         (async () => {
           try {
             showLoading("deleting account...");
@@ -661,23 +449,14 @@
             alert("failed to delete account");
             return;
           }
-
-          try {
-            if (typeof firebaseLogout === "function") {
-              await firebaseLogout();
-            }
-          } catch (error) {
-            console.error("Firebase logout error:", error);
-          }
-
+          try { if (typeof firebaseLogout === "function") await firebaseLogout(); } catch {}
           localStorage.clear();
           navigateTo("index.html");
         })();
       }
 
-      /* ======================
-         Init
-      ====================== */
+      /* ── Init ────────────────────────────────────────── */
+
       window.onload = () => {
         renderBottomNav("profile");
         loadProfile();

@@ -6,21 +6,21 @@
     <title>Playlist</title>
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
-  </head>
-  <style>
-    .music-title {
-      font-size: 14px;
-      flex: 1;
-      color: var(--text-primary);
-    }
+    <style>
+      .music-title {
+        font-size: 14px;
+        flex: 1;
+        color: var(--text-primary);
+      }
 
-    .empty-results {
-      text-align: center;
-      padding: 20px;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-  </style>
+      .empty-results {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+    </style>
+  </head>
   <body>
     <div class="playlist-container">
       <!-- 상단 콘텐츠 그룹 -->
@@ -61,22 +61,20 @@
       const MIN = 3;
 
       let selectedTracks = [];
-      let fromProfile = false; // 🔥 edit-profile에서 왔는지 추적
+      let fromProfile = false;
 
       const input = document.getElementById("searchInput");
       const chips = document.getElementById("chips");
       const results = document.getElementById("results");
       const nextBtn = document.getElementById("nextBtn");
 
-      /* 🔥 초기화 - 기존 선택 불러오기 */
       window.onload = () => {
         const saved = getFromLocal("selected_tracks");
         if (saved && Array.isArray(saved)) {
           selectedTracks = saved;
           update();
         }
-        
-        // edit-profile에서 온 경우 체크
+
         fromProfile = document.referrer.includes("edit-profile.html");
       };
 
@@ -90,7 +88,7 @@
         if (!q) return;
 
         results.innerHTML = "";
-        showLoading('searching...');
+        showLoading("searching...");
 
         try {
           const res = await apiCall(`/music/search?q=${encodeURIComponent(q)}`);
@@ -99,7 +97,7 @@
         } catch {
           hideLoading();
           results.innerHTML =
-            "<div style='text-align: center; padding: 20px; color: var(--error-red);'>search failed</div>";
+            "<div style='text-align:center;padding:20px;color:var(--error-red);'>search failed</div>";
         }
       }
 
@@ -114,11 +112,9 @@
         list.forEach((t) => {
           const d = document.createElement("div");
           d.className = "card";
-
           d.setAttribute("data-track-id", t.id);
 
-          const isSelected = selectedTracks.some((x) => x.id === t.id);
-          if (isSelected) {
+          if (selectedTracks.some((x) => x.id === t.id)) {
             d.classList.add("selected");
           }
 
@@ -147,7 +143,6 @@
       /* UI 갱신 */
       function update() {
         chips.innerHTML = "";
-
         selectedTracks.forEach((t, i) => {
           const d = document.createElement("div");
           d.className = "track-chip";
@@ -161,40 +156,38 @@
         nextBtn.disabled = selectedTracks.length < MIN;
         saveToLocal("selected_tracks", selectedTracks);
 
-        // 🔥 검색 결과 업데이트 - ID로 비교
-        if (results.children.length > 0) {
-          Array.from(results.children).forEach((el) => {
-            const trackId = el.getAttribute("data-track-id");
-            if (trackId) {
-              const isSelected = selectedTracks.some((t) => t.id === trackId);
-              if (isSelected) {
-                el.classList.add("selected");
-              } else {
-                el.classList.remove("selected");
-              }
-            }
-          });
-        }
+        // 검색 결과 선택 상태 업데이트
+        Array.from(results.children).forEach((el) => {
+          const trackId = el.getAttribute("data-track-id");
+          if (trackId) {
+            el.classList.toggle(
+              "selected",
+              selectedTracks.some((t) => t.id === trackId)
+            );
+          }
+        });
       }
 
-      /* 🔥 완료 - edit-profile에서 왔으면 돌아가기 */
+      /* 완료 후 이동 - finish/skip 공통 로직 */
+      function navigateAfterPlaylist() {
+        if (fromProfile) {
+          navigateTo("edit-profile.html");
+          return;
+        }
+        if (getFromLocal("just_completed_onboarding")) {
+          saveToLocal("show_ai_closed_screen", true);
+          removeFromLocal("just_completed_onboarding");
+        }
+        navigateTo("lounge.html");
+      }
+
       async function finish() {
         if (selectedTracks.length < MIN) return;
         showLoading("saving...");
         try {
           await apiCall("/users/playlist", "POST", { tracks: selectedTracks });
           hideLoading();
-
-          // 🔥 edit-profile에서 왔으면 다시 돌아가기
-          if (fromProfile) {
-            navigateTo("edit-profile.html");
-          } else {
-            if (getFromLocal("just_completed_onboarding")) {
-              saveToLocal("show_ai_closed_screen", true);
-              removeFromLocal("just_completed_onboarding");
-            }
-            navigateTo("lounge.html");
-          }
+          navigateAfterPlaylist();
         } catch (error) {
           console.error("Failed to save playlist:", error);
           hideLoading();
@@ -203,16 +196,7 @@
       }
 
       function skip() {
-        // 🔥 edit-profile에서 왔으면 다시 돌아가기
-        if (fromProfile) {
-          navigateTo("edit-profile.html");
-        } else {
-          if (getFromLocal("just_completed_onboarding")) {
-            saveToLocal("show_ai_closed_screen", true);
-            removeFromLocal("just_completed_onboarding");
-          }
-          navigateTo("lounge.html");
-        }
+        navigateAfterPlaylist();
       }
 
       nextBtn.onclick = finish;
