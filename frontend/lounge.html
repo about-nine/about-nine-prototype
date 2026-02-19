@@ -455,6 +455,7 @@
       let selectedUser = null;
       let presenceData = {};
       let currentUserProfile = null;
+      let historySummaryByPartner = {};
       let playlistTracks = [];
       let currentPlayingIndex = -1;
       let spotifyTimer = null;
@@ -552,6 +553,22 @@
         renderUsers(users, "userList", "lounge");
       }
 
+      async function loadHistorySummary() {
+        try {
+          const res = await apiCall("/talks/history-list");
+          const items = Array.isArray(res?.items) ? res.items : [];
+          historySummaryByPartner = {};
+          items.forEach((item) => {
+            const completedAllRounds = [1, 2, 3].every((r) => item.talks_by_round?.[r]);
+            historySummaryByPartner[item.partner_id] = { completedAllRounds };
+          });
+        } catch {
+          historySummaryByPartner = {};
+        }
+
+        if (users.length) renderUsers(users, "userList", "lounge");
+      }
+
       async function buildAIMatch() {
         try {
           const res = await apiCall("/match/recommend");
@@ -635,6 +652,8 @@
           ${sortedList.map((u) => {
             const uid = getUserId(u);
             const online = isOnline(uid);
+            const completedAllRounds = !isAi && historySummaryByPartner?.[uid]?.completedAllRounds;
+            const startDisabled = !online || completedAllRounds;
             return `
               <div class="user-card-wrapper ${online ? "" : "offline"}">
                 <div class="card user-card"
@@ -650,7 +669,7 @@
                     ${!isAi ? renderPlaylistTicker(u) : ""}
                   </div>
                 </div>
-                <button class="primary user-card-button" data-user-id="${uid}" ${online ? "" : "disabled"}>
+                <button class="primary user-card-button" data-user-id="${uid}" ${startDisabled ? "disabled" : ""}>
                   start talk
                 </button>
               </div>
@@ -987,6 +1006,7 @@
         await updateLocation();
         listenPresence();
         await loadUsers();
+        await loadHistorySummary();
         isAIMatchTime() ? switchTab("ai") : switchTab("lounge");
         listenMatchRequests();
         if (shouldShowAiClosedOverlay()) showAiClosedOverlay();

@@ -229,13 +229,19 @@
           ? talk.conversation.map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`).join("\n")
           : "analysis pending";
 
-        contentEl.innerHTML = `
-          <div class="section">
-            <div class="section-title">${roundLabel(talk.topic)}: ${score}</div>
+        const selectionHtml = roundNumber === 3
+          ? ""
+          : `
             <div class="selection-grid">
               ${buildSelectionCard(mySel,       talk.options, talk.topic, "you")}
               ${buildSelectionCard(partnerSel,  talk.options, talk.topic, partnerName)}
             </div>
+          `;
+
+        contentEl.innerHTML = `
+          <div class="section">
+            <div class="section-title">${roundLabel(talk.topic)}: ${score}</div>
+            ${selectionHtml}
             <div class="conversation">${conversation}</div>
           </div>
         `;

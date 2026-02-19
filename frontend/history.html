@@ -131,8 +131,15 @@
             return [`${roundLabel(t.topic)}: ${t.score === null ? "--" : t.score}`];
           });
 
-          const online       = isOnline(id);
-          const startEnabled = !item.had_no && online && item.blocked !== true;
+          const online = isOnline(id);
+          const completedAllRounds = [1, 2, 3].every(
+            (r) => item.talks_by_round?.[r],
+          );
+          const startEnabled =
+            !item.had_no &&
+            online &&
+            item.blocked !== true &&
+            !completedAllRounds;
           const scoreHtml    = scores.length
             ? scores.map((s) => `<span>${s}</span>`).join("")
             : "<span>no scores yet</span>";
