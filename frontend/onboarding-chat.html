@@ -205,7 +205,7 @@
           select.disabled = false; // 활성화
           send.disabled = true;
           select.innerHTML =
-            `<option value="">select ${q.id}</option>` + // 수정: placeholder 텍스트
+            `<option value="">select</option>` + // 수정: placeholder 텍스트
             q.options.map((o) => `<option value="${o}">${o}</option>`).join(""); // 수정: value 추가
           return;
         }
