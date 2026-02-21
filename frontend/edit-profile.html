@@ -133,12 +133,50 @@
         <div id="aboutContent" class="tab-pane active">
           <div class="card">
             <div class="profile-row">
+              <span class="profile-label">first name</span>
+              <input
+                type="text"
+                id="firstNameInput"
+                class="profile-input"
+                placeholder="enter first name"
+                autocomplete="given-name"
+              />
+            </div>
+            <div class="profile-row">
+              <span class="profile-label">last name</span>
+              <input
+                type="text"
+                id="lastNameInput"
+                class="profile-input"
+                placeholder="enter last name"
+                autocomplete="family-name"
+              />
+            </div>
+            <div class="profile-row">
               <span class="profile-label">age</span>
-              <span class="profile-value" id="ageValue">-</span>
+              <input
+                type="number"
+                id="ageInput"
+                class="profile-input"
+                min="18"
+                max="99"
+                placeholder="--"
+              />
             </div>
             <div class="profile-row">
               <span class="profile-label">gender</span>
-              <span class="profile-value" id="genderValue">-</span>
+              <select class="profile-select" id="genderSelect">
+                <option value="">select</option>
+                <option value="woman">woman</option>
+                <option value="man">man</option>
+                <option value="non-binary">non-binary</option>
+              </select>
+            </div>
+            <div class="profile-row">
+              <span class="profile-label">gender detail</span>
+              <select class="profile-select" id="genderDetailSelect" disabled>
+                <option value="">select</option>
+              </select>
             </div>
           </div>
 
@@ -231,6 +269,97 @@
       let profileData = null;
       let hasChanges = false;
 
+      const genderDetailOptions = {
+        woman: [
+          "cis woman",
+          "trans woman",
+          "intersex woman",
+          "transfeminine",
+          "woman and non-binary",
+        ],
+        man: [
+          "cis man",
+          "trans man",
+          "intersex man",
+          "transmasculine",
+          "man and non-binary",
+          "or something else",
+        ],
+        "non-binary": [
+          "Agender",
+          "Bigender",
+          "Genderfluid",
+          "Genderqueer",
+          "Gender nonconforming",
+        ],
+      };
+
+      const firstNameInput     = document.getElementById("firstNameInput");
+      const lastNameInput      = document.getElementById("lastNameInput");
+      const ageInput           = document.getElementById("ageInput");
+      const genderSelect       = document.getElementById("genderSelect");
+      const genderDetailSelect = document.getElementById("genderDetailSelect");
+
+      function refreshGenderDetailOptions(gender, selectedDetail) {
+        const options = genderDetailOptions[gender] || [];
+        const placeholder = '<option value="">select</option>';
+        genderDetailSelect.innerHTML = placeholder + options.map((opt) => `<option value="${opt}">${opt}</option>`).join("");
+        const hasOptions = options.length > 0;
+        genderDetailSelect.disabled = !hasOptions;
+        if (hasOptions && selectedDetail && options.includes(selectedDetail)) {
+          genderDetailSelect.value = selectedDetail;
+        } else {
+          genderDetailSelect.value = "";
+        }
+      }
+
+      function handleNameChange(key, value) {
+        if (!profileData) return;
+        profileData[key] = value;
+        markChanged();
+      }
+
+      firstNameInput.addEventListener("input", (e) => handleNameChange("first_name", e.target.value));
+      lastNameInput.addEventListener("input", (e) => handleNameChange("last_name", e.target.value));
+
+      ageInput.addEventListener("input", (e) => {
+        if (!profileData) return;
+        const val = parseInt(e.target.value, 10);
+        if (Number.isNaN(val)) {
+          profileData.age = null;
+        } else {
+          const normalized = Math.max(18, Math.min(99, val));
+          profileData.age = normalized;
+          e.target.value = normalized;
+        }
+        markChanged();
+      });
+
+      genderSelect.addEventListener("change", (e) => {
+        if (!profileData) return;
+        const value = e.target.value;
+        profileData.gender = value;
+        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
+        profileData.onboarding_profile.gender = value;
+
+        const validDetails = genderDetailOptions[value] || [];
+        if (!validDetails.includes(profileData.gender_detail)) {
+          profileData.gender_detail = "";
+          if (profileData.onboarding_profile) profileData.onboarding_profile.gender_detail = "";
+        }
+        refreshGenderDetailOptions(value, profileData.gender_detail);
+        markChanged();
+      });
+
+      genderDetailSelect.addEventListener("change", (e) => {
+        if (!profileData) return;
+        const value = e.target.value;
+        profileData.gender_detail = value;
+        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
+        profileData.onboarding_profile.gender_detail = value;
+        markChanged();
+      });
+
       /* ── 탭 전환 ─────────────────────────────────────── */
 
       const aboutTab          = document.getElementById("aboutTab");
@@ -284,11 +413,30 @@
       /* ── UI 업데이트 ─────────────────────────────────── */
 
       function updateUI() {
-        document.getElementById("ageValue").textContent    = profileData.age || "-";
-        document.getElementById("genderValue").textContent = profileData.gender_detail || profileData.gender || "-";
-        document.getElementById("phoneValue").textContent  = profileData.phone || "-";
+        firstNameInput.value = profileData.first_name || "";
+        lastNameInput.value  = profileData.last_name  || "";
+        ageInput.value       = profileData.age ?? "";
+        document.getElementById("phoneValue").textContent = profileData.phone || "-";
 
-        const profile = profileData.onboarding_profile || {};
+        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
+        const profile = profileData.onboarding_profile;
+
+        const currentGender = profileData.gender || profile.gender || "";
+        profileData.gender = currentGender;
+        profile.gender = currentGender;
+        genderSelect.value = currentGender || "";
+
+        const currentGenderDetail = profileData.gender_detail || profile.gender_detail || "";
+        profileData.gender_detail = currentGenderDetail;
+        profile.gender_detail = currentGenderDetail;
+        if (currentGender) {
+          refreshGenderDetailOptions(currentGender, currentGenderDetail);
+        } else {
+          genderDetailSelect.innerHTML = '<option value="">select</option>';
+          genderDetailSelect.value = "";
+          genderDetailSelect.disabled = true;
+        }
+
         document.getElementById("drinkSelect").value     = profile.drink    || "no";
         document.getElementById("smokeSelect").value     = profile.smoke    || "no";
         document.getElementById("marijuanaSelect").value = profile.marijuana || "no";
@@ -398,12 +546,34 @@
         if (!hasChanges) return;
         try {
           showLoading("saving...");
-          const res = await apiCall("/users/profile", "POST", {
+          const payload = {
             onboarding_profile: profileData.onboarding_profile,
             bio: profileData.bio || "",
-            sexual_orientation: profileData.onboarding_profile.sexual_orientation,
-            age_preference: profileData.onboarding_profile.age_preference,
+          };
+
+          if (profileData.onboarding_profile?.sexual_orientation) {
+            payload.sexual_orientation = profileData.onboarding_profile.sexual_orientation;
+          }
+          if (profileData.onboarding_profile?.age_preference) {
+            payload.age_preference = profileData.onboarding_profile.age_preference;
+          }
+
+          const directFields = {
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            gender: profileData.gender,
+            gender_detail: profileData.gender_detail,
+          };
+
+          Object.entries(directFields).forEach(([key, value]) => {
+            if (value !== undefined) payload[key] = value;
           });
+
+          if (profileData.age !== undefined && profileData.age !== null && profileData.age !== "") {
+            payload.age = Number(profileData.age);
+          }
+
+          const res = await apiCall("/users/profile", "POST", payload);
           hideLoading();
 
           if (res.success) {

@@ -144,6 +144,24 @@ body {
   text-decoration: underline;
 }
 
+.profile-input {
+  width: 60%;
+  text-align: right;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+.profile-input:focus {
+  outline: none;
+  background: var(--bg-card);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
 /* 헤더 */
 h1 {
   font-size: 32px;

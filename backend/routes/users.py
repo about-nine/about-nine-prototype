@@ -331,6 +331,21 @@ def update_profile():
     if "age_preference" in data:
         update_data["age_preference"] = data["age_preference"]
     
+    if "first_name" in data:
+        update_data["first_name"] = data["first_name"]
+    
+    if "last_name" in data:
+        update_data["last_name"] = data["last_name"]
+    
+    if "gender" in data:
+        update_data["gender"] = data["gender"]
+    
+    if "gender_detail" in data:
+        update_data["gender_detail"] = data["gender_detail"]
+    
+    if "age" in data:
+        update_data["age"] = data["age"]
+    
     db.collection("users").document(user_id).set(update_data, merge=True)
     
     return jsonify(success=True)
