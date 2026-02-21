@@ -149,6 +149,7 @@ body {
 .profile-select {
   width: 60%;
   text-align: right;
+  text-align-last: right;
   background: transparent;
   border: none;
   color: var(--text-primary);
