@@ -308,11 +308,20 @@
         if (Number.isNaN(val)) {
           profileData.age = null;
         } else {
-          const normalized = Math.max(18, Math.min(99, val));
-          profileData.age = normalized;
-          e.target.value = normalized;
+          profileData.age = val;
         }
         markChanged();
+      });
+
+      ageInput.addEventListener("blur", (e) => {
+        if (!profileData) return;
+        if (profileData.age === null || profileData.age === undefined || profileData.age === "") {
+          ageInput.value = "";
+          return;
+        }
+        const normalized = Math.max(18, Math.min(99, Number(profileData.age) || 0));
+        profileData.age = normalized;
+        ageInput.value = normalized;
       });
 
       genderSelect.addEventListener("change", (e) => {
