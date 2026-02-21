@@ -37,6 +37,7 @@
         color: var(--text-secondary);
         font-size: 14px;
         font-weight: 400;
+        margin-bottom: 10px;
       }
 
       /* ── AI 닫힘 오버레이 ────────────────────────────── */
@@ -560,7 +561,10 @@
           historySummaryByPartner = {};
           items.forEach((item) => {
             const completedAllRounds = [1, 2, 3].every((r) => item.talks_by_round?.[r]);
-            historySummaryByPartner[item.partner_id] = { completedAllRounds };
+            historySummaryByPartner[item.partner_id] = {
+              completedAllRounds,
+              blocked: item.blocked === true,
+            };
           });
         } catch {
           historySummaryByPartner = {};
@@ -596,6 +600,16 @@
         if (!p || p.online !== true) return false;
         const updatedAt = Number(p.updated_at || 0);
         return updatedAt && Date.now() - updatedAt <= PRESENCE_TTL_MS;
+      }
+
+      function isUserBlocked(uid, userData) {
+        if (!uid) return false;
+        if (historySummaryByPartner?.[uid]?.blocked) return true;
+        const myBlocked = currentUserProfile?.blocked_users;
+        if (Array.isArray(myBlocked) && myBlocked.includes(uid)) return true;
+        if (userData?.blocked === true) return true;
+        if (Array.isArray(userData?.blocked_users) && userData.blocked_users.includes(userId)) return true;
+        return false;
       }
 
       /* ── 플레이리스트 티커 ────────────────────────────── */
@@ -652,8 +666,10 @@
           ${sortedList.map((u) => {
             const uid = getUserId(u);
             const online = isOnline(uid);
+            const isBlocked = isUserBlocked(uid, u);
             const completedAllRounds = !isAi && historySummaryByPartner?.[uid]?.completedAllRounds;
-            const startDisabled = !online || completedAllRounds;
+            const startDisabled = isBlocked || !online || completedAllRounds;
+            const statusClass = isBlocked ? "blocked" : online ? "online" : "offline";
             return `
               <div class="user-card-wrapper ${online ? "" : "offline"}">
                 <div class="card user-card"
@@ -664,7 +680,7 @@
                       <span style="font-size:16px;font-weight:600;">
                         ${u.first_name || u.firstName} ${u.last_name || u.lastName}
                       </span>
-                      <span class="status-dot ${online ? "online" : "offline"}"></span>
+                      <span class="status-dot ${statusClass}"></span>
                     </div>
                     ${!isAi ? renderPlaylistTicker(u) : ""}
                   </div>

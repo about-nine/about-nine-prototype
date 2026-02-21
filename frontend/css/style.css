@@ -145,22 +145,29 @@ body {
   text-decoration: underline;
 }
 
-.profile-input {
+.profile-input,
+.profile-select {
   width: 60%;
   text-align: right;
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 4px 0;
+  padding: 4px 8px;
+  margin: 0;
+  appearance: none;
 }
 
-.profile-input:focus {
+.profile-select {
+  cursor: pointer;
+}
+
+.profile-input:focus,
+.profile-select:focus {
   outline: none;
   background: var(--bg-card);
   border-radius: 6px;
-  padding: 4px 8px;
 }
 
 /* 헤더 */
@@ -575,7 +582,6 @@ a:hover {
 .age-range-box {
   display: none;
   flex: 1;
-  padding: 10px 16px;
   background: #3a3a3a;
   border-radius: 24px;
   align-items: center;
