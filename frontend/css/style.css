@@ -421,7 +421,7 @@ a:hover {
   text-align: center;
   padding: 30px 0 20px;
   flex-shrink: 0;
-  font-size: 18px;
+  font-size: 20px;
   margin-bottom: 0px;
 }
 
@@ -1076,7 +1076,7 @@ a:hover {
 
   .chat-header {
     padding: 20px 0 12px;
-    font-size: 16px;
+    font-size: 20px;
   }
 
   .chat-container .chat-header {
