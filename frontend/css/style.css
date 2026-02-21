@@ -156,14 +156,27 @@ h2 {
   font-size: 24px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  line-height: 1.2;
 }
 
 p {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
   margin-bottom: 20px;
+}
+
+ul {
+  list-style-position: inside;
+  padding-left: 10px;
+}
+
+li {
+  margin-left: 0;
+  padding-left: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 /* 입력 필드 */
