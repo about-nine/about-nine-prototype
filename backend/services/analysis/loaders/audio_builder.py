@@ -31,6 +31,24 @@ def m3u8_to_wav(m3u8_path: str, wav_path: str):
     ], check=True)
 
 
+def _safe_convert_m3u8(local_path: str, wav_path: str, uid):
+    """Convert a single m3u8, swallowing per-file errors so the pipeline keeps going."""
+    if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
+        print(f"⚠️ [audio] Skipping empty or missing m3u8: {local_path}")
+        return None
+    try:
+        m3u8_to_wav(local_path, wav_path)
+        return wav_path
+    except FileNotFoundError:
+        # Bubble up so workers can alert ops (ffmpeg missing)
+        raise
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️ [audio] ffmpeg failed for uid={uid}: {local_path} ({e})")
+    except Exception as e:  # noqa: BLE001 – best effort logging only
+        print(f"⚠️ [audio] Unexpected ffmpeg error for {local_path}: {e}")
+    return None
+
+
 def build_wav_from_directory(directory: str):
     m3u8 = find_m3u8(directory)
     wav = os.path.join(directory, "audio.wav")
@@ -70,11 +88,13 @@ class AudioBuilder:
                 continue
             uid = item.get("uid")
             wav_path = _build_wav_path(local_path, uid)
-            m3u8_to_wav(local_path, wav_path)
+            converted = _safe_convert_m3u8(local_path, wav_path, uid)
+            if not converted:
+                continue
             wav_items.append(
                 {
                     "uid": uid,
-                    "wav_path": wav_path,
+                    "wav_path": converted,
                     "speaker_hint": f"uid_{uid}" if uid else None,
                     "_temp_wav": True,  # ✅ 임시 생성 표시
                 }

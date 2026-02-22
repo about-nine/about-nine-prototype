@@ -32,6 +32,20 @@ except ImportError:
     HAS_SOUNDFILE = False
 
 
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(float(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+WHISPER_MAX_BYTES = _int_env("WHISPER_MAX_BYTES", 24 * 1024 * 1024)  # ~24MB default
+WHISPER_CHUNK_SECONDS = max(60, _int_env("WHISPER_CHUNK_SECONDS", 600))  # chunk at 10 min
+
+
 # ============================================================================
 # VAD (Voice Activity Detection)
 # ============================================================================
@@ -293,17 +307,13 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
     - 알려진 환각 패턴
     """
     HALLUCINATION_PATTERNS = {
-        "listening to music",
-        "music",
-        "laughs",
-        "laughter",
-        "applause",
-        "thanks for watching",
-        "thank you for watching",
-        "please subscribe",
-        "like and subscribe",
-        "silence",
-        "inaudible",
+        # English
+        "listening to music", "music", "laughs", "laughter", "applause",
+        "thanks for watching", "thank you for watching", "please subscribe",
+        "like and subscribe", "silence", "inaudible",
+        # Korean
+        "음악", "웃음", "박수", "침묵", "알아들을 수 없음", "자막 제공",
+        "구독과 좋아요", "시청해 주셔서 감사합니다", "영상 시청",
     }
 
     filtered = []
@@ -332,6 +342,10 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
 # ============================================================================
 
 _client = None
+WHISPER_PROMPT = (
+    "This audio may contain conversation in any language. "
+    "Transcribe speech as spoken, preserving the original language and script."
+)
 
 
 def _openai_timeout() -> float:
@@ -353,46 +367,24 @@ def _get_openai_client():
     return _client
 
 
-def _transcribe_wav(wav_path: str, speaker_id: str) -> List[Dict]:
-    """단일 WAV → segments (with VAD preprocessing)"""
-    if not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1024:
-        return []
-
-    if not HAS_OPENAI or not os.getenv("OPENAI_API_KEY"):
-        return []
-
-    # 1) VAD로 음성 구간만 추출
-    trimmed_path, vad_regions = _extract_speech_chunks(wav_path)
-    if not trimmed_path or not vad_regions:
-        # VAD 실패 시 원본으로 시도
-        trimmed_path = wav_path
-        vad_regions = []
-
-    # 2) Whisper API 호출 (VAD로 정리된 음성)
+def _call_whisper_api(path: str):
     client = _get_openai_client()
-    try:
-        with open(trimmed_path, "rb") as f:
-            result = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
-                response_format="verbose_json",
-                timestamp_granularities=["segment"],
-                language="en"
-            )
-    except Exception as e:
-        print(f"⚠️ STT 실패 ({wav_path}): {e}")
-        return []
-    finally:
-        # 임시 파일 정리
-        if trimmed_path != wav_path and os.path.exists(trimmed_path):
-            try:
-                os.unlink(trimmed_path)
-            except OSError:
-                pass
+    with open(path, "rb") as f:
+        return client.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            response_format="verbose_json",
+            timestamp_granularities=["segment"],
+            prompt=WHISPER_PROMPT,
+        )
 
-    # 3) 세그먼트 파싱
-    raw_segments = []
-    for seg in getattr(result, "segments", []) or []:
+
+def _parse_whisper_segments(result, speaker_id: str, time_offset: float = 0.0) -> List[Dict]:
+    parsed: List[Dict] = []
+    if not result:
+        return parsed
+    segments_iter = getattr(result, "segments", []) or []
+    for seg in segments_iter:
         if isinstance(seg, dict):
             text = seg.get("text", "").strip()
             start = float(seg.get("start", 0))
@@ -401,16 +393,113 @@ def _transcribe_wav(wav_path: str, speaker_id: str) -> List[Dict]:
             text = getattr(seg, "text", "").strip()
             start = float(getattr(seg, "start", 0))
             end = float(getattr(seg, "end", 0))
-
         if not text:
             continue
+        parsed.append(
+            {
+                "speaker": speaker_id,
+                "start": start + time_offset,
+                "end": end + time_offset,
+                "text": text,
+            }
+        )
+    return parsed
 
-        raw_segments.append({
-            "speaker": speaker_id,
-            "start": start,
-            "end": end,
-            "text": text,
-        })
+
+def _transcribe_with_chunking(wav_path: str, speaker_id: str) -> Tuple[List[Dict], Optional[str]]:
+    """Split long audio into manageable pieces (<25MB) for Whisper."""
+    try:
+        data, sr = _read_wav_np(wav_path)
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️ STT chunk read failed ({wav_path}): {exc}")
+        return [], "chunk_read_failed"
+
+    if len(data) == 0:
+        return [], "empty_audio"
+
+    chunk_samples = max(int(sr * WHISPER_CHUNK_SECONDS), sr * 60)
+    segments: List[Dict] = []
+    offset = 0.0
+
+    for start in range(0, len(data), chunk_samples):
+        chunk = data[start:start + chunk_samples]
+        if len(chunk) == 0:
+            continue
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        try:
+            _write_wav_np(chunk, sr, tmp.name)
+            result = _call_whisper_api(tmp.name)
+            segments.extend(_parse_whisper_segments(result, speaker_id, offset))
+        except Exception as exc:  # noqa: BLE001
+            print(f"⚠️ Whisper chunk failed ({wav_path}, offset={offset:.2f}s): {exc}")
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+            return segments, "chunk_transcription_failed"
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+        offset += len(chunk) / sr
+
+    return segments, None
+
+
+def _transcribe_wav(wav_path: str, speaker_id: str) -> Tuple[List[Dict], Optional[str]]:
+    """단일 WAV → segments (with VAD preprocessing)"""
+    if not os.path.exists(wav_path):
+        return [], "file_missing"
+    try:
+        if os.path.getsize(wav_path) < 1024:
+            return [], "file_too_small"
+    except OSError:
+        return [], "file_unreadable"
+
+    if not HAS_OPENAI or not os.getenv("OPENAI_API_KEY"):
+        return [], "openai_not_configured"
+
+    # 1) VAD로 음성 구간만 추출
+    trimmed_path, vad_regions = _extract_speech_chunks(wav_path)
+    if not trimmed_path or not vad_regions:
+        trimmed_path = wav_path
+        vad_regions = []
+
+    path_for_whisper = trimmed_path
+    raw_segments: List[Dict] = []
+    error_reason: Optional[str] = None
+
+    try:
+        needs_chunking = os.path.getsize(path_for_whisper) > WHISPER_MAX_BYTES
+    except OSError:
+        needs_chunking = False
+
+    try:
+        if needs_chunking:
+            raw_segments, error_reason = _transcribe_with_chunking(path_for_whisper, speaker_id)
+        else:
+            result = _call_whisper_api(path_for_whisper)
+            raw_segments = _parse_whisper_segments(result, speaker_id)
+            if not raw_segments:
+                error_reason = "no_segments"
+    except Exception as e:  # noqa: BLE001
+        print(f"⚠️ STT 실패 ({wav_path}): {e}")
+        error_reason = "stt_failed"
+        raw_segments = []
+    finally:
+        # 임시 파일 정리
+        if trimmed_path != wav_path and os.path.exists(trimmed_path):
+            try:
+                os.unlink(trimmed_path)
+            except OSError:
+                pass
+
+    if not raw_segments:
+        return [], error_reason or "no_segments"
 
     # 4) 타임스탬프 복원 (VAD 사용했을 때)
     if vad_regions:
@@ -420,7 +509,7 @@ def _transcribe_wav(wav_path: str, speaker_id: str) -> List[Dict]:
     raw_segments = _filter_hallucinations(raw_segments)
     raw_segments = _deduplicate_segments(raw_segments)
 
-    return raw_segments
+    return raw_segments, None
 
 
 # ============================================================================
@@ -434,18 +523,24 @@ def build_conversation(
 ) -> Dict:
     """여러 화자의 WAV → 시간순 정렬된 conversation"""
     all_segments: List[Dict] = []
+    warnings: Dict[str, Dict[str, str]] = {}
 
     for speaker_id, wav_path in speaker_audio_map.items():
-        segments = _transcribe_wav(wav_path, speaker_id)
+        segments, error = _transcribe_wav(wav_path, speaker_id)
+        if error:
+            warnings.setdefault("transcription", {})[speaker_id] = error
         all_segments.extend(segments)
 
     # 시간순 정렬
     all_segments.sort(key=lambda x: x["start"])
 
-    return {
+    result = {
         "call_id": call_id,
         "conversation": all_segments,
     }
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 # ============================================================================

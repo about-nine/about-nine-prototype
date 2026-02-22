@@ -81,8 +81,23 @@ def _calc_balance(conversation: List[Dict], speaker_a: str, speaker_b: str) -> D
             time_b += dur
 
     total = time_a + time_b
-    if total < 1.0:  # 거의 대화 없음
-        return {"score": 0, "time_a": 0, "time_b": 0, "ratio": 0, "error": "no_speech"}
+    if total < 1.0:
+        # Timestamp 품질이 낮은 환경을 위해 발화 횟수 기반 fallback 제공.
+        count_a = sum(1 for u in conversation if u.get("speaker") == speaker_a and u.get("text"))
+        count_b = sum(1 for u in conversation if u.get("speaker") == speaker_b and u.get("text"))
+        total_count = count_a + count_b
+        if total_count == 0:
+            return {"score": 0, "time_a": 0, "time_b": 0, "ratio_a": 0, "error": "no_speech"}
+        ratio = count_a / total_count
+        deviation = abs(ratio - 0.5)
+        score = max(0, (1.0 - (deviation * 1.5) ** 1.5)) * 100
+        return {
+            "score": round(score, 1),
+            "time_a": 0,
+            "time_b": 0,
+            "ratio_a": round(ratio, 3),
+            "fallback": "utterance_count",
+        }
 
     # 비율: 0.5 = 완벽한 균형, 0 또는 1 = 한쪽만
     ratio = time_a / total  # 0~1
@@ -112,7 +127,7 @@ def _calc_silence(conversation: List[Dict]) -> Dict:
     중간(2~5초): 약간 감점
     """
     if len(conversation) < 2:
-        return {"score": 50, "gaps": [], "error": "not_enough_utterances"}
+        return {"score": 0, "gaps": [], "error": "not_enough_utterances"}
 
     gaps = []
 
@@ -134,7 +149,8 @@ def _calc_silence(conversation: List[Dict]) -> Dict:
             gaps.append(gap)
 
     if not gaps:
-        return {"score": 70, "total_gaps": 0, "long_silence_count": 0}
+        # Timestamp 없는 대화는 silence를 중립 점수로 처리.
+        return {"score": 60.0, "total_gaps": 0, "long_silence_count": 0, "fallback": "no_timestamps"}
 
     long_silences = [g for g in gaps if g > 5.0]      # 5초 초과
     medium_silences = [g for g in gaps if 2.0 < g <= 5.0]  # 2~5초
@@ -193,7 +209,7 @@ def _calc_engagement(conversation: List[Dict], speaker_a: str, speaker_b: str) -
     min_avg = min(avg_a, avg_b)
 
     if max_avg < 1:
-        return {"score": 50, "avg_len_a": 0, "avg_len_b": 0}
+        return {"score": 0, "avg_len_a": 0, "avg_len_b": 0}
 
     # 비율: 1.0 = 동일, 0 = 극단적 차이
     length_ratio = min_avg / max_avg
@@ -235,6 +251,16 @@ def analyze(conversation_data: Dict) -> Dict[str, Any]:
         return {
             "score": 0,
             "error": "not_enough_utterances",
+            "balance": {},
+            "silence": {},
+            "engagement": {},
+        }
+
+    unique_speakers = list(dict.fromkeys(u.get("speaker") for u in conv if u.get("speaker")))
+    if len(unique_speakers) < 2:
+        return {
+            "score": 0,
+            "error": "need_2_speakers",
             "balance": {},
             "silence": {},
             "engagement": {},

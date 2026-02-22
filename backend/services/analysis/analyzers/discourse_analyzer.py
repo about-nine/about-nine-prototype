@@ -5,11 +5,7 @@ OpenAI API로 대화의 주제 흐름 자연스러움을 평가.
 
 측정 원리:
   1. 대화 텍스트를 GPT-4o-mini에 전달
-  2. LLM이 주제 연속성을 0~10 스케일로 평가
-     - 10: 주제가 자연스럽게 이어짐
-     -  5: 주제가 약간 바뀌지만 연결됨
-     -  0: 주제가 급격히 바뀜
-  3. ×10 하여 100점 만점 환산
+  2. LLM이 주제 연속성을 0~100 스케일로 평가
 
 의존성: openai
 Fallback: API 실패 시 평균 단어 수 기반 휴리스틱
@@ -57,8 +53,11 @@ def _normalize_conversation(conversation_obj):
 
 def _format_conversation(data: Dict) -> str:
     lines = []
-    for u in data["conversation"]:
-        lines.append(f"{u['speaker']}: {u['text']}")
+    for u in data.get("conversation", []):
+        speaker = u.get("speaker", "unknown")
+        text = u.get("text", "")
+        if text:
+            lines.append(f"{speaker}: {text}")
     return "\n".join(lines)
 
 
@@ -69,7 +68,7 @@ def _parse_json_response(response: str) -> Dict:
             return json.loads(match.group())
         except json.JSONDecodeError:
             pass
-    return {"topic_continuity": None, "parse_error": True}
+    return {"topic_continuity": None, "logical_flow": None, "collaborative_building": None, "parse_error": True}
 
 
 def _openai_timeout() -> float:
@@ -81,23 +80,29 @@ def _openai_timeout() -> float:
 
 
 def _analyze_with_openai(data: Dict) -> Dict[str, Any]:
-    """OpenAI API로 주제 연속성 평가"""
+    """OpenAI API로 담화 품질 평가 (3개 지표 평균)"""
     formatted = _format_conversation(data)
 
-    prompt = f"""Analyze the following conversation and evaluate it:
+    prompt = f"""Analyze the following 2-speaker conversation. It may be in any language.
+Use the original utterance language as-is. Do not translate.
+Do not infer missing context beyond what is explicitly said.
 
 Conversation:
 {formatted}
 
-Evaluate the following item on a 0-10 scale:
+Evaluate the following items on a continuous 0-100 scale (any integer value is valid):
 
-topic_continuity: Does the topic flow naturally?
-   - 10: Perfectly connected, same topic maintained
-   - 5: Topic shifts slightly but remains connected
-   - 0: Topic changes abruptly throughout
+topic_continuity: How naturally does the topic flow throughout the conversation?
+   Higher scores indicate smoother, more coherent topic flow.
 
-    Respond ONLY in JSON format:
-{{"topic_continuity": X}}"""
+logical_flow: How well do causal relationships and logical connections appear in the conversation?
+   Higher scores indicate clearer cause-and-effect reasoning and logical progression between utterances.
+
+collaborative_building: To what extent do speakers build upon and develop each other's ideas?
+   Higher scores indicate that speakers actively extend, elaborate, or deepen what the other person said.
+
+Return ONLY one JSON object with integer values in [0, 100]:
+{{"topic_continuity": X, "logical_flow": X, "collaborative_building": X}}"""
 
     client = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -106,28 +111,45 @@ topic_continuity: Does the topic flow naturally?
     )
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        max_tokens=128,
+        max_tokens=256,
         temperature=0.0,
+        response_format={"type": "json_object"},
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.choices[0].message.content
     scores = _parse_json_response(text)
 
-    raw_score = scores.get("topic_continuity")
-    if raw_score is not None and isinstance(raw_score, (int, float)):
-        return {"score": int(round(raw_score * 10)), "raw_0_10": raw_score, "method": "openai"}
-    return {"score": 0, "parse_error": True, "method": "openai"}
+    tc = scores.get("topic_continuity")
+    lf = scores.get("logical_flow")
+    cb = scores.get("collaborative_building")
+
+    valid = [s for s in [tc, lf, cb] if isinstance(s, (int, float))]
+    if not valid:
+        return {"score": 0, "parse_error": True, "method": "openai"}
+
+    combined = int(round(sum(valid) / len(valid)))
+    return {
+        "score": combined,
+        "topic_continuity": int(round(tc)) if isinstance(tc, (int, float)) else None,
+        "logical_flow": int(round(lf)) if isinstance(lf, (int, float)) else None,
+        "collaborative_building": int(round(cb)) if isinstance(cb, (int, float)) else None,
+        "method": "openai",
+    }
 
 
 def _analyze_fallback(data: Dict) -> Dict[str, Any]:
     texts = [u["text"] for u in data["conversation"] if u.get("text")]
     if len(texts) < 2:
-        return {"score": 50, "method": "fallback"}
+        return {"score": 0, "method": "fallback"}
     
+    def _tokenize(text: str):
+        # Unicode letter tokenization for multilingual fallback.
+        return set(re.findall(r"[^\W\d_]+", text.lower(), flags=re.UNICODE))
+
     sims = []
     for i in range(1, len(texts)):
-        words_prev = set(texts[i-1].lower().split())
-        words_curr = set(texts[i].lower().split())
+        words_prev = _tokenize(texts[i-1])
+        words_curr = _tokenize(texts[i])
         union = words_prev | words_curr
         if union:
             sims.append(len(words_prev & words_curr) / len(union))
@@ -138,6 +160,10 @@ def _analyze_fallback(data: Dict) -> Dict[str, Any]:
 
 
 def analyze(data: Dict) -> Dict[str, Any]:
+    speakers = list(dict.fromkeys(u["speaker"] for u in data["conversation"] if u.get("speaker")))
+    if len(speakers) < 2:
+        return {"score": 0, "error": "need_2_speakers"}
+
     if HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
         try:
             return _analyze_with_openai(data)

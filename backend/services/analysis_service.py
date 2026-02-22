@@ -431,6 +431,20 @@ class AnalysisService:
                 # conv_dict expected: {"call_id":..., "conversation":[{speaker,start,end,text},...], "speaker_wavs":{speaker:wav_path}}
                 conversation_list = conv_dict.get("conversation") or []
                 speaker_wavs = conv_dict.get("speaker_wavs") or {}
+                conv_warnings = conv_dict.get("warnings") or {}
+                transcription_warn = conv_warnings.get("transcription")
+                if transcription_warn:
+                    try:
+                        talk_ref.update(
+                            {
+                                "analysis_warning": "transcription_failed",
+                                "analysis_transcription_errors": transcription_warn,
+                            }
+                        )
+                    except Exception:
+                        pass
+                    talk["analysis_warning"] = "transcription_failed"
+                    talk["analysis_transcription_errors"] = transcription_warn
 
                 # persist built conversation for caching
                 talk_ref.update(

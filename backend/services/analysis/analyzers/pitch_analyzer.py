@@ -1,40 +1,40 @@
 """
-Pitch Synchrony Analyzer (voice_pitch)
-=======================================
-두 화자의 피치(F0) 패턴이 얼마나 동조하는지 측정.
+Pitch Similarity Analyzer (voice_pitch)
+========================================
+두 화자의 음 높이(F0) 특성이 얼마나 비슷한지 측정.
 
 측정 원리 (개별 WAV 파일이 있을 때):
   1. 화자별 wav에서 librosa.pyin으로 F0 추출
   2. VAD(음성 활동 감지)로 무음 구간 제거
-  3. F0를 보간 + robust z-score 정규화
-  4. 두 화자의 정규화된 F0 시퀀스 간 weighted cross-correlation 계산
-  5. 최적 lag에서의 상관계수 → (corr+1)/2 × 100으로 0~100점 환산
+  3. 각 화자의 발화 구간 F0 통계(중앙값, 표준편차) 계산
+  4. 중앙 피치 유사도: 반음(semitone) 거리 기반 — 1옥타브 차이면 0점
+  5. 피치 변동성 유사도: std 비율 — 두 사람이 비슷하게 단조롭거나 풍부하면 높은 점수
+  6. 최종 = 0.7 × 중앙피치 + 0.3 × 변동성 → 0~100점
 
 측정 원리 (단일 혼합 오디오일 때):
   1. 전체 오디오에서 F0 추출 + VAD
   2. 발화 세그먼트 단위로 median F0 계산
   3. KMeans(k=2)로 화자 클러스터링 (피치 높낮이 기반)
-  4. 이후 동일하게 cross-correlation
+  4. 두 클러스터의 F0 분포로 동일하게 유사도 계산
 
-의존성: librosa, numpy, scipy (선택: sklearn)
-Fallback: librosa 없으면 기본값 50점 반환
+의존성: librosa, numpy (선택: sklearn)
+Fallback: 라이브러리/입력 부족 시 50점 반환
 """
 
 import os
 import numpy as np
 from typing import Dict, Any, List, Optional
-from scipy.signal import correlate
+
+NEUTRAL_SCORE = 50
 
 try:
     import librosa
-
     HAS_LIBROSA = True
 except ImportError:
     HAS_LIBROSA = False
 
 try:
     from sklearn.cluster import KMeans
-
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
@@ -43,7 +43,6 @@ except ImportError:
 # ============================================================================
 # Audio utilities
 # ============================================================================
-
 
 def _rms_envelope(y, frame_length, hop_length):
     return librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
@@ -54,45 +53,23 @@ def _vad_mask(rms, thresh_db=-35):
     return rms_db > thresh_db
 
 
-def _interpolate_nans(x):
-    x = x.astype(float)
-    idx = np.arange(len(x))
-    m = np.isfinite(x)
-    if m.sum() < 2:
-        return np.zeros_like(x)
-    return np.interp(idx, idx[m], x[m])
-
-
-def _robust_z(x, mask=None):
-    x = x.astype(float)
-    if mask is None:
-        mask = np.isfinite(x)
-    vals = x[mask]
-    if len(vals) < 10:
-        return np.zeros_like(x)
-    med = np.median(vals)
-    mad = np.median(np.abs(vals - med)) + 1e-9
-    z = (x - med) / (1.4826 * mad)
-    z[~np.isfinite(z)] = 0.0
-    return np.clip(z, -5, 5)
-
-
-# ✅ 수정: librosa.load에서 바로 sr 지정 + duration 제한 + 청크 처리
-def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=300, vad_db=-35, max_duration=3600):
-    
-    # 파일 길이 먼저 확인
+def _extract_f0(path, sr=16000, hop_ms=10, fmin=None, fmax=None, vad_db=None, max_duration=3600):
+    if fmin is None:
+        fmin = float(os.getenv("PITCH_FMIN", "65"))
+    if fmax is None:
+        fmax = float(os.getenv("PITCH_FMAX", "500"))
+    if vad_db is None:
+        vad_db = float(os.getenv("PITCH_VAD_DB", "-35"))
     info = librosa.get_duration(path=path)
     duration = min(info, max_duration)
-    
-    # sr 직접 지정으로 로드 (resample 단계 제거)
     y, _ = librosa.load(path, sr=sr, mono=True, duration=duration)
-    
+
     hop_length = int(sr * hop_ms / 1000)
     frame_length = hop_length * 4
     chunk_samples = sr * 30  # 30초 청크
-    
+
     all_f0, all_vad = [], []
-    
+
     for start in range(0, len(y), chunk_samples):
         chunk = y[start:start + chunk_samples]
         rms = _rms_envelope(chunk, frame_length, hop_length)
@@ -104,10 +81,10 @@ def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=300, vad_db=-35, max_du
         all_f0.append(f0)
         all_vad.append(vad)
         del chunk
-    
+
     del y
     import gc; gc.collect()
-    
+
     return {
         "f0": np.concatenate(all_f0),
         "vad": np.concatenate(all_vad),
@@ -115,40 +92,62 @@ def _extract_f0(path, sr=16000, hop_ms=10, fmin=65, fmax=300, vad_db=-35, max_du
         "sr": sr,
     }
 
-def _best_lag_sync(z_a, z_b, mask_a, mask_b, max_lag_frames=200):
-    L = min(len(z_a), len(z_b))
-    a = z_a[:L] * mask_a[:L]
-    b = z_b[:L] * mask_b[:L]
-    
-    corr = correlate(a, b, mode='full')
-    # normalize
-    norm = np.sqrt(correlate(a*a, np.ones_like(b)) * correlate(np.ones_like(a), b*b))
-    norm[norm < 1e-8] = 1e-8
-    corr_norm = corr / norm
-    
-    center = L - 1
-    valid = corr_norm[center - max_lag_frames:center + max_lag_frames + 1]
-    best_idx = np.argmax(valid)
-    best_lag = best_idx - max_lag_frames
-    best_corr = float(valid[best_idx])
-    
-    return best_corr, best_lag
 
+# ============================================================================
+# Pitch similarity scoring
+# ============================================================================
 
-def _corr_to_score(corr: float) -> int:
-    return int(round(np.clip((corr + 1) / 2, 0, 1) * 100))
+def _pitch_similarity_score(
+    f0_a: np.ndarray, voiced_a: np.ndarray,
+    f0_b: np.ndarray, voiced_b: np.ndarray,
+) -> Dict[str, Any]:
+    """
+    두 화자의 F0 분포 유사도 측정.
+
+    - 중앙 피치(Hz) 유사도: 반음 거리 기반 (1옥타브=12반음 차이 → 0점)
+    - 피치 변동성(std) 유사도: std 비율
+    """
+    vals_a = f0_a[voiced_a & np.isfinite(f0_a)]
+    vals_b = f0_b[voiced_b & np.isfinite(f0_b)]
+
+    if len(vals_a) < 10 or len(vals_b) < 10:
+        return {"score": NEUTRAL_SCORE, "error": "insufficient_voiced_frames"}
+
+    med_a = float(np.median(vals_a))
+    med_b = float(np.median(vals_b))
+    std_a = float(np.std(vals_a))
+    std_b = float(np.std(vals_b))
+
+    # 1. 중앙 피치 유사도 — 반음 거리(log scale)
+    semitone_diff = 12.0 * np.log2(max(med_a, med_b) / min(med_a, med_b))
+    MAX_SEMITONES = 12.0  # 1옥타브 차이 → 0점
+    median_sim = max(0.0, 1.0 - semitone_diff / MAX_SEMITONES)
+
+    # 2. 피치 변동성 유사도 — std 비율
+    max_std = max(std_a, std_b)
+    std_sim = min(std_a, std_b) / max_std if max_std > 1.0 else 1.0
+
+    score = 0.7 * median_sim + 0.3 * std_sim
+
+    return {
+        "score": int(round(score * 100)),
+        "median_hz_a": round(med_a, 2),
+        "median_hz_b": round(med_b, 2),
+        "semitone_diff": round(float(semitone_diff), 2),
+        "std_hz_a": round(std_a, 2),
+        "std_hz_b": round(std_b, 2),
+    }
 
 
 # ============================================================================
 # 개별 WAV 분석 (Agora individual recording)
 # ============================================================================
 
-
 def _analyze_separate_wavs(wav_paths: Dict[str, str], call_id: str) -> Dict[str, Any]:
     """화자별 개별 WAV 파일이 있을 때"""
     speakers = list(wav_paths.keys())
     if len(speakers) < 2:
-        return {"score": 50, "error": "need_2_speakers", "method": "separate_wavs"}
+        return {"score": NEUTRAL_SCORE, "error": "need_2_speakers", "method": "separate_wavs"}
 
     sp_a, sp_b = speakers[0], speakers[1]
 
@@ -157,44 +156,21 @@ def _analyze_separate_wavs(wav_paths: Dict[str, str], call_id: str) -> Dict[str,
 
     f0_a, vad_a = data_a["f0"], data_a["vad"]
     f0_b, vad_b = data_b["f0"], data_b["vad"]
-    hop_sec = data_a["hop_length"] / data_a["sr"]
 
-    # 정규화
     voiced_a = vad_a & np.isfinite(f0_a)
     voiced_b = vad_b & np.isfinite(f0_b)
 
-    f0_a_i = _interpolate_nans(f0_a)
-    f0_b_i = _interpolate_nans(f0_b)
-    z_a = _robust_z(f0_a_i, mask=voiced_a)
-    z_b = _robust_z(f0_b_i, mask=voiced_b)
+    result = _pitch_similarity_score(f0_a, voiced_a, f0_b, voiced_b)
 
-    max_lag = int(2.0 / hop_sec)  # 2초
-    corr, lag = _best_lag_sync(z_a, z_b, voiced_a, voiced_b, max_lag_frames=max_lag)
-    score = _corr_to_score(corr)
-
-    f0_a_voiced = f0_a[np.isfinite(f0_a)]
-    f0_b_voiced = f0_b[np.isfinite(f0_b)]
-    median_a = round(float(np.median(f0_a_voiced)), 2) if len(f0_a_voiced) > 0 else 0
-    median_b = round(float(np.median(f0_b_voiced)), 2) if len(f0_b_voiced) > 0 else 0
-
-    del f0_a, f0_b, z_a, z_b, f0_a_i, f0_b_i, voiced_a, voiced_b, f0_a_voiced, f0_b_voiced
+    del f0_a, f0_b, vad_a, vad_b, voiced_a, voiced_b
     import gc; gc.collect()
 
-    return {
-        "score": score,
-        "best_corr": round(corr, 4),
-        "best_lag_frames": lag,
-        "best_lag_seconds": round(lag * hop_sec, 4),
-        "speaker_a_median_hz": median_a,
-        "speaker_b_median_hz": median_b,
-        "method": "separate_wavs",
-    }
+    return {**result, "method": "separate_wavs"}
 
 
 # ============================================================================
 # 단일 혼합 오디오 분석 (KMeans clustering)
 # ============================================================================
-
 
 def _segments_from_mask(mask, min_len=10):
     segs = []
@@ -212,18 +188,16 @@ def _segments_from_mask(mask, min_len=10):
 
 
 def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
-    """단일 오디오에서 KMeans로 화자 분리 후 분석"""
+    """단일 오디오에서 KMeans로 화자 분리 후 F0 유사도 분석"""
     if not HAS_SKLEARN:
-        return {"score": 50, "error": "sklearn_not_available", "method": "mixed_audio"}
+        return {"score": NEUTRAL_SCORE, "error": "sklearn_not_available", "method": "mixed_audio"}
 
     data = _extract_f0(audio_path)
     f0, vad = data["f0"], data["vad"]
-    hop_sec = data["hop_length"] / data["sr"]
 
     voiced = vad & np.isfinite(f0)
     segs = _segments_from_mask(voiced, min_len=12)
 
-    # Segment-level median F0
     seg_stats = []
     for s, e in segs:
         vals = f0[s:e]
@@ -233,7 +207,7 @@ def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
         seg_stats.append({"start": s, "end": e, "median_f0": float(np.median(vals))})
 
     if len(seg_stats) < 2:
-        return {"score": 50, "error": "too_few_segments", "method": "mixed_audio"}
+        return {"score": NEUTRAL_SCORE, "error": "too_few_segments", "method": "mixed_audio"}
 
     X = np.array([np.log(s["median_f0"] + 1e-9) for s in seg_stats]).reshape(-1, 1)
     km = KMeans(n_clusters=2, n_init=10, random_state=0)
@@ -241,6 +215,7 @@ def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
 
     c0, c1 = np.mean(X[labels == 0]), np.mean(X[labels == 1])
     low_label = 0 if c0 < c1 else 1
+    cluster_gap = abs(float(c0 - c1))
 
     n_frames = len(f0)
     mask_low = np.zeros(n_frames, dtype=bool)
@@ -250,30 +225,17 @@ def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
         target = mask_low if labels[i] == low_label else mask_high
         target[s["start"]:s["end"]] = True
 
-    f0_low = f0.copy()
-    f0_high = f0.copy()
-    f0_low[~mask_low] = np.nan
-    f0_high[~mask_high] = np.nan
+    result = _pitch_similarity_score(f0, mask_low, f0, mask_high)
+    if cluster_gap < 0.08:
+        result["warning"] = "weak_cluster_separation"
+    result["cluster_gap_log_hz"] = round(cluster_gap, 4)
 
-    z_low = _robust_z(_interpolate_nans(f0_low), mask=mask_low)
-    z_high = _robust_z(_interpolate_nans(f0_high), mask=mask_high)
-
-    max_lag = int(2.0 / hop_sec)
-    corr, lag = _best_lag_sync(z_low, z_high, mask_low, mask_high, max_lag_frames=max_lag)
-    score = _corr_to_score(corr)
-
-    return {
-        "score": score,
-        "best_corr": round(corr, 4),
-        "best_lag_seconds": round(lag * hop_sec, 4),
-        "method": "mixed_audio_kmeans",
-    }
+    return {**result, "method": "mixed_audio_kmeans"}
 
 
 # ============================================================================
 # Public interface
 # ============================================================================
-
 
 class PitchAnalyzer:
     def score(
@@ -282,11 +244,10 @@ class PitchAnalyzer:
         wav_paths: Optional[List[str]] = None,
         call_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-
         if not HAS_LIBROSA:
             return {
-                "scores": {"voice_pitch": 50.0},
-                "raw": {"score": 50, "error": "librosa_not_installed", "method": "default"},
+                "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
+                "raw": {"score": NEUTRAL_SCORE, "error": "librosa_not_installed", "method": "default"},
             }
 
         # Case 1: 화자별 개별 WAV (최적)
@@ -298,8 +259,8 @@ class PitchAnalyzer:
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
                     return {
-                        "scores": {"voice_pitch": 50.0},
-                        "raw": {"score": 50, "error": str(e), "method": "separate_wavs_failed"},
+                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
+                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "separate_wavs_failed"},
                     }
 
         # Case 2: WAV 파일 리스트 (2개면 개별, 1개면 혼합)
@@ -312,16 +273,22 @@ class PitchAnalyzer:
                     raw = _analyze_separate_wavs(speaker_map, call_id or "unknown")
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
-                    pass
+                    return {
+                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
+                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "separate_wavs_failed_list"},
+                    }
 
             if len(valid_paths) == 1:
                 try:
                     raw = _analyze_mixed_audio(valid_paths[0], call_id or "unknown")
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
-                    pass
+                    return {
+                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
+                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "mixed_audio_failed"},
+                    }
 
         return {
-            "scores": {"voice_pitch": 50.0},
-            "raw": {"score": 50, "error": "no_valid_audio", "method": "default"},
+            "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
+            "raw": {"score": NEUTRAL_SCORE, "error": "no_valid_audio", "method": "default"},
         }
