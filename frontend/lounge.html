@@ -643,8 +643,14 @@
 
       function renderUsers(list, containerId, mode = "lounge") {
         const el = document.getElementById(containerId);
+        const isAi = mode === "ai";
 
-        if (!list.length) {
+        const sortedList = [...list].sort((a, b) => {
+          const aOn = isOnline(getUserId(a)), bOn = isOnline(getUserId(b));
+          return aOn === bOn ? 0 : aOn ? -1 : 1;
+        });
+
+        if (!sortedList.length) {
           el.innerHTML = `
             <div class="empty-state-box">
               <img src="images/asterisk.png" alt="asterisk">
@@ -653,13 +659,6 @@
           `;
           return;
         }
-
-        const isAi = mode === "ai";
-
-        const sortedList = [...list].sort((a, b) => {
-          const aOn = isOnline(getUserId(a)), bOn = isOnline(getUserId(b));
-          return aOn === bOn ? 0 : aOn ? -1 : 1;
-        });
 
         el.innerHTML = `
           <div class="subtitle-text">${isAi ? "our recommended matches" : "pick whoever feels right"}</div>

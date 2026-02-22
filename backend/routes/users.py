@@ -133,6 +133,49 @@ def matches_orientation(orientation, target_gender):
     return False
 
 
+def partners_completed_three_rounds(db, user_id):
+    """
+    나와 3라운드까지 대화를 완료한 파트너 ID 집합 반환
+    """
+    talks_ref = db.collection("talk_history")
+    partner_rounds = {}
+    required = {1, 2, 3}
+
+    queries = [
+        talks_ref.where("participants.user_a", "==", user_id).stream(),
+        talks_ref.where("participants.user_b", "==", user_id).stream(),
+    ]
+
+    for query in queries:
+        for doc in query:
+            talk = doc.to_dict() or {}
+            if talk.get("completed") is not True:
+                continue
+
+            participants = talk.get("participants") or {}
+            if participants.get("user_a") == user_id:
+                partner_id = participants.get("user_b")
+            else:
+                partner_id = participants.get("user_a")
+
+            if not partner_id:
+                continue
+
+            round_raw = talk.get("round") or 1
+            try:
+                round_num = int(round_raw)
+            except (TypeError, ValueError):
+                round_num = 1
+            round_num = max(1, min(round_num, 3))
+
+            partner_rounds.setdefault(partner_id, set()).add(round_num)
+
+    return {
+        pid for pid, rounds in partner_rounds.items()
+        if required.issubset(rounds)
+    }
+
+
 # =========================
 # Nearby Users List
 # =========================
@@ -145,6 +188,7 @@ def list_users():
     - 거리 10km 이내
     - 성적 지향 일치 (양방향)
     - 나이 선호 일치 (양방향)
+    - 이미 3라운드를 완료한 파트너 제외
     """
     uid = session.get("user_id")
     if not uid:
@@ -185,6 +229,8 @@ def list_users():
     if not my_gender or my_age is None:
         return jsonify(success=False, message="missing my profile"), 400
 
+    completed_partners = partners_completed_three_rounds(db, uid)
+
     users = []
     total_count = 0
     filtered_stats = {
@@ -198,6 +244,7 @@ def list_users():
         "age_mismatch": 0,
         "reverse_orientation": 0,
         "reverse_age": 0,
+        "completed_all_rounds": 0,
         "passed": 0
     }
 
@@ -216,6 +263,11 @@ def list_users():
         other_blocked = set(u.get("blocked_users") or [])
         if u.get("id") in my_blocked or uid in other_blocked:
             filtered_stats["blocked"] += 1
+            continue
+
+        # 3라운드까지 완료한 파트너 제외
+        if u["id"] in completed_partners:
+            filtered_stats["completed_all_rounds"] += 1
             continue
 
         # 온보딩 완료 확인

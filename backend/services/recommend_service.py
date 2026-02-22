@@ -68,6 +68,52 @@ def _matches_orientation(orientation, target_gender) -> bool:
     return False
 
 
+def _partners_completed_three_rounds(db, user_id: str):
+    """
+    Return partner IDs that have completed all 3 rounds with the user.
+    """
+    if not user_id:
+        return set()
+
+    talks_ref = db.collection("talk_history")
+    partner_rounds = {}
+    required = {1, 2, 3}
+
+    queries = [
+        talks_ref.where("participants.user_a", "==", user_id).stream(),
+        talks_ref.where("participants.user_b", "==", user_id).stream(),
+    ]
+
+    for query in queries:
+        for doc in query:
+            talk = doc.to_dict() or {}
+            if talk.get("completed") is not True:
+                continue
+
+            participants = talk.get("participants") or {}
+            if participants.get("user_a") == user_id:
+                partner_id = participants.get("user_b")
+            else:
+                partner_id = participants.get("user_a")
+
+            if not partner_id:
+                continue
+
+            round_raw = talk.get("round") or 1
+            try:
+                round_num = int(round_raw)
+            except (TypeError, ValueError):
+                round_num = 1
+            round_num = max(1, min(round_num, 3))
+
+            partner_rounds.setdefault(partner_id, set()).add(round_num)
+
+    return {
+        pid for pid, rounds in partner_rounds.items()
+        if required.issubset(rounds)
+    }
+
+
 def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     if not uid:
         return []
@@ -87,11 +133,16 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
 
+    completed_partners = _partners_completed_three_rounds(db, uid)
+
     scores: List[Tuple[str, float]] = []
     candidates: List[str] = []
 
     for other_id, user in users.items():
         if other_id == uid:
+            continue
+
+        if other_id in completed_partners:
             continue
 
         other_blocked = set(user.get("blocked_users") or [])
