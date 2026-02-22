@@ -444,7 +444,7 @@
           }
 
           talkData = res.talk;
-          currentRound = talkData.round || 1;
+          currentRound = Number(talkData.round) || 1;
           analysisScore = extractAnalysisScore(talkData);
 
           if (analysisScore === null) waitForAnalysis();
@@ -459,11 +459,75 @@
       /* ================= 챗 진행 ================= */
 
       async function startChat() {
-        await addCocoMessage("yes", 500);
-        await addCocoMessage(`here's your chemistry score with ${getPartnerName()}`, 1000);
-        await addScoreCard(1500);
-        await addCocoMessage("go or no?", 2000);
-        showInputArea(2500);
+        const steps = getRoundIntroSteps(currentRound);
+        for (const step of steps) {
+          if (step.type === "message") {
+            await addCocoMessage(step.text, step.delay ?? 500);
+          } else if (step.type === "score") {
+            await addScoreCard(step.delay ?? 500);
+          }
+        }
+        await showInputArea(500);
+      }
+
+      function getRoundIntroSteps(round) {
+        const partnerName = getPartnerName();
+        const scoreSummary = getScoreSummaryLine();
+
+        if (round === 2) {
+          return [
+            { type: "message", text: "so,", delay: 500 },
+            {
+              type: "message",
+              text: `here's your second chemistry score with ${partnerName}`,
+              delay: 900,
+            },
+            { type: "message", text: scoreSummary, delay: 900 },
+            { type: "score", delay: 900 },
+            { type: "message", text: "go or no?", delay: 900 },
+          ];
+        }
+
+        if (round === 3) {
+          return [
+            { type: "message", text: "okay", delay: 500 },
+            {
+              type: "message",
+              text: `it was your last change to talk with ${partnerName} on this app`,
+              delay: 900,
+            },
+            { type: "message", text: scoreSummary, delay: 900 },
+            { type: "score", delay: 900 },
+            {
+              type: "message",
+              text: "what we value can change over time",
+              delay: 900,
+            },
+            {
+              type: "message",
+              text: "in the end, meeting someone is all about timing",
+              delay: 900,
+            },
+            { type: "message", text: "go or no?", delay: 900 },
+          ];
+        }
+
+        return [
+          { type: "message", text: "yes", delay: 500 },
+          {
+            type: "message",
+            text: `here's what the conversation with ${partnerName} tells us`,
+            delay: 900,
+          },
+          { type: "message", text: scoreSummary, delay: 900 },
+          { type: "score", delay: 900 },
+          { type: "message", text: "go or no?", delay: 900 },
+        ];
+      }
+
+      function getScoreSummaryLine() {
+        const scoreText = analysisScore === null ? "--" : analysisScore;
+        return `chemistry score: ${scoreText} (view details)`;
       }
 
       function getPartnerName() {
@@ -681,10 +745,43 @@
       /* ================= 둘 다 GO ================= */
 
       async function handleBothGo() {
-        await addCocoMessage("alright, this is the profile", 500);
-        await addCocoMessage(`this might ease a bit of your curiosity about ${getPartnerName()}`, 1000);
-        await addProfileCard(1500);
-        showLoungeButton(2000);
+        const steps = getRoundBothGoSteps(currentRound);
+        for (const step of steps) {
+          if (step.type === "message") {
+            await addCocoMessage(step.text, step.delay ?? 500);
+          } else if (step.type === "profile") {
+            await addProfileCard(step.delay ?? 500);
+          }
+        }
+        await showLoungeButton(500);
+      }
+
+      function getRoundBothGoSteps(round) {
+        const partnerName = getPartnerName();
+        if (round >= 3) {
+          return [
+            { type: "message", text: "wishing you luck!", delay: 500 },
+            {
+              type: "message",
+              text: `contact (${getPartnerContactValue()})`,
+              delay: 900,
+            },
+          ];
+        }
+        return [
+          { type: "message", text: "alright, this is the profile", delay: 500 },
+          {
+            type: "message",
+            text: `this might ease a bit of your curiosity about ${partnerName}`,
+            delay: 900,
+          },
+          { type: "profile", delay: 900 },
+        ];
+      }
+
+      function getPartnerContactValue() {
+        const profile = partner?.onboarding_profile || {};
+        return partner?.phone || profile?.phone || "--";
       }
 
       async function addProfileCard(delay = 0) {
