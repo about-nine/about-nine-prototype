@@ -228,15 +228,18 @@
         const TOPICS = {
           1: {
             name: "food",
-            question: "let's see if you two vibe when it comes to food",
+            question: 
+              "let's see if you two vibe<br>when it comes to food",
           },
           2: {
             name: "visual",
-            question: "let's see if you two vibe when it comes to visual taste",
+            question:
+              "let's see if you two vibe<br>when it comes to visual taste",
           },
           3: {
             name: "life",
-            question: "feel free to be open about your expectations for life",
+            question:
+              "feel free to be open about<br>your expectations for life",
           },
         };
 
@@ -282,12 +285,12 @@
             if (mode === "initiator") {
               // 내가 요청한 경우
               titleEl.innerHTML = `waiting for a chat with<br><span class="partner-name">${partnerName}</span>`;
-              questionEl.textContent = question;
+              questionEl.innerHTML = question;
               buttonsEl.innerHTML = ""; // 버튼 없음
             } else {
               // 상대가 요청한 경우
               titleEl.innerHTML = `<span class="partner-name">${partnerName}</span><br>wants to start a chat<br>with you`;
-              questionEl.textContent = question;
+              questionEl.innerHTML = question;
               buttonsEl.innerHTML = `
             <div class="bottom-text" onclick="rejectMatch()" style="cursor: pointer;">maybe later</div>
             <button onclick="acceptMatch()">enter</button>
