@@ -723,6 +723,17 @@
           const requestId = newRequestRef.key;
           saveToLocal("match_request_id", requestId);
 
+          const initiatorProfile = currentUserProfile
+            ? { ...currentUserProfile }
+            : {
+                id: userId,
+                first_name: getFromLocal("firstName"),
+                last_name: getFromLocal("lastName"),
+                age: getFromLocal("age"),
+                gender: getFromLocal("gender"),
+              };
+          if (!initiatorProfile.id) initiatorProfile.id = userId;
+
           const matchData = {
             initiator: userId,
             receiver: getUserId(partner),
@@ -730,13 +741,7 @@
             round,
             topic,
             timestamp: Date.now(),
-            initiator_profile: currentUserProfile || {
-              id: userId,
-              first_name: getFromLocal("firstName"),
-              last_name: getFromLocal("lastName"),
-              age: getFromLocal("age"),
-              gender: getFromLocal("gender"),
-            },
+            initiator_profile: initiatorProfile,
           };
           if (question) matchData.question = question;
           if (options)  matchData.options  = options;
@@ -752,15 +757,25 @@
 
       /* ── Firebase 리스닝 ─────────────────────────────── */
 
+      function resolveInitiatorProfile(request) {
+        if (!request) return null;
+        if (request.initiator_profile) {
+          const profile = { ...request.initiator_profile };
+          if (!profile.id) profile.id = request.initiator;
+          return profile;
+        }
+        return users.find((u) => getUserId(u) === request.initiator) || null;
+      }
+
       function listenMatchRequests() {
         onValue(ref(rtdb, "match_requests"), (snapshot) => {
           const requests = snapshot.val();
           if (!requests) return;
           for (const [requestId, request] of Object.entries(requests)) {
             if (request.receiver === userId && request.status === "waiting") {
-              const initiator = users.find((u) => u.id === request.initiator);
-              if (initiator) {
-                saveToLocal("chat_partner", initiator);
+              const initiatorProfile = resolveInitiatorProfile(request);
+              if (initiatorProfile) {
+                saveToLocal("chat_partner", initiatorProfile);
                 navigateTo(`waiting.html?mode=receiver&requestId=${requestId}`);
               }
               break;
