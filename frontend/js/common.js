@@ -12,6 +12,40 @@ const API_BASE = (() => {
   return `${window.location.origin}/api`;
 })();
 
+// Ensure manifest + icons exist so every static page is PWA-ready.
+(function ensurePWAAssets() {
+  const head = document.head || document.getElementsByTagName("head")[0];
+  if (!head) return;
+
+  const upsertLink = (attrs) => {
+    if (head.querySelector(`[rel="${attrs.rel}"][href="${attrs.href}"]`)) return;
+    const link = document.createElement("link");
+    Object.entries(attrs).forEach(([key, value]) => (link[key] = value));
+    head.appendChild(link);
+  };
+
+  const ensureMeta = (name, content) => {
+    let meta = head.querySelector(`meta[name="${name}"]`);
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = name;
+      head.appendChild(meta);
+    }
+    meta.content = content;
+  };
+
+  upsertLink({ rel: "manifest", href: "/manifest.json" });
+  upsertLink({ rel: "icon", href: "/images/icon-192.png", sizes: "192x192", type: "image/png" });
+  upsertLink({ rel: "icon", href: "/images/icon-512.png", sizes: "512x512", type: "image/png" });
+  upsertLink({
+    rel: "apple-touch-icon",
+    href: "/images/icon-192.png",
+    sizes: "192x192",
+    type: "image/png",
+  });
+  ensureMeta("theme-color", "#000000");
+})();
+
 // API 호출 헬퍼
 async function apiCall(endpoint, method = "GET", data = null) {
   const options = {
