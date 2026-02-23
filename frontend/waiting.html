@@ -216,6 +216,7 @@
         }
 
         let partner = getFromLocal("chat_partner");
+        let selfAction = null;
         const getPartnerName = () => {
           const partnerFirst = partner?.first_name || partner?.firstName || "";
           const partnerLast = partner?.last_name || partner?.lastName || "";
@@ -330,7 +331,11 @@
             const data = snapshot.val();
             if (!data) {
               clearInterval(timerInterval);
-              alert("the other person cancelled or the request timed out");
+              if (selfAction === "timeout") {
+                alert("request timed out");
+              } else if (!selfAction) {
+                alert("the other person cancelled or the request timed out");
+              }
               navigateTo("lounge.html");
               return;
             }
@@ -341,11 +346,17 @@
               navigateTo(`option-select.html?requestId=${requestId}`);
             } else if (data.status === "rejected") {
               clearInterval(timerInterval);
-              alert("the other person declined");
+              if (!selfAction) {
+                alert("the other person declined");
+              }
               navigateTo("lounge.html");
             } else if (data.status === "timeout") {
               clearInterval(timerInterval);
-              alert("request timed out");
+              if (selfAction === "timeout") {
+                alert("request timed out");
+              } else {
+                alert("the other person timed out");
+              }
               navigateTo("lounge.html");
             }
           });
@@ -363,6 +374,7 @@
 
         // 거절
         window.rejectMatch = async function () {
+          selfAction = "rejected";
           const requestRef = ref(rtdb, `match_requests/${requestId}`);
           await update(requestRef, {
             status: "rejected",
@@ -373,6 +385,7 @@
 
         // 타임아웃
         async function handleTimeout() {
+          selfAction = "timeout";
           const requestRef = ref(rtdb, `match_requests/${requestId}`);
           await update(requestRef, {
             status: "timeout",
