@@ -367,36 +367,91 @@ def update_profile():
         return err, code
 
     db = get_firestore()
-    
+
+    def normalize_lower(value):
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            return cleaned if cleaned else None
+        return None
+
     # 업데이트할 필드만 전송
     update_data = {}
-    
-    if "onboarding_profile" in data:
-        update_data["onboarding_profile"] = data["onboarding_profile"]
-    
+
+    existing = db.collection("users").document(user_id).get().to_dict() or {}
+    incoming_profile = data.get("onboarding_profile")
+    if not isinstance(incoming_profile, dict):
+        incoming_profile = None
+
+    def has_incoming(key):
+        return key in data or (incoming_profile is not None and key in incoming_profile)
+
+    def get_incoming(key):
+        if key in data:
+            return data.get(key)
+        if incoming_profile is not None and key in incoming_profile:
+            return incoming_profile.get(key)
+        return None
+
     if "bio" in data:
         update_data["bio"] = data["bio"]
-    
-    if "sexual_orientation" in data:
-        update_data["sexual_orientation"] = data["sexual_orientation"]
-    
-    if "age_preference" in data:
-        update_data["age_preference"] = data["age_preference"]
-    
+
     if "first_name" in data:
         update_data["first_name"] = data["first_name"]
-    
+
     if "last_name" in data:
         update_data["last_name"] = data["last_name"]
-    
-    if "gender" in data:
-        update_data["gender"] = data["gender"]
-    
-    if "gender_detail" in data:
-        update_data["gender_detail"] = data["gender_detail"]
-    
+
     if "age" in data:
         update_data["age"] = data["age"]
+
+    if has_incoming("age_preference"):
+        update_data["age_preference"] = get_incoming("age_preference")
+
+    if has_incoming("drink"):
+        update_data["drink"] = get_incoming("drink")
+
+    if has_incoming("smoke"):
+        update_data["smoke"] = get_incoming("smoke")
+
+    if has_incoming("marijuana"):
+        update_data["marijuana"] = get_incoming("marijuana")
+
+    incoming_gender = normalize_lower(get_incoming("gender"))
+    incoming_orientation = normalize_lower(get_incoming("sexual_orientation"))
+    incoming_gender_detail = normalize_lower(get_incoming("gender_detail"))
+
+    if has_incoming("gender"):
+        if not incoming_gender:
+            return jsonify(success=False, message="gender is required"), 400
+        update_data["gender"] = incoming_gender
+
+    if has_incoming("sexual_orientation"):
+        if not incoming_orientation:
+            return jsonify(success=False, message="sexual_orientation is required"), 400
+        update_data["sexual_orientation"] = incoming_orientation
+
+    if has_incoming("gender_detail"):
+        update_data["gender_detail"] = incoming_gender_detail
+
+    final_gender = update_data.get("gender") or normalize_lower(existing.get("gender"))
+    final_orientation = update_data.get("sexual_orientation") or normalize_lower(
+        existing.get("sexual_orientation")
+    )
+    final_gender_detail = (
+        update_data.get("gender_detail")
+        if "gender_detail" in update_data
+        else normalize_lower(existing.get("gender_detail"))
+    )
+
+    if not final_gender or not final_orientation:
+        return jsonify(success=False, message="gender and sexual_orientation are required"), 400
+
+    update_data["gender"] = final_gender
+    update_data["sexual_orientation"] = final_orientation
+    if "gender_detail" in update_data:
+        update_data["gender_detail"] = final_gender_detail
+    elif final_gender_detail:
+        update_data["gender_detail"] = final_gender_detail
     
     db.collection("users").document(user_id).set(update_data, merge=True)
     

@@ -100,8 +100,8 @@ def voice_turn():
             Examples:
             "20 to 35" → 20, 35
             "mid twenties to early forties" → 24, 42
-            "i don't mind, anyone" → 18, 65
-            If unclear, default to min:20, max:40.
+            "i don't mind, anyone" → 20, 60
+            If unclear, default to min:20, max:60.
             """
             gpt = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -114,7 +114,7 @@ def voice_turn():
             )
             parsed = json.loads(gpt.choices[0].message.content)
             mn     = int(parsed.get("min", 20))
-            mx     = int(parsed.get("max", 40))
+            mx     = int(parsed.get("max", 60))
             reply  = parsed.get("reply", "got it")
 
             # min > max 방어
@@ -148,7 +148,7 @@ def voice_turn():
                 Gender detail options:
                 - woman → ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"]
                 - man → ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"]
-                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming"]
+                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming", "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man", "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"]
 
                 Return JSON only:
                 {{
@@ -193,7 +193,44 @@ def voice_turn():
             )
             parsed = json.loads(gpt.choices[0].message.content)
             mapped = parsed.get("mapped")
+            if isinstance(mapped, str):
+                mapped = mapped.strip().lower()
+            if mapped not in opts:
+                mapped = None
+
             gender_detail = parsed.get("gender_detail")
+            if isinstance(gender_detail, str):
+                gender_detail = gender_detail.strip().lower()
+            if is_gender_q:
+                valid_gender_details = {
+                    "cis woman",
+                    "trans woman",
+                    "intersex woman",
+                    "transfeminine",
+                    "woman and non-binary",
+                    "cis man",
+                    "trans man",
+                    "intersex man",
+                    "transmasculine",
+                    "man and non-binary",
+                    "agender",
+                    "bigender",
+                    "genderfluid",
+                    "genderqueer",
+                    "gender nonconforming",
+                    "gender questioning",
+                    "gender variant",
+                    "intersex",
+                    "neutrois",
+                    "non-binary man",
+                    "non-binary woman",
+                    "pangender",
+                    "polygender",
+                    "transgender",
+                    "two-spirit",
+                }
+                if gender_detail not in valid_gender_details:
+                    gender_detail = None
             reply = parsed.get("reply", "got it")
 
             audio_b64 = make_audio(reply, COCO_VOICE)
@@ -250,16 +287,24 @@ def voice_bio():
         )
 
         system = """
-        Create a short natural dating bio.
+        You are writing a one-line dating profile bio based on how someone spoke during onboarding.
+
+        Your job is NOT to summarize their answers.
+        Your job is to capture the KIND OF PERSON they seem to be — 
+        inferred from the attitude, tone, and values behind what they said.
 
         Rules:
-        - first person, max 2 sentences, lowercase
-        - if the user's words are not in English, translate into natural English
-        - ONLY include genuinely personal expressions: personality traits, passions, feelings, humor, life philosophy, unique habits or quirks
-        - EXCLUDE anything that is already captured as structured data: gender identity, gender detail, drinking habits, smoking, marijuana use, sexual orientation, age preferences
-        - If the person's words reveal nothing personal BEYOND those structured fields, return exactly: (empty string)
-        - Do NOT mention the app or matchmaking context
-        - Write naturally, as if the person wrote it themselves
+        - exactly one sentence, lowercase, first person
+        - read between the lines: what does their wording reveal about their personality?
+        e.g. "i don't smoke, but i'd never make that anyone else's problem" 
+        → they have standards but aren't judgmental
+        - if they said something culturally specific, that's character too
+        - do NOT mention specific habits, substances, or lifestyle facts directly
+        - do NOT mention the app or finding a match
+        - if there is genuinely nothing to infer beyond bare yes/no answers with no elaboration, 
+        return an empty string — nothing else, no explanation
+
+        Translate non-English input naturally. Write as if they wrote it themselves.
         """
 
         resp = client.chat.completions.create(
@@ -272,6 +317,9 @@ def voice_bio():
         )
 
         bio = resp.choices[0].message.content.strip().strip('"')
+        
+        if bio.lower() in ("(empty string)", "empty string", "none", "null"):
+            bio = ""
 
         return jsonify(bio=bio)
 

@@ -28,18 +28,35 @@ def save_onboarding():
     if profile is None:
         return jsonify(success=False, message="profile is required"), 400
 
+    def normalize_lower(value):
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            return cleaned if cleaned else None
+        return None
+
+    gender = normalize_lower(profile.get("gender"))
+    sexual_orientation = normalize_lower(profile.get("sexual_orientation"))
+    gender_detail = normalize_lower(profile.get("gender_detail"))
+
+    if not gender or not sexual_orientation:
+        return (
+            jsonify(success=False, message="gender and sexual_orientation are required"),
+            400,
+        )
+
     db = get_firestore()
 
-    # ✅ 필터링에 사용될 필드들을 루트 레벨에 저장
+    # ✅ 루트 필드에 직접 저장 (onboarding_profile 제거)
     update_data = {
-        "onboarding_profile": profile,
         "onboarding_completed": True,
         "onboarding_updated_at": datetime.utcnow().isoformat(),
-        # 필터링용 루트 필드
-        "gender": profile.get("gender"),
-        "gender_detail": profile.get("gender_detail"),
-        "sexual_orientation": profile.get("sexual_orientation"),
+        "gender": gender,
+        "gender_detail": gender_detail,
+        "sexual_orientation": sexual_orientation,
         "age_preference": profile.get("age_preference"),
+        "drink": profile.get("drink"),
+        "smoke": profile.get("smoke"),
+        "marijuana": profile.get("marijuana"),
     }
 
     # 선택적 필드

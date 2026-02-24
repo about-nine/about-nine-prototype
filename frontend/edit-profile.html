@@ -213,9 +213,9 @@
                 <option value="men">men</option>
                 <option value="women">women</option>
                 <option value="men and women">men and women</option>
-                <option value="men and non-binary people">men and non-binary</option>
-                <option value="women and non-binary people">women and non-binary</option>
-                <option value="all types of genders">all types</option>
+                <option value="men and non-binary people">men and non-binary people</option>
+                <option value="women and non-binary people">women and non-binary people</option>
+                <option value="all types of genders">all types of genders</option>
               </select>
             </div>
           </div>
@@ -263,14 +263,23 @@
           "intersex man",
           "transmasculine",
           "man and non-binary",
-          "or something else",
         ],
         "non-binary": [
-          "Agender",
-          "Bigender",
-          "Genderfluid",
-          "Genderqueer",
-          "Gender nonconforming",
+          "agender",
+          "bigender",
+          "genderfluid",
+          "genderqueer",
+          "gender nonconforming",
+          "gender questioning",
+          "gender variant",
+          "intersex",
+          "neutrois",
+          "non-binary man",
+          "non-binary woman",
+          "pangender",
+          "polygender",
+          "transgender",
+          "two-spirit"
         ],
       };
 
@@ -328,13 +337,10 @@
         if (!profileData) return;
         const value = e.target.value;
         profileData.gender = value;
-        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
-        profileData.onboarding_profile.gender = value;
 
         const validDetails = genderDetailOptions[value] || [];
         if (!validDetails.includes(profileData.gender_detail)) {
           profileData.gender_detail = "";
-          if (profileData.onboarding_profile) profileData.onboarding_profile.gender_detail = "";
         }
         refreshGenderDetailOptions(value, profileData.gender_detail);
         markChanged();
@@ -344,8 +350,6 @@
         if (!profileData) return;
         const value = e.target.value;
         profileData.gender_detail = value;
-        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
-        profileData.onboarding_profile.gender_detail = value;
         markChanged();
       });
 
@@ -388,7 +392,6 @@
           }
 
           profileData = res.user;
-          if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
           hideLoading();
           updateUI();
         } catch (error) {
@@ -401,23 +404,24 @@
 
       /* ── UI 업데이트 ─────────────────────────────────── */
 
+      function normalizeLower(value) {
+        return typeof value === "string" ? value.trim().toLowerCase() : "";
+      }
+
       function updateUI() {
         firstNameInput.value = profileData.first_name || "";
         lastNameInput.value  = profileData.last_name  || "";
         ageInput.value       = profileData.age ?? "";
         document.getElementById("phoneValue").textContent = profileData.phone || "-";
 
-        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
-        const profile = profileData.onboarding_profile;
-
-        const currentGender = profileData.gender || profile.gender || "";
+        const currentGender = normalizeLower(profileData.gender || "");
         profileData.gender = currentGender;
-        profile.gender = currentGender;
         genderSelect.value = currentGender || "";
 
-        const currentGenderDetail = profileData.gender_detail || profile.gender_detail || "";
+        const currentGenderDetail = normalizeLower(
+          profileData.gender_detail || "",
+        );
         profileData.gender_detail = currentGenderDetail;
-        profile.gender_detail = currentGenderDetail;
         if (currentGender) {
           refreshGenderDetailOptions(currentGender, currentGenderDetail);
         } else {
@@ -426,16 +430,20 @@
           genderDetailSelect.disabled = true;
         }
 
-        document.getElementById("drinkSelect").value     = profile.drink    || "no";
-        document.getElementById("smokeSelect").value     = profile.smoke    || "no";
-        document.getElementById("marijuanaSelect").value = profile.marijuana || "no";
+        document.getElementById("drinkSelect").value     = profileData.drink    || "no";
+        document.getElementById("smokeSelect").value     = profileData.smoke    || "no";
+        document.getElementById("marijuanaSelect").value = profileData.marijuana || "no";
         document.getElementById("bioText").value         = profileData.bio  || "";
 
         renderPlaylistChips();
 
-        document.getElementById("orientationSelect").value = profile.sexual_orientation || "all types of genders";
+        const currentOrientation = normalizeLower(
+          profileData.sexual_orientation || "all types of genders",
+        );
+        profileData.sexual_orientation = currentOrientation;
+        document.getElementById("orientationSelect").value = currentOrientation;
 
-        const agePref = profile.age_preference || { min: 20, max: 60 };
+        const agePref = profileData.age_preference || { min: 20, max: 60 };
         document.getElementById("minAgeSlider").value = agePref.min;
         document.getElementById("maxAgeSlider").value = agePref.max;
         updateSlider();
@@ -467,8 +475,7 @@
       /* ── 필드 업데이트 ───────────────────────────────── */
 
       function updateField(field, value) {
-        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
-        profileData.onboarding_profile[field] = value;
+        profileData[field] = value;
         markChanged();
       }
 
@@ -510,8 +517,7 @@
       /* minSlider / maxSlider: 동일한 핸들러 공유 */
       function onSliderInput() {
         updateSlider();
-        if (!profileData.onboarding_profile) profileData.onboarding_profile = {};
-        profileData.onboarding_profile.age_preference = {
+        profileData.age_preference = {
           min: parseInt(minSlider.value),
           max: parseInt(maxSlider.value),
         };
@@ -536,27 +542,27 @@
         try {
           showLoading("saving...");
           const payload = {
-            onboarding_profile: profileData.onboarding_profile,
             bio: profileData.bio || "",
           };
-
-          if (profileData.onboarding_profile?.sexual_orientation) {
-            payload.sexual_orientation = profileData.onboarding_profile.sexual_orientation;
-          }
-          if (profileData.onboarding_profile?.age_preference) {
-            payload.age_preference = profileData.onboarding_profile.age_preference;
-          }
 
           const directFields = {
             first_name: profileData.first_name,
             last_name: profileData.last_name,
             gender: profileData.gender,
             gender_detail: profileData.gender_detail,
+            sexual_orientation: profileData.sexual_orientation,
+            drink: profileData.drink,
+            smoke: profileData.smoke,
+            marijuana: profileData.marijuana,
           };
 
           Object.entries(directFields).forEach(([key, value]) => {
             if (value !== undefined) payload[key] = value;
           });
+
+          if (profileData.age_preference) {
+            payload.age_preference = profileData.age_preference;
+          }
 
           if (profileData.age !== undefined && profileData.age !== null && profileData.age !== "") {
             payload.age = Number(profileData.age);

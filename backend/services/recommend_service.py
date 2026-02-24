@@ -38,8 +38,11 @@ def _distance_km(lat1, lng1, lat2, lng2) -> float:
 
 
 def _matches_orientation(orientation, target_gender) -> bool:
-    if not orientation or not target_gender:
+    if not target_gender:
         return False
+
+    if not orientation:
+        return True
 
     orientation = str(orientation).lower()
     target_gender = str(target_gender).lower()

@@ -22,7 +22,7 @@ GENDERS = ["man", "woman", "non-binary"]
 GENDER_DETAILS = {
     "woman": ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"],
     "man": ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"],
-    "non-binary": ["Agender", "Bigender", "Genderfluid", "Genderqueer", "Gender nonconforming"]
+    "non-binary": ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming"]
 }
 
 # Sexual orientation 옵션들
@@ -209,17 +209,6 @@ def create_user():
     age_min = random.randint(20, 30)
     age_max = random.randint(age_min + 5, 60)
     
-    # 온보딩 프로필
-    onboarding_profile = {
-        "gender": gender,
-        "gender_detail": gender_detail,
-        "drink": random.choice(DRINK_OPTIONS),
-        "smoke": random.choice(SMOKE_OPTIONS),
-        "marijuana": random.choice(MARIJUANA_OPTIONS),
-        "sexual_orientation": sexual_orientation,
-        "age_preference": {"min": age_min, "max": age_max}
-    }
-    
     # ✅ 새로운 데이터 구조
     data = {
         "id": uid,
@@ -238,6 +227,9 @@ def create_user():
         "gender_detail": gender_detail,
         "sexual_orientation": sexual_orientation,
         "age_preference": {"min": age_min, "max": age_max},
+        "drink": random.choice(DRINK_OPTIONS),
+        "smoke": random.choice(SMOKE_OPTIONS),
+        "marijuana": random.choice(MARIJUANA_OPTIONS),
         
         # 위치
         "location": random_loc(),
@@ -247,7 +239,6 @@ def create_user():
         "playlist_updated_at": datetime.utcnow().isoformat(),
         
         # 온보딩 정보
-        "onboarding_profile": onboarding_profile,
         "onboarding_completed": True,
         "onboarding_updated_at": datetime.utcnow().isoformat(),
 

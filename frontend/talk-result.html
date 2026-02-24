@@ -780,8 +780,7 @@
       }
 
       function getPartnerContactValue() {
-        const profile = partner?.onboarding_profile || {};
-        return partner?.phone || profile?.phone || "--";
+        return partner?.phone || "--";
       }
 
       async function addProfileCard(delay = 0) {
@@ -907,15 +906,14 @@
 
       function generateProfileCards() {
         const unlocked = currentRound;
-        const profile = partner?.onboarding_profile || {};
-        const age = partner?.age ?? profile?.age ?? "--";
-        const gender = partner?.gender || profile?.gender || "--";
-        const drink = profile?.drink || partner?.drink || "Not provided";
-        const smoke = profile?.smoke || partner?.smoke || "Not provided";
-        const marijuana = profile?.marijuana || partner?.marijuana || "Not provided";
-        const bio = partner?.bio || profile?.bio || "Not provided";
-        const moreInfo = partner?.more_info || profile?.more_info || "Not provided";
-        const phone = partner?.phone || profile?.phone || "--";
+        const age = partner?.age ?? "--";
+        const gender = partner?.gender || "--";
+        const drink = partner?.drink || "Not provided";
+        const smoke = partner?.smoke || "Not provided";
+        const marijuana = partner?.marijuana || "Not provided";
+        const bio = partner?.bio || "Not provided";
+        const moreInfo = partner?.more_info || "Not provided";
+        const phone = partner?.phone || "--";
         const playlist = Array.isArray(partner?.playlist) ? partner.playlist : [];
 
         const lock1 = unlocked < 2 ? "locked" : "";
