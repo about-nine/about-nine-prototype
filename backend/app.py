@@ -1,10 +1,11 @@
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify, request, session
 from flask_cors import CORS
 from pathlib import Path
 import os
 
 from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 from backend.services.firestore import get_firestore
+from firebase_admin import auth as fb_auth
 
 # =========================
 # App init
@@ -25,6 +26,54 @@ else:
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_SECURE=True,
     )
+
+
+# =========================
+# ✅ Token-based session hydration (for cross-site cookie issues)
+# =========================
+
+@app.before_request
+def hydrate_session_from_token():
+    if session.get("user_id"):
+        return
+
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = request.headers.get("X-Id-Token") or request.headers.get("X-Firebase-Token")
+    if not token:
+        return
+
+    try:
+        decoded = fb_auth.verify_id_token(token)
+    except Exception:
+        return
+
+    firebase_uid = decoded.get("uid")
+    if not firebase_uid:
+        return
+
+    db = get_firestore()
+    query = (
+        db.collection("users")
+        .where("firebase_uid", "==", firebase_uid)
+        .limit(1)
+        .get()
+    )
+    doc = query[0] if query else None
+    if not doc:
+        return
+
+    user_data = doc.to_dict() or {}
+    user_id = user_data.get("id") or doc.id
+    if not user_id:
+        return
+
+    session["user_id"] = user_id
+    session["firebase_uid"] = firebase_uid
+    session["phone_verified"] = True
 
 
 # =========================

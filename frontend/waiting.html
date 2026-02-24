@@ -367,32 +367,49 @@
 
         // 수락
         window.acceptMatch = async function () {
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          await update(requestRef, {
-            status: "accepted",
-          });
+          try {
+            const requestRef = ref(rtdb, `match_requests/${requestId}`);
+            await update(requestRef, {
+              status: "accepted",
+            });
+          } catch (e) {
+            console.error("Failed to accept match:", e);
+            alert("failed to accept request");
+            navigateTo("lounge.html");
+          }
         };
 
         // 거절
         window.rejectMatch = async function () {
           selfAction = "rejected";
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          await update(requestRef, {
-            status: "rejected",
-          });
-          await remove(requestRef);
-          navigateTo("lounge.html");
+          try {
+            const requestRef = ref(rtdb, `match_requests/${requestId}`);
+            await update(requestRef, {
+              status: "rejected",
+            });
+            await remove(requestRef);
+            navigateTo("lounge.html");
+          } catch (e) {
+            console.error("Failed to reject match:", e);
+            alert("failed to reject request");
+            navigateTo("lounge.html");
+          }
         };
 
         // 타임아웃
         async function handleTimeout() {
           selfAction = "timeout";
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          await update(requestRef, {
-            status: "timeout",
-          });
-          await remove(requestRef);
-          navigateTo("lounge.html");
+          try {
+            const requestRef = ref(rtdb, `match_requests/${requestId}`);
+            await update(requestRef, {
+              status: "timeout",
+            });
+            await remove(requestRef);
+            navigateTo("lounge.html");
+          } catch (e) {
+            console.error("Failed to timeout match:", e);
+            navigateTo("lounge.html");
+          }
         }
 
         /* ====================== 정리 ====================== */

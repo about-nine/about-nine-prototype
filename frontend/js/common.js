@@ -1,13 +1,55 @@
+const MEMORY_STORE = {};
+
+function getLocalStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function rawSetItem(key, value) {
+  const store = getLocalStorage();
+  if (store) {
+    try {
+      store.setItem(key, value);
+      return;
+    } catch {}
+  }
+  MEMORY_STORE[key] = value;
+}
+
+function rawGetItem(key) {
+  const store = getLocalStorage();
+  if (store) {
+    try {
+      return store.getItem(key);
+    } catch {}
+  }
+  return Object.prototype.hasOwnProperty.call(MEMORY_STORE, key)
+    ? MEMORY_STORE[key]
+    : null;
+}
+
+function rawRemoveItem(key) {
+  const store = getLocalStorage();
+  if (store) {
+    try {
+      store.removeItem(key);
+      return;
+    } catch {}
+  }
+  delete MEMORY_STORE[key];
+}
+
 const API_BASE = (() => {
   const params = new URLSearchParams(window.location.search);
   const paramBase = params.get("apiBase");
   if (paramBase) {
-    try { localStorage.setItem("api_base", paramBase); } catch {}
+    rawSetItem("api_base", paramBase);
   }
-  try {
-    const stored = localStorage.getItem("api_base");
-    if (stored) return stored;
-  } catch {}
+  const stored = rawGetItem("api_base");
+  if (stored) return stored;
   if (window.__API_BASE__) return window.__API_BASE__;
   return `${window.location.origin}/api`;
 })();
@@ -47,6 +89,20 @@ const API_BASE = (() => {
 })();
 
 // API 호출 헬퍼
+async function getAuthToken() {
+  if (typeof window.getFirebaseIdToken === "function") {
+    try {
+      const token = await window.getFirebaseIdToken();
+      if (token) {
+        saveToLocal("id_token", token);
+        return token;
+      }
+    } catch {}
+  }
+  const cached = getFromLocal("id_token");
+  return cached || null;
+}
+
 async function apiCall(endpoint, method = "GET", data = null) {
   const options = {
     method,
@@ -57,12 +113,36 @@ async function apiCall(endpoint, method = "GET", data = null) {
   const userId = getFromLocal("user_id");
   if (userId) options.headers["X-User-ID"] = userId;
 
+  const idToken = await getAuthToken();
+  if (idToken) options.headers["Authorization"] = `Bearer ${idToken}`;
+
   if (data && method !== "GET") options.body = JSON.stringify(data);
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, options);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.message || "요청 실패");
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await response.text().catch(() => "");
+      const err = new Error(
+        text || `unexpected response (${response.status})`,
+      );
+      err.status = response.status;
+      err.body = text;
+      throw err;
+    }
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const err = new Error(result?.message || "요청 실패");
+      err.status = response.status;
+      err.data = result;
+      throw err;
+    }
+    if (result === null) {
+      const err = new Error("invalid server response");
+      err.status = response.status;
+      throw err;
+    }
     return result;
   } catch (error) {
     console.error("API 호출 오류:", error);
@@ -72,19 +152,28 @@ async function apiCall(endpoint, method = "GET", data = null) {
 
 // 로컬 스토리지 헬퍼
 function saveToLocal(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (error) {
+  try {
+    rawSetItem(key, JSON.stringify(value));
+  } catch (error) {
     console.error("localStorage 저장 오류:", error);
   }
 }
 
 function getFromLocal(key) {
-  const v = localStorage.getItem(key);
+  let v;
+  try {
+    v = rawGetItem(key);
+  } catch {
+    v = null;
+  }
   if (!v) return null;
   try { return JSON.parse(v); } catch { return v; }
 }
 
 function removeFromLocal(key) {
-  try { localStorage.removeItem(key); } catch (error) {
+  try {
+    rawRemoveItem(key);
+  } catch (error) {
     console.error("localStorage 삭제 오류:", error);
   }
 }

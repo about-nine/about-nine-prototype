@@ -597,7 +597,7 @@
         if (!confirm("are you sure you want to sign out?")) return;
         try { if (typeof firebaseLogout === "function") await firebaseLogout(); } catch {}
         apiCall("/auth/logout", "POST").catch(() => {});
-        localStorage.clear();
+        try { localStorage.clear(); } catch {}
         navigateTo("index.html");
       }
 
@@ -615,7 +615,7 @@
             return;
           }
           try { if (typeof firebaseLogout === "function") await firebaseLogout(); } catch {}
-          localStorage.clear();
+          try { localStorage.clear(); } catch {}
           navigateTo("index.html");
         })();
       }

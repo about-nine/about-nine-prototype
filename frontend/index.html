@@ -88,11 +88,13 @@
       <img src="images/swans.png" alt="swans" class="swan-image" />
 
       <div class="bottom-text tap-hint">tap anywhere to continue</div>
+      <span id="error" class="error hidden"></span>
     </div>
 
     <script src="js/common.js"></script>
     <script>
       async function enterApp() {
+        hideError("error");
         // localStorage에 user_id가 없으면 로그인 플로우로
         if (!getFromLocal("user_id")) {
           navigateTo("invite-code.html");
@@ -103,7 +105,12 @@
           await apiCall("/users/profile");
           navigateTo("lounge.html");
         } catch (error) {
-          navigateTo("invite-code.html");
+          const status = error?.status;
+          if (status === 401 || error?.message?.includes("not logged in")) {
+            navigateTo("invite-code.html");
+            return;
+          }
+          showError("error", "network issue. tap to retry");
         }
       }
 

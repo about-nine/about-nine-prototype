@@ -63,6 +63,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+const TEMP_STORAGE = {};
 
 /* =========================
    Export Instances
@@ -100,14 +101,23 @@ window.sendFirebaseOTP = async (phone) => {
     window.recaptchaVerifier
   );
 
-  localStorage.setItem("verificationId", confirmation.verificationId);
+  try {
+    localStorage.setItem("verificationId", confirmation.verificationId);
+  } catch {
+    TEMP_STORAGE.verificationId = confirmation.verificationId;
+  }
 };
 
 
 /* ---------- Verify OTP ---------- */
 
 window.verifyFirebaseOTP = async (code) => {
-  const verificationId = localStorage.getItem("verificationId");
+  let verificationId = null;
+  try {
+    verificationId = localStorage.getItem("verificationId");
+  } catch {
+    verificationId = TEMP_STORAGE.verificationId || null;
+  }
 
   const credential =
     PhoneAuthProvider.credential(verificationId, code);
@@ -116,6 +126,16 @@ window.verifyFirebaseOTP = async (code) => {
     await signInWithCredential(auth, credential);
 
   return await result.user.getIdToken();
+};
+
+window.getFirebaseIdToken = async (forceRefresh = false) => {
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
 };
 
 import { signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";

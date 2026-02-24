@@ -424,7 +424,9 @@
       let currentRound = 1;
       let myChoice = null;
       let partnerPollTimer = null;
+      let partnerTimeoutTimer = null;
       let lastMessageType = null;
+      const PARTNER_WAIT_MS = 60000;
 
       /* ================= 초기화 ================= */
 
@@ -680,6 +682,15 @@
       function listenForPartnerResponse() {
         if (!talkId) return;
         if (partnerPollTimer) clearInterval(partnerPollTimer);
+        if (partnerTimeoutTimer) clearTimeout(partnerTimeoutTimer);
+
+        partnerTimeoutTimer = setTimeout(() => {
+          if (partnerPollTimer) clearInterval(partnerPollTimer);
+          partnerPollTimer = null;
+          partnerTimeoutTimer = null;
+          alert("the other person didn't respond in time");
+          navigateTo("lounge.html");
+        }, PARTNER_WAIT_MS);
 
         partnerPollTimer = setInterval(async () => {
           try {
@@ -706,6 +717,10 @@
             if (goNoGoValues.length >= expectedCount) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
+              if (partnerTimeoutTimer) {
+                clearTimeout(partnerTimeoutTimer);
+                partnerTimeoutTimer = null;
+              }
               goNoGoValues.some((v) => v === false)
                 ? await handleSomeoneNo("no")
                 : await handleBothGo();
@@ -726,6 +741,10 @@
             if (partnerResponse) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
+              if (partnerTimeoutTimer) {
+                clearTimeout(partnerTimeoutTimer);
+                partnerTimeoutTimer = null;
+              }
               myChoice === "go" && partnerResponse === "go"
                 ? await handleBothGo()
                 : await handleSomeoneNo(partnerResponse);
@@ -734,6 +753,10 @@
             if (String(error?.message || "").includes("talk_history not found")) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
+              if (partnerTimeoutTimer) {
+                clearTimeout(partnerTimeoutTimer);
+                partnerTimeoutTimer = null;
+              }
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");

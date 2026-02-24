@@ -275,8 +275,10 @@
         }
 
         if (q.type === "range") {
-          answers[q.id] = { min: +minAge.value, max: +maxAge.value };
-          addMine(`${minAge.value} - ${maxAge.value}`);
+          const min = Math.min(+minAge.value, +maxAge.value);
+          const max = Math.max(+minAge.value, +maxAge.value);
+          answers[q.id] = { min, max };
+          addMine(`${min} - ${max}`);
         }
 
         step++;

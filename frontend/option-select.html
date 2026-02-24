@@ -375,6 +375,12 @@
 
           console.log("🎯 Match Request Data:", { question, options });
 
+          if (!Array.isArray(options) || options.length === 0) {
+            alert("invalid request");
+            navigateTo("lounge.html");
+            return;
+          }
+
           currentQuestion = question;
           document.getElementById("questionText").textContent = question;
           renderCarousel(options);
@@ -390,6 +396,11 @@
       }
 
       function renderCarousel(options) {
+        if (!Array.isArray(options) || options.length === 0) {
+          alert("invalid request");
+          navigateTo("lounge.html");
+          return;
+        }
         const contentEl = document.getElementById("optionContent");
         contentEl.innerHTML = `
           <div class="carousel-container">

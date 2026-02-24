@@ -29,6 +29,8 @@
           <span class="resend-link" id="resendLink" onclick="resendOTP()"
             >resend now</span
           >
+          <br />
+          <span class="resend-link hidden" id="backLink">back to phone</span>
         </div>
       </div>
 
@@ -42,6 +44,7 @@
     <script>
       const inputs = document.querySelectorAll(".code-input");
       const nextBtn = document.getElementById("nextBtn");
+      const backLink = document.getElementById("backLink");
       let timerSeconds = 179; // 2:59
       let timerInterval;
       let resendInProgress = false;
@@ -108,6 +111,10 @@
         showError("error", "code expired. please resend");
       }
 
+      function showBackLink() {
+        backLink.classList.remove("hidden");
+      }
+
       function startTimer() {
         clearInterval(timerInterval);
         timerInterval = setInterval(() => {
@@ -140,6 +147,7 @@
         const phone = getFromLocal("phone");
         if (!phone) {
           showError("error", "phone not found, please go back");
+          showBackLink();
           resendInProgress = false;
           return;
         }
@@ -192,6 +200,7 @@
               showError("error", "code expired. please resend");
             } else if (firebaseErr.code === "auth/missing-verification-id") {
               showError("error", "session lost. please go back and retry");
+              showBackLink();
             } else {
               showError(
                 "error",
@@ -209,6 +218,7 @@
             const result = await apiCall("/auth/firebase-login", "POST", {
               idToken,
             });
+            saveToLocal("id_token", idToken);
             saveToLocal("user_id", result.user_id);
             saveToLocal("onboarding_completed", !!result.is_existing_user);
 
@@ -235,6 +245,8 @@
       // 첫 입력창에 자동 포커스
       inputs[0].focus();
       startTimer();
+
+      backLink.addEventListener("click", () => navigateTo("phone.html"));
     </script>
   </body>
 </html>

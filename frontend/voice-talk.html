@@ -333,6 +333,22 @@
       let isMuted = false;
       let timer;
       let callStart;
+      const tapOverlay = document.getElementById("tapOverlay");
+      const tapBtn = document.getElementById("tapToStart");
+
+      function setTapOverlayVisible(visible) {
+        if (!tapOverlay) return;
+        tapOverlay.style.display = visible ? "flex" : "none";
+      }
+
+      function showTapError(message) {
+        if (!message) {
+          hideError("tapPermissionError");
+          return;
+        }
+        showError("tapPermissionError", message);
+        if (tapBtn) tapBtn.textContent = "retry";
+      }
 
       /* ================= UI ================= */
 
@@ -570,15 +586,17 @@
             console.log("✅ 마이크 트랙 생성 완료");
           } catch (micErr) {
             console.error("❌ 마이크 접근 실패:", micErr);
-            alert("microphone permission is required for voice talk");
-            return;
+            showTapError("microphone permission is required. please allow access and retry.");
+            return false;
           }
 
           await agoraClient.publish([localAudioTrack]);
           console.log("✅ 오디오 퍼블리시 완료");
+          return true;
         } catch (err) {
           console.error("❌ Agora 초기화 실패:", err);
-          alert("failed to connect voice call. please try again.");
+          showTapError("failed to connect voice call. please check permissions and retry.");
+          return false;
         }
       }
 
@@ -696,13 +714,21 @@
           .getElementById("tapToStart")
           .addEventListener("click", async () => {
             console.log("👆 사용자 탭 감지 — 통화 시작");
+            if (tapBtn) tapBtn.disabled = true;
+            showTapError("");
 
-            document.getElementById("tapOverlay").style.display = "none";
+            const ok = await initCall();
+            if (!ok) {
+              if (tapBtn) tapBtn.disabled = false;
+              setTapOverlayVisible(true);
+              return;
+            }
+
+            setTapOverlayVisible(false);
+            if (tapBtn) tapBtn.disabled = false;
 
             startTimer();
             console.log("✅ 타이머 시작");
-
-            await initCall();
             console.log("✅ 통화 초기화 완료");
 
             // 🔥 initiator만 녹화 시작
