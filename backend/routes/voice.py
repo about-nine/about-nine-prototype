@@ -18,7 +18,7 @@ def safe_temp_save(file_storage, mime_type="audio/webm"):
     # mime → 확장자 매핑
     ext_map = {
         "audio/webm": ".webm",
-        "audio/mp4":  ".mp4",
+        "audio/mp4":  ".m4a",
         "audio/mpeg": ".mp3",
         "audio/ogg":  ".ogg",
     }
@@ -41,7 +41,7 @@ def make_audio(reply, voice_name):
         input=reply,
         response_format="mp3",
         speed=1.15, 
-        instructions="Speak in clear, natural English with a gender-neutral tone."
+        instructions="Speak in a warm, balanced, and gender-neutral voice. Your tone should be inviting and charismatic, striking a perfect balance between a professional concierge and a close friend. Maintain a natural, rhythmic pace with slight pauses to sound thoughtful. Avoid any mechanical stiffness; instead, use a soft, melodic intonation that conveys genuine curiosity and empathy. Your goal is to make the user feel heard, valued, and comfortable sharing their story."
     )
     return base64.b64encode(tts.read()).decode()
 
@@ -73,7 +73,7 @@ def voice_turn():
         with open(path, "rb") as f:
             stt = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=f,
+                file=(os.path.basename(path), f, mime_type),
                 prompt="This is a dating app onboarding. The user may speak any language."
             )
 
