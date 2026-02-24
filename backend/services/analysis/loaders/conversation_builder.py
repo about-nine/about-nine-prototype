@@ -9,7 +9,7 @@ Agora 개별 녹음 WAV → OpenAI Whisper API STT → 통합 대화 전사본
   3. 중복 제거: Whisper 반복 생성 버그 필터링
   4. 환각 필터: 짧은 무의미 세그먼트 제거
 
-의존성: openai, numpy, scipy (VAD용), soundfile
+의존성: openai, numpy, soundfile
 """
 
 import os

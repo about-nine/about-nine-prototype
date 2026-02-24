@@ -16,4 +16,4 @@ ENV PYTHONPATH=/app
 
 EXPOSE 5001
 
-CMD ["python", "backend/app.py"]
+CMD ["bash", "backend/scripts/start_web_and_worker.sh"]

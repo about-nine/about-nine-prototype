@@ -5,25 +5,42 @@ from pathlib import Path
 from firebase_admin import storage
 
 from backend.services.firestore import get_firestore
-from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
+from xgboost import XGBClassifier
 
 FEATURES = [
     "turn",
     "flow",
     "romantic",
     "lsm",
-    "preference",
-    "pitch"
+    "preference"
 ]
 
+# 데이터 없을 때 사용하는 수동 가중치
+# 직관적 중요도 기반 (romantic/preference가 가장 직접적인 신호)
+FALLBACK_WEIGHTS = {
+    "romantic":   0.3,
+    "preference": 0.3,
+    "lsm":        0.2,
+    "flow":       0.1,
+    "turn":       0.1,
+}
 
 class ChemistryModel:
     def __init__(self):
         self.scaler = StandardScaler()
-        self.model = Ridge(alpha=1.0)
+        self.model = XGBClassifier(
+            n_estimators=100,
+            max_depth=3,
+            learning_rate=0.1,
+            scale_pos_weight=4,      # 초기값, train에서 자동 계산해서 덮어씀
+            use_label_encoder=False,
+            eval_metric="logloss",
+            random_state=42,
+        )
         self._loaded = False
         self._version = "baseline"
+        self._weights = FALLBACK_WEIGHTS.copy()  # feature_importances로 업데이트됨
 
     def fit(self, df):
         if isinstance(df, list):
@@ -41,13 +58,23 @@ class ChemistryModel:
         Xs = self.scaler.fit_transform(X)
         self.model.fit(Xs, y)
 
+        # 학습 후 feature_importances → _weights 업데이트
+        # 이후 fallback에서도 실제 데이터 기반 가중치 사용
+        importances = self.model.feature_importances_
+        total = importances.sum()
+        if total > 0:
+            self._weights = {
+                f: float(importances[i] / total)
+                for i, f in enumerate(FEATURES)
+            }
+
     def predict(self, feats: dict):
+        # 피처 키 정규화 (analysis_service의 키와 호환)
         values = []
         for key in FEATURES:
             if key in feats:
                 values.append(feats[key])
                 continue
-            # allow newer feature keys from analysis_service
             if key == "turn":
                 values.append(feats.get("turn_taking", 0))
             elif key == "flow":
@@ -58,35 +85,51 @@ class ChemistryModel:
                 values.append(feats.get("language_style_ma", 0))
             elif key == "preference":
                 values.append(feats.get("preference_sync", 0))
-            elif key == "pitch":
-                values.append(feats.get("voice_pitch", feats.get("voice pitch", 0)))
             else:
                 values.append(0)
 
         x = np.array([values], dtype=float)
 
         if not self._loaded:
-            # Fallback: average raw feature scores when model file is missing.
-            return float(np.mean(x))
+            # fallback: 수동 or 학습된 가중치로 가중 평균
+            # 단순 평균보다 romantic/preference에 더 높은 가중치
+            weighted = sum(
+                self._weights.get(f, 0) * v
+                for f, v in zip(FEATURES, values)
+            )
+            return float(np.clip(weighted, 0, 100))
 
+        # XGBoost: Go/Go 확률 0~1 → 0~100점
         xs = self.scaler.transform(x)
-        return float(self.model.predict(xs)[0])
+        return float(self.model.predict_proba(xs)[0, 1] * 100)
 
     def save(self, path):
-        pickle.dump((self.scaler, self.model, self._version), open(path, "wb"))
+        # weights도 함께 저장해서 load 시 fallback에 반영
+        pickle.dump(
+            (self.scaler, self.model, self._version, self._weights),
+            open(path, "wb")
+        )
 
     def load(self, path):
         try:
             local_path = path
             if isinstance(path, str) and path.startswith("gs://"):
                 local_path = self._download_from_gcs(path)
+
             payload = pickle.load(open(local_path, "rb"))
-            if isinstance(payload, tuple) and len(payload) == 3:
+
+            if isinstance(payload, tuple) and len(payload) == 4:
+                # 현재 포맷 (scaler, model, version, weights)
+                self.scaler, self.model, self._version, self._weights = payload
+            elif isinstance(payload, tuple) and len(payload) == 3:
+                # 이전 포맷 (scaler, model, version) — weights는 기본값 유지
                 self.scaler, self.model, self._version = payload
             else:
                 self.scaler, self.model = payload
                 self._version = "legacy"
+
             self._loaded = True
+
         except FileNotFoundError:
             print(f"⚠️ chemistry model not found at {path}; using fallback scoring")
             self._loaded = False
@@ -102,11 +145,13 @@ class ChemistryModel:
     def version(self):
         return self._version
 
+    def weights(self):
+        return self._weights.copy()
+
     def _download_from_gcs(self, gs_path: str) -> str:
         if not gs_path.startswith("gs://"):
             return gs_path
 
-        # Ensure Firebase app is initialized (ADC on GCP or service account)
         get_firestore()
 
         parts = gs_path.replace("gs://", "", 1).split("/", 1)

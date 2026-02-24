@@ -827,7 +827,6 @@
           romantic_intent: "Romantic Intent",
           language_style_ma: "Language Style MA",
           preference_sync: "Preference Sync",
-          voice_pitch: "Voice Pitch",
         };
         return mapping[key] || key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
       }
@@ -835,7 +834,7 @@
       function renderAnalysisFeatures() {
         const analysis = talkData?.analysis || {};
         const baseFeatures = analysis?.features || analysis?.details?.features || {};
-        const keys = ["turn_taking", "flow_continuity", "romantic_intent", "language_style_ma", "preference_sync", "voice_pitch"];
+        const keys = ["turn_taking", "flow_continuity", "romantic_intent", "language_style_ma", "preference_sync"];
 
         const entries = keys
           .filter((key) => typeof baseFeatures[key] === "number" && !Number.isNaN(baseFeatures[key]))

@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
   && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements-train.txt /app/requirements-train.txt
+RUN pip install --no-cache-dir -r /app/requirements-train.txt
 
 COPY backend /app/backend
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "backend/scripts/train_chemistry_model.py"]
+CMD ["python", "backend/training/train_chemistry_model.py"]

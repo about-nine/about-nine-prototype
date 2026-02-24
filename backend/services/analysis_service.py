@@ -26,7 +26,6 @@ from backend.services.analysis.analyzers.discourse_analyzer import DiscourseAnal
 from backend.services.analysis.analyzers.romantic_analyzer import RomanticAnalyzer
 from backend.services.analysis.analyzers.lsm_analyzer import LSMAnalyzer
 from backend.services.analysis.analyzers.preference_analyzer import PreferenceAnalyzer
-from backend.services.analysis.analyzers.pitch_analyzer import PitchAnalyzer
 
 
 def _get_db():
@@ -292,7 +291,7 @@ class AnalysisService:
     Orchestrates:
       - Load talk_history
       - Build conversation if missing (from Firebase Storage recordings)
-      - Run analyzers (5 text-based + 1 pitch-based)
+      - Run analyzers (5 text-based)
       - Combine into chemistry score (ChemistryModel)
       - Persist analysis + update user profiles
     """
@@ -321,7 +320,6 @@ class AnalysisService:
         self.romantic = RomanticAnalyzer()
         self.lsm = LSMAnalyzer()
         self.preference = PreferenceAnalyzer()
-        self.pitch = PitchAnalyzer()
 
     def _cleanup_local_recordings(self, talk_id: str) -> None:
         if not talk_id:
@@ -344,7 +342,6 @@ class AnalysisService:
         db = _get_db()
         talk_ref = db.collection("talk_history").document(talk_id)
         conversation_list = None
-        speaker_wavs = None
 
         def _finish(result: Dict[str, Any]) -> Dict[str, Any]:
             self._cleanup_local_recordings(talk_id)
@@ -375,11 +372,6 @@ class AnalysisService:
             # 1) Ensure conversation exists (build if missing)
             conversation_obj = _conversation_from_talk(talk)
 
-            # Audio inputs for pitch analyzer: prefer already-built wav paths if saved.
-            # Otherwise build from Storage recordings.
-            wav_paths_by_speaker: Dict[str, str] = talk.get("wav_paths_by_speaker") or {}
-            wav_paths_all: List[str] = talk.get("wav_paths") or talk.get("audio_paths") or []
-
             if conversation_obj is None:
                 recording_files = _normalize_recording_files(talk)
                 if not recording_files:
@@ -409,13 +401,9 @@ class AnalysisService:
                 # expected item: {"uid": <agora_uid or None>, "storage_path": "...", "local_path": "..."}
                 downloaded = self.storage_loader.download_recordings(recording_files, talk_id=talk_id)
 
-                # (b) Convert to wav (or extract wav) for STT & pitch
+                # (b) Convert to wav (or extract wav) for STT
                 # expected return: [{"uid":..., "wav_path":..., "speaker_hint":...}, ...]
                 wav_items = self.audio_builder.to_wav(downloaded, talk_id=talk_id)
-
-                # build mapping for pitch analyzer
-                wav_paths_all = [x["wav_path"] for x in wav_items if x.get("wav_path")]
-                wav_paths_by_speaker = {}  # will be set after speaker mapping
 
                 # (c) Build conversation (STT -> segments -> unified conversation)
                 # conversation_builder should:
@@ -428,9 +416,8 @@ class AnalysisService:
                     uid_mapping=uid_mapping,
                     participants=participants,
                 )
-                # conv_dict expected: {"call_id":..., "conversation":[{speaker,start,end,text},...], "speaker_wavs":{speaker:wav_path}}
+                # conv_dict expected: {"call_id":..., "conversation":[{speaker,start,end,text},...]}
                 conversation_list = conv_dict.get("conversation") or []
-                speaker_wavs = conv_dict.get("speaker_wavs") or {}
                 conv_warnings = conv_dict.get("warnings") or {}
                 transcription_warn = conv_warnings.get("transcription")
                 if transcription_warn:
@@ -450,8 +437,6 @@ class AnalysisService:
                 talk_ref.update(
                     {
                         "conversation": conversation_list,
-                        "wav_paths": wav_paths_all,
-                        "wav_paths_by_speaker": speaker_wavs,
                         "analysis_built_at": _now_ms(),
                     }
                 )
@@ -482,10 +467,7 @@ class AnalysisService:
         if conversation_obj is None and conversation_list is not None:
             # reload object for analyzers
             talk["conversation"] = conversation_list
-            talk["wav_paths"] = wav_paths_all
-            talk["wav_paths_by_speaker"] = speaker_wavs or {}
             conversation_obj = _conversation_from_talk(talk)
-            wav_paths_by_speaker = speaker_wavs or {}
 
         # If conversation couldn't be built, proceed with empty conversation
         if conversation_obj is None:
@@ -526,30 +508,6 @@ class AnalysisService:
             pref_out = self.preference.score(conversation_obj)
             print(f"  ✓ preference done")
 
-            # Pitch analyzer
-            print(f"  → pitch_analyzer...")
-            disable_pitch = os.getenv("ANALYSIS_DISABLE_PITCH", "").lower() in {"1", "true", "yes"}
-            if disable_pitch:
-                pitch_out = {
-                    "scores": {"voice_pitch": 50.0},
-                    "raw": {"score": 50, "error": "disabled", "method": "disabled"},
-                }
-                print(f"  ⊘ pitch disabled")
-            else:
-                # ✅ pitch 분석 직후 wav 참조 해제
-                pitch_out = self.pitch.score(
-                    wav_paths_by_speaker=wav_paths_by_speaker if isinstance(wav_paths_by_speaker, dict) else {},
-                    wav_paths=wav_paths_all if isinstance(wav_paths_all, list) else [],
-                    call_id=talk_id,
-                )
-                print(f"  ✓ pitch done")
-                
-            # ✅ 추가: pitch 끝나면 즉시 wav 참조 해제 + 로컬 파일 삭제
-            wav_paths_all = []
-            wav_paths_by_speaker = {}
-            self._cleanup_local_recordings(talk_id)  # ← 여기서 한번 더 호출
-            import gc; gc.collect()
-            
             print(f"✅ [{talk_id}] All analyzers complete")
             
         except Exception as e:
@@ -579,7 +537,6 @@ class AnalysisService:
             "romantic_intent": float(romantic_out["scores"].get("romantic_intent", 0)),
             "language_style_ma": float(lsm_out["scores"].get("lsm", 0)),
             "preference_sync": float(pref_out["scores"].get("preference_sync", 0)),
-            "voice_pitch": float(pitch_out["scores"].get("voice_pitch", pitch_out["scores"].get("voice pitch", 0))),
         }
 
         # 3) Chemistry score (model can combine + optionally update weights elsewhere)
@@ -609,7 +566,6 @@ class AnalysisService:
                 "romantic_intent": romantic_out,
                 "language_style_ma": lsm_out,
                 "preference_sync": pref_out,
-                "voice_pitch": pitch_out,
             },
             "model_version": self.model.version(),
             "version": self.model.version(),

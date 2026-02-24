@@ -1,5 +1,4 @@
 # match.py
-import threading
 import time
 from flask import Blueprint, request, jsonify, session
 from firebase_admin import firestore
@@ -9,40 +8,38 @@ from backend.services.firestore import get_firestore
 match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 
-def _run_analysis_background(talk_id: str):
-    """백그라운드 스레드에서 분석 실행 (로깅 포함)"""
-    from backend.services.firestore import get_firestore
-    db = get_firestore()
-    talk_ref = db.collection("talk_history").document(talk_id)
-    
-    print(f"🚀 [{talk_id}] Starting background analysis...")
-    
+def _enqueue_analysis_job(db, talk_id: str, requested_by: str | None = None) -> str:
+    jobs_ref = db.collection("analysis_jobs").document(talk_id)
+    now_ms = int(time.time() * 1000)
+
+    @firestore.transactional
+    def _enqueue(transaction):
+        snap = jobs_ref.get(transaction=transaction)
+        if snap.exists:
+            data = snap.to_dict() or {}
+            status = data.get("status")
+            if status in {"queued", "running"}:
+                return status
+        transaction.set(
+            jobs_ref,
+            {
+                "talk_id": talk_id,
+                "status": "queued",
+                "created_at": now_ms,
+                "updated_at": now_ms,
+                "requested_by": requested_by,
+                "attempts": 0,
+            },
+            merge=True,
+        )
+        return "queued"
+
     try:
-        from backend.services.analysis_service import analyze_talk_pipeline
-        
-        print(f"🔬 [{talk_id}] Calling analyze_talk_pipeline...")
-        result = analyze_talk_pipeline(talk_id, force=True)
-        
-        if result.get("success"):
-            print(f"✅ [{talk_id}] Analysis complete")
-        else:
-            print(f"⚠️ [{talk_id}] Analysis failed: {result.get('message')}")
-        
-    except Exception as e:
-        import traceback
-        err_trace = traceback.format_exc()
-        print(f"❌ [{talk_id}] Background analysis exception: {e}")
-        print(err_trace)
-        
-        try:
-            talk_ref.update({
-                "analysis_error": str(e),
-                "analysis_trace": err_trace,
-                "analysis_failed_at": int(time.time() * 1000),
-                "analysis_status": "failed",
-            })
-        except Exception:
-            pass
+        txn = db.transaction()
+        return _enqueue(txn)
+    except Exception:
+        # Best-effort enqueue; caller will still return "started".
+        return "queued"
 
 
 @match_bp.route("/analyze-talk", methods=["POST"])
@@ -92,14 +89,7 @@ def analyze_talk():
     if state == "running":
         return jsonify(success=True, talk_id=talk_id, status="running")
 
-    # 백그라운드 스레드로 분석 시작
-    thread = threading.Thread(
-        target=_run_analysis_background,
-        args=(talk_id,),
-        daemon=True,
-    )
-    thread.start()
-
+    _enqueue_analysis_job(db, talk_id, requested_by=session.get("user_id"))
     return jsonify(success=True, talk_id=talk_id, status="started")
 
 

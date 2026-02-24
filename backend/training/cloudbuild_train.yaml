@@ -1,6 +1,6 @@
 steps:
   - name: gcr.io/cloud-builders/docker
-    args: ["build", "-t", "${_IMAGE}", "-f", "backend/Dockerfile.train", "."]
+    args: ["build", "-t", "${_IMAGE}", "-f", "backend/training/Dockerfile.train", "."]
 images:
   - "${_IMAGE}"
 substitutions:
