@@ -242,6 +242,8 @@
       const VOICE_API_BASE = `${API_BASE}/voice`;
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
+      const IS_WEBKIT = /AppleWebKit/i.test(navigator.userAgent) &&
+        !/Chrome|Chromium|CriOS/i.test(navigator.userAgent);
       const SPEECH_LANG =
         getFromLocal("speech_lang") ||
         (Array.isArray(navigator.languages) && navigator.languages[0]) ||
@@ -312,6 +314,7 @@
       let recognitionActive = false;
       let liveFinal = "";
       let flowStarted = false;
+      let isRecording = false;
 
       /* ================= DOM ================= */
 
@@ -323,43 +326,41 @@
       const $permissionBtn = document.getElementById("obPermissionBtn");
       const $permissionSkip = document.getElementById("obPermissionSkip");
       const $permissionError = document.getElementById("obPermissionError");
+      const cocoPlayer = new Audio();
+      cocoPlayer.preload = "auto";
+      cocoPlayer.setAttribute("playsinline", "");
+      cocoPlayer.playsInline = true;
 
       /* ================= AUDIO HELPER ================= */
 
-      function playAudio(b64, fallbackText = "") {
+      function playAudio(b64) {
         return new Promise((resolve) => {
           if (!b64) {
             resolve(false);
             return;
           }
-          let audioUrl = "";
+          const cleaned = String(b64).replace(/\s+/g, "");
+          const audioUrl = "data:audio/mpeg;base64," + cleaned;
+          const audio = cocoPlayer;
           try {
-            const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-            const blob = new Blob([bytes], { type: "audio/mpeg" });
-            audioUrl = URL.createObjectURL(blob);
-          } catch {
-            audioUrl = "data:audio/mpeg;base64," + b64;
-          }
-          const audio = new Audio(audioUrl);
-          audio.preload = "auto";
+            audio.pause();
+          } catch {}
+          audio.onended = null;
+          audio.onerror = null;
+          audio.src = audioUrl;
+          audio.load();
           audio.volume = 1;
           let done = false;
           const finish = (played) => {
             if (done) return;
             done = true;
             $page.classList.remove("coco-speaking");
-            if (audioUrl.startsWith("blob:")) {
-              try { URL.revokeObjectURL(audioUrl); } catch {}
-            }
             resolve(played);
           };
           $page.classList.add("coco-speaking");
-          const fallback = () => {
-            finish(false);
-          };
           const timeout = setTimeout(() => {
             try { audio.pause(); } catch {}
-            fallback();
+            finish(false);
           }, 8000);
           audio.onended = () => {
             clearTimeout(timeout);
@@ -367,13 +368,13 @@
           };
           audio.onerror = () => {
             clearTimeout(timeout);
-            fallback();
+            finish(false);
           };
           const playPromise = audio.play();
           if (playPromise?.catch) {
             playPromise.catch(() => {
               clearTimeout(timeout);
-              fallback();
+              finish(false);
             });
           }
         });
@@ -427,17 +428,19 @@
         const audio = await fetchTtsAudio(text);
         if (audio) {
           const played = await playAudio(audio);
-          if (played) return;
+          if (played) return true;
         }
+        return false;
       }
 
       function unlockAudioPlayback() {
         if (audioUnlocked) return;
         audioUnlocked = true;
         try {
-          const audio = new Audio("data:audio/wav;base64," + SILENT_WAV_B64);
-          audio.volume = 0;
-          const p = audio.play();
+          cocoPlayer.src = "data:audio/wav;base64," + SILENT_WAV_B64;
+          cocoPlayer.volume = 0;
+          cocoPlayer.currentTime = 0;
+          const p = cocoPlayer.play();
           if (p?.catch) p.catch(() => {});
         } catch {
           // no-op
@@ -514,6 +517,43 @@
           return "mic is not supported in this browser.";
         }
         return "failed to start the microphone. please try again.";
+      }
+
+      function resetVoice() {
+        stopLiveTranscription();
+        if (silenceTimer) clearTimeout(silenceTimer);
+        try {
+          if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
+        } catch {}
+        if (stream) {
+          try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+        }
+        mediaRecorder = null;
+        stream = null;
+        isRecording = false;
+        initVoice.started = false;
+      }
+
+      function startRecordingSafely() {
+        if (!mediaRecorder) return false;
+        if (mediaRecorder.state !== "inactive") return true;
+        try {
+          startLiveTranscription();
+          mediaRecorder.start();
+          isRecording = true;
+          return true;
+        } catch (err) {
+          console.error("MediaRecorder start failed:", err);
+          const msg = micErrorMessage(err);
+          showPermissionError(msg);
+          setStatus(msg, "");
+          $permission?.classList.remove("hidden");
+          $permissionBtn && ($permissionBtn.disabled = false);
+          resetVoice();
+          return false;
+        }
       }
 
       /* ================= VOICE RECORD ================= */
@@ -656,8 +696,9 @@
             $voiceIndicator.classList.add("user-speaking");
             if (mediaRecorder.state === "inactive") {
               chunks = [];
-              startLiveTranscription();
-              mediaRecorder.start();
+              if (!startRecordingSafely()) {
+                return;
+              }
             }
             clearTimeout(silenceTimer);
             silenceTimer = setTimeout(() => {
@@ -683,9 +724,11 @@
         $permissionBtn.disabled = true;
         showPermissionError("");
         unlockAudioPlayback();
+        setStatus("initializing mic...", "");
         const ok = await initVoice();
         if (ok) {
           $permission?.classList.add("hidden");
+          setStatus("", "");
           startFlow();
         } else {
           $permissionBtn.disabled = false;
@@ -706,7 +749,7 @@
             answers[q.id] = { min: data.min, max: data.max };
             const replyText = data.reply || "got it";
             $msg.textContent = replyText;
-            await playAudio(data.audio, replyText);
+            await playAudio(data.audio);
             step++;
             next();
           } else {
@@ -742,7 +785,7 @@
         });
         const replyText = data.reply || "got it";
         $msg.textContent = replyText + "\n— " + mapped + " —";
-        await playAudio(data.audio, replyText);
+        await playAudio(data.audio);
         step++;
         next();
       }
