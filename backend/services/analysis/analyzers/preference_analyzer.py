@@ -1,8 +1,21 @@
 """
-Global Preference Sync Analyzer (2-party conversation)
-=======================================================
-A multilingual preference analyzer that uses an embedding-first pipeline
-with regex fallback for robust operation.
+Preference Sync Analyzer (preference_sync)
+===========================================
+두 화자의 취향 일치도를 측정하는 임베딩-우선 분석기.
+
+측정 원리:
+  1. 의도 분류: OpenAI 임베딩 + 프로토타입 비교
+     - fallback: 정규식 패턴(preference/agree/disagree)
+  2. 취향 추출: preference_positive/negative 의도만 취향 항목으로 수집
+  3. 명시적 동의 점수: agreement/disagreement + 화자 교체 가중치
+  4. 의미 유사도: 취향 발화를 임베딩 코사인 매칭
+     - fallback: 조사 제거 기반 토큰 자카드(한국어)
+  5. 카테고리 동기화: 카테고리 분포 + 긍정/부정 비율 정렬
+  6. 최종 점수 = w_semantic + w_agreement + w_category (기본 0.4/0.3/0.3)
+
+의존성: numpy, openai(옵션)
+환경 변수: PREFERENCE_WEIGHTS, PREFERENCE_INTENT_MIN_CONF,
+          PREFERENCE_SEMANTIC_MATCH_THRESHOLD, PREFERENCE_AGREEMENT_NORM
 """
 
 from __future__ import annotations
@@ -14,8 +27,8 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from .language_utils import detect_conversation_language, detect_utterance_languages
-from .analyzer_core import (
+from analyzers.language_utils import detect_conversation_language, detect_utterance_languages
+from analyzers.analyzer_core import (
     BaseSyncModule,
     ConversationSyncCore,
     SyncItem,
@@ -44,8 +57,14 @@ INTENT_PROTOTYPES: Dict[str, List[str]] = {
         "I really like this",
         "This is my favorite",
         "I enjoy this often",
+        "I absolutely love this",
+        "That's my favorite",
+        "I always watch this",
         "저는 이걸 정말 좋아해요",
         "이게 제 취향이에요",
+        "저 이거 진짜 좋아해요",
+        "매일 먹는 편이에요",
+        "취미가 이거예요",
         "Me encanta esto",
         "Esto es mi favorito",
         "J'aime beaucoup ca",
@@ -54,8 +73,12 @@ INTENT_PROTOTYPES: Dict[str, List[str]] = {
         "I do not like this",
         "I hate this",
         "This is not my thing",
+        "I can't stand this",
+        "Not really my thing",
         "저는 이거 별로예요",
         "이건 싫어요",
+        "안 좋아해요",
+        "못 먹어요",
         "No me gusta esto",
         "Je n'aime pas ca",
     ],
@@ -63,8 +86,12 @@ INTENT_PROTOTYPES: Dict[str, List[str]] = {
         "I agree with you",
         "Me too",
         "Same here",
+        "I love that too",
+        "That's so true",
+        "I feel the same",
         "저도요",
         "나도 그래",
+        "저도 완전 공감해요",
         "Estoy de acuerdo",
         "Yo tambien",
         "Moi aussi",
@@ -73,8 +100,10 @@ INTENT_PROTOTYPES: Dict[str, List[str]] = {
         "I disagree",
         "Not really",
         "I don't think so",
+        "No way, not really",
         "저는 좀 달라요",
         "저는 동의하지 않아요",
+        "그건 좀 아닌데요",
         "No estoy de acuerdo",
         "Pas vraiment",
     ],
@@ -89,12 +118,50 @@ INTENT_PROTOTYPES: Dict[str, List[str]] = {
 
 FALLBACK_INTENT_PATTERNS: Dict[str, List[str]] = {
     "preference_positive": [
-        r"\bi\s+(really\s+|just\s+)?(love|like|enjoy|prefer|adore)\b",
-        r"\bmy\s+favorite\b",
-        r"\b(i\s+am|i'm)\s+(a\s+fan\s+of|into)\b",
+        r"\bi\s+(really\s+|absolutely\s+|just\s+)?(love|like|enjoy|prefer|adore)\b",
+        r"\b(?:my|that's my)\s+favorite\b",
+        r"\b(i\s+am|i'm)\s+(a\s+fan\s+of|into|fond\s+of)\b",
+        r"\bi\s+(?:always|usually|often)\s+(?:eat|drink|watch|listen|go)\b",
+        r"nothing\s+beats",
+        r"the\s+best\s+(?:thing|part)",
+        r"(?:that's|it's|so)\s+(?:great|awesome|amazing|the\s+best)",
+        r"\bi\s+(?:go|do|have)\s+(?:that|this|it)?\s*(?:all\s+the\s+time|every\s?(?:day|week))",
+        r"(?:oh\s+)?(?:yeah|yes),?\s*i\s+(?:know|love)\s+(?:that|this)",
+        r"(?:have\s+you\s+(?:tried|been\s+to)|you\s+should\s+try)",
         r"좋아해|좋아요|좋아하|즐겨|취향|선호|맛있|재미있|최고|강추",
+        r"(?:정말|진짜|엄청|너무|완전|되게)?\s*좋아(?:해|하는|했|하고|합니다|해요|하거든|한다|했어|해서|할)",
+        r"제일\s*좋아",
+        r"가장\s*좋아",
+        r"좋아(?:요|하죠|하지)",
+        r"즐겨\s*(?:먹|마시|봐|보|듣|하|읽|가|찾|즐기)",
+        r"즐기(?:는|고|며|어|ㄴ다|고\s*있|는\s*편)",
+        r"즐겨(?:요)?$",
+        r"(?:운동|독서|요리|산책|게임|여행|등산|낚시|영화|음악|드라마)(?:을|를)?\s*즐겨",
+        r"취미(?:예요|입니다|야|이에요|가|로)",
+        r"취미(?:가|로)\s*(?:있어|삼아)",
         r"(?:매일|자주|항상)\s*(?:먹|마시|보|듣|하|가)",
+        r"매일\s*(?:먹|마시|봐|보|들어|해|가|마셔|읽어|써)",
+        r"자주\s*(?:먹|마시|봐|보|들어|해|가|읽|가요|해요)",
+        r"항상\s*(?:먹|마시|봐|보|들어|해|가|즐겨)",
+        r"아침마다|저녁마다|주말마다",
+        r"(?:매주|매달|매년)\s*(?:가|해|봐|먹)",
         r"(?:운동|독서|요리|산책|게임|여행)(?:을|를)?\s*즐겨",
+        r"맛있(?:어|었|다|는|더라|어요|네요|었어요)",
+        r"재미있(?:어|었|다|는|더라|어요|네요)",
+        r"좋더라(?:고요?)?",
+        r"최고(?:예요|다|야|네요|였어)",
+        r"대박이(?:에요|야|다)",
+        r"짱이(?:에요|야)",
+        r"선호(?:해요|합니다|하는|했어)",
+        r"추천해(?:요|드려|드릴)",
+        r"강추",
+        r"꼭\s*(?:먹어봐|가봐|해봐)",
+        r"한번\s*(?:먹어봐|가봐|해봐)",
+        r"좋아하는\s*(?:편|것|거)",
+        r"빠져\s*(?:있어|있는|있었|있었어)",
+        r"푹\s*빠져",
+        r"열심히\s*(?:하고|다니고|보고)",
+        r"(?:한|두)\s*번도\s*빠짐없이",
         r"me\s+encanta|me\s+gusta|mi\s+favorito",
         r"j'?adore|j'aime\s+beaucoup|mon\s+pr[ée]f[ée]r[ée]",
         r"ich\s+(?:mag|liebe)\s+das|mein\s+favorit",
@@ -102,10 +169,24 @@ FALLBACK_INTENT_PATTERNS: Dict[str, List[str]] = {
         r"j'aime|prefere",
     ],
     "preference_negative": [
-        r"\bi\s+(do\s+not|don't|never)\s+(like|enjoy|prefer)\b",
+        r"\bi\s+(do\s+not|don't|never)\s+(like|enjoy|prefer|eat|watch)\b",
         r"\b(i\s+)?(hate|dislike|can't\s+stand)\b",
+        r"not\s+(?:a\s+fan\s+of|into|my\s+thing)",
         r"싫어|별로|안\s*좋아|못\s*먹|귀찮|힘들어",
+        r"싫어(?:요|해|하는|했|합니다)?",
+        r"싫(?:은|다|고)",
+        r"별로(?:야|예요|더라고요?|에요|인\s*것\s*같아|안\s*좋아)?",
+        r"그닥\s*(?:좋지|안)",
+        r"별로\s*안\s*좋아",
+        r"못\s*(?:먹|마시|봐|들어|해|가|읽)",
         r"잘\s*안\s*(?:먹|마시|보|듣|하)|안\s*(?:맞아|맞는)",
+        r"안\s*좋아(?:해|하는|했|합니다|해요)?",
+        r"안\s*(?:먹|마시|봐|들어|해)",
+        r"귀찮(?:아|은|은데|아서|아요)",
+        r"어렵(?:고|어|다|더라)",
+        r"힘들어서\s*(?:못|안)",
+        r"못\s*(?:먹겠|마시겠|보겠|참겠)",
+        r"안\s*(?:맞아|맞는)",
         r"no\s+me\s+gusta|odio",
         r"je\s+n'aime\s+pas|je\s+d[ée]teste",
         r"ich\s+mag\s+.*nicht|ich\s+hasse",
@@ -114,7 +195,30 @@ FALLBACK_INTENT_PATTERNS: Dict[str, List[str]] = {
     ],
     "agreement": [
         r"\bme\s+too\b|\bsame\s+here\b|\bi\s+agree\b|\bexactly\b",
+        r"\bi\s+(?:also|too)\s+(?:love|like|enjoy)\b",
+        r"(?:oh\s+)?i\s+love\s+that\s+too",
+        r"(?:that's\s+)?so\s+true",
+        r"i\s+feel\s+the\s+same",
+        r"(?:no\s+way,?\s+)?me\s+too",
         r"저도요|나도|맞아요|맞아|그러게요|동감|공감|저도\s*그래요|나도\s*그래",
+        r"저도\s*(?:정말|진짜|완전|너무)?\s*(?:좋아해요|좋아해|좋아하거든|즐겨요)",
+        r"나도\s*(?:정말|진짜|완전|너무)?\s*(?:좋아해|좋아하거든|즐겨)",
+        r"저도\s*(?:그래요|마찬가지예요|똑같아요|그렇게\s*생각해요)",
+        r"나도\s*(?:그래|마찬가지야|똑같아|그렇게\s*생각해)",
+        r"완전\s*(?:공감|동의|맞아)",
+        r"(?:오|아|어|와)\s*저도",
+        r"저도요",
+        r"나도요?!?",
+        r"(?:진짜요?\s*)?공감이에요",
+        r"동감이에요",
+        r"맞아요",
+        r"그러게요",
+        r"맞아(?:요)?",
+        r"그러게(?:요)?",
+        r"그렇죠",
+        r"그러네요",
+        r"(?:완전|진짜)\s*맞아",
+        r"저도\s*(?:요|)",
         r"완전\s*(?:공감|동의|맞아)",
         r"yo\s+tambien|estoy\s+de\s+acuerdo",
         r"moi\s+aussi|je\s+suis\s+d'accord",
@@ -136,43 +240,62 @@ FALLBACK_INTENT_PATTERNS: Dict[str, List[str]] = {
 PREFERENCE_CATEGORIES: Dict[str, List[str]] = {
     "Food": [
         "food", "eat", "drink", "cuisine", "dish", "restaurant", "cook",
+        "sushi", "taste", "menu", "meal", "flavor",
         "음식", "먹", "요리", "맛집", "카페", "커피", "식당", "레스토랑", "디저트", "빵", "맥주", "와인",
+        "식사", "맛", "반찬", "국", "밥", "면", "고기", "해산물", "채소", "과일",
+        "차", "술", "소주", "막걸리", "초밥", "라면", "파스타", "피자", "치킨", "삼겹살", "곱창",
+        "한식", "일식", "양식", "중식", "분식",
         "comida", "cocina", "restaurante", "cafe", "cafeteria", "postre",
         "nourriture", "restaurant", "cuisine",
         "essen", "restaurant", "küche", "kuche",
         "comida", "restaurante", "cozinha",
     ],
     "Music & Entertainment": [
-        "music", "song", "movie", "show", "concert", "game",
-        "음악", "노래", "영화", "드라마", "공연", "게임",
+        "music", "song", "movie", "show", "concert", "game", "watch", "listen",
+        "음악", "노래", "영화", "드라마", "공연", "게임", "뮤지컬", "콘서트",
+        "아이돌", "밴드", "힙합", "재즈", "클래식", "팝", "인디",
+        "넷플릭스", "유튜브", "스트리밍", "OST", "플레이리스트",
+        "웹툰", "만화", "애니", "책", "소설", "웹소설",
         "musica", "pelicula", "serie", "musique", "film",
     ],
     "Travel": [
-        "travel", "trip", "city", "country", "vacation", "flight", "hotel",
-        "여행", "도시", "해외", "국내", "호텔", "숙소",
+        "travel", "trip", "visit", "city", "country", "vacation", "flight", "hotel",
+        "여행", "도시", "나라", "해외", "국내", "관광", "캠핑",
+        "바다", "산", "제주", "부산", "강원", "경주", "전주",
+        "강", "호수", "숙소", "호텔", "펜션", "글램핑",
+        "배낭여행", "패키지여행", "자유여행",
         "viaje", "ciudad", "pais", "vacaciones", "voyage",
     ],
     "Lifestyle": [
-        "routine", "habit", "morning", "weekend", "daily", "sleep",
+        "routine", "habit", "morning", "weekend", "daily", "sleep", "everyday", "always",
         "루틴", "습관", "일상", "아침", "주말", "수면",
+        "아침마다", "아침에 일어", "아침 루틴", "매일 아침",
+        "산책하", "명상", "수면 패턴", "저녁 루틴", "주말 루틴", "생활 패턴",
         "rutina", "habito", "quotidien",
     ],
     "Hobbies": [
         "hobby", "exercise", "reading", "writing", "sports", "drawing",
+        "sport", "game", "read", "write",
         "취미", "운동", "독서", "글쓰기", "등산", "요가", "수영", "달리기", "게임", "사진",
+        "그림", "영상", "자전거", "낚시", "골프", "테니스", "배드민턴", "볼링", "클라이밍",
+        "뜨개질", "공예", "악기", "기타 치", "피아노 치", "동호회", "동아리",
         "pasatiempo", "deporte", "lecture", "aficion",
         "loisir", "sport", "lecture",
         "hobby", "sport", "lesen",
         "hobby", "esporte", "leitura",
     ],
     "Values": [
-        "value", "belief", "important", "meaning", "future", "goal",
+        "value", "belief", "important", "meaning", "meaningful", "future", "goal",
+        "believe", "think", "feel",
         "가치", "신념", "중요", "의미", "미래", "목표",
+        "생각해", "믿어", "중요한", "의미 있", "인생", "행복", "꿈", "계획", "철학",
+        "살아가", "살면서",
         "valor", "creencia", "objectif",
     ],
     "Relationships": [
         "friend", "family", "partner", "people", "together", "relationship",
-        "친구", "가족", "연인", "사람", "함께", "관계",
+        "친구", "가족", "연인", "사람", "사람들", "함께", "같이", "관계",
+        "부모님", "형제", "자매", "반려동물", "반려견", "반려묘",
         "amigo", "familia", "relation",
     ],
 }

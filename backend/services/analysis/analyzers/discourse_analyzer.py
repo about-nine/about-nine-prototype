@@ -1,14 +1,15 @@
 """
 Discourse Quality Analyzer (topic_continuity)
 ==============================================
-OpenAI API로 대화의 주제 흐름 자연스러움을 평가.
+OpenAI API로 대화의 담화 품질을 평가.
 
 측정 원리:
-  1. 대화 텍스트를 GPT-4o-mini에 전달
-  2. LLM이 주제 연속성을 0~100 스케일로 평가
+  1. 대화 텍스트를 gpt-4o-mini에 전달
+  2. topic_continuity / logical_flow / collaborative_building 3개 지표 산출
+  3. 3개 지표 평균을 최종 점수로 반환
 
-의존성: openai
-Fallback: API 실패 시 평균 단어 수 기반 휴리스틱
+의존성: openai(옵션)
+Fallback: API 실패 시 인접 발화 간 토큰 겹침(Jaccard) 기반 휴리스틱
 """
 
 import json

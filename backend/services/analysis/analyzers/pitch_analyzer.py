@@ -8,7 +8,7 @@ Pitch Similarity Analyzer (voice_pitch)
   2. VAD(음성 활동 감지)로 무음 구간 제거
   3. 각 화자의 발화 구간 F0 통계(중앙값, 표준편차) 계산
   4. 중앙 피치 유사도: 반음(semitone) 거리 기반 — 1옥타브 차이면 0점
-  5. 피치 변동성 유사도: std 비율 — 두 사람이 비슷하게 단조롭거나 풍부하면 높은 점수
+  5. 피치 변동성 유사도: std 비율
   6. 최종 = 0.7 × 중앙피치 + 0.3 × 변동성 → 0~100점
 
 측정 원리 (단일 혼합 오디오일 때):
@@ -17,15 +17,16 @@ Pitch Similarity Analyzer (voice_pitch)
   3. KMeans(k=2)로 화자 클러스터링 (피치 높낮이 기반)
   4. 두 클러스터의 F0 분포로 동일하게 유사도 계산
 
+환경 변수:
+  - PITCH_FMIN, PITCH_FMAX, PITCH_VAD_DB
+
 의존성: librosa, numpy (선택: sklearn)
-Fallback: 라이브러리/입력 부족 시 50점 반환
+Fallback: librosa 없으면 0점 반환, 혼합 오디오는 sklearn 없으면 실패 처리
 """
 
 import os
 import numpy as np
 from typing import Dict, Any, List, Optional
-
-NEUTRAL_SCORE = 50
 
 try:
     import librosa
@@ -111,7 +112,7 @@ def _pitch_similarity_score(
     vals_b = f0_b[voiced_b & np.isfinite(f0_b)]
 
     if len(vals_a) < 10 or len(vals_b) < 10:
-        return {"score": NEUTRAL_SCORE, "error": "insufficient_voiced_frames"}
+        return {"score": 0, "error": "insufficient_voiced_frames"}
 
     med_a = float(np.median(vals_a))
     med_b = float(np.median(vals_b))
@@ -147,7 +148,7 @@ def _analyze_separate_wavs(wav_paths: Dict[str, str], call_id: str) -> Dict[str,
     """화자별 개별 WAV 파일이 있을 때"""
     speakers = list(wav_paths.keys())
     if len(speakers) < 2:
-        return {"score": NEUTRAL_SCORE, "error": "need_2_speakers", "method": "separate_wavs"}
+        return {"score": 0, "error": "need_2_speakers", "method": "separate_wavs"}
 
     sp_a, sp_b = speakers[0], speakers[1]
 
@@ -190,7 +191,7 @@ def _segments_from_mask(mask, min_len=10):
 def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
     """단일 오디오에서 KMeans로 화자 분리 후 F0 유사도 분석"""
     if not HAS_SKLEARN:
-        return {"score": NEUTRAL_SCORE, "error": "sklearn_not_available", "method": "mixed_audio"}
+        return {"score": 0, "error": "sklearn_not_available", "method": "mixed_audio"}
 
     data = _extract_f0(audio_path)
     f0, vad = data["f0"], data["vad"]
@@ -207,7 +208,7 @@ def _analyze_mixed_audio(audio_path: str, call_id: str) -> Dict[str, Any]:
         seg_stats.append({"start": s, "end": e, "median_f0": float(np.median(vals))})
 
     if len(seg_stats) < 2:
-        return {"score": NEUTRAL_SCORE, "error": "too_few_segments", "method": "mixed_audio"}
+        return {"score": 0, "error": "too_few_segments", "method": "mixed_audio"}
 
     X = np.array([np.log(s["median_f0"] + 1e-9) for s in seg_stats]).reshape(-1, 1)
     km = KMeans(n_clusters=2, n_init=10, random_state=0)
@@ -246,8 +247,8 @@ class PitchAnalyzer:
     ) -> Dict[str, Any]:
         if not HAS_LIBROSA:
             return {
-                "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
-                "raw": {"score": NEUTRAL_SCORE, "error": "librosa_not_installed", "method": "default"},
+                "scores": {"voice_pitch": 0.0},
+                "raw": {"score": 0, "error": "librosa_not_installed", "method": "default"},
             }
 
         # Case 1: 화자별 개별 WAV (최적)
@@ -259,8 +260,8 @@ class PitchAnalyzer:
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
                     return {
-                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
-                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "separate_wavs_failed"},
+                        "scores": {"voice_pitch": 0.0},
+                        "raw": {"score": 0, "error": str(e), "method": "separate_wavs_failed"},
                     }
 
         # Case 2: WAV 파일 리스트 (2개면 개별, 1개면 혼합)
@@ -274,8 +275,8 @@ class PitchAnalyzer:
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
                     return {
-                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
-                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "separate_wavs_failed_list"},
+                        "scores": {"voice_pitch": 0.0},
+                        "raw": {"score": 0, "error": str(e), "method": "separate_wavs_failed_list"},
                     }
 
             if len(valid_paths) == 1:
@@ -284,11 +285,11 @@ class PitchAnalyzer:
                     return {"scores": {"voice_pitch": float(raw["score"])}, "raw": raw}
                 except Exception as e:
                     return {
-                        "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
-                        "raw": {"score": NEUTRAL_SCORE, "error": str(e), "method": "mixed_audio_failed"},
+                        "scores": {"voice_pitch": 0.0},
+                        "raw": {"score": 0, "error": str(e), "method": "mixed_audio_failed"},
                     }
 
         return {
-            "scores": {"voice_pitch": float(NEUTRAL_SCORE)},
-            "raw": {"score": NEUTRAL_SCORE, "error": "no_valid_audio", "method": "default"},
+            "scores": {"voice_pitch": 0.0},
+            "raw": {"score": 0, "error": "no_valid_audio", "method": "default"},
         }
