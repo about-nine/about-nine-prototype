@@ -26,23 +26,61 @@
     <script src="js/common.js"></script>
 
     <script>
+      const FORCE_VOICE_KEY = "force_voice_onboarding";
+
+      function isVoiceMode() {
+        const params = new URLSearchParams(window.location.search);
+        const fromQuery = params.get("voice") === "1";
+        if (fromQuery) {
+          saveToLocal(FORCE_VOICE_KEY, true);
+          return true;
+        }
+        return getFromLocal(FORCE_VOICE_KEY) === true;
+      }
+
       async function resolveNextRoute() {
         const completed = getFromLocal("onboarding_completed");
         if (completed === true) {
           return "lounge.html";
         }
         if (completed === false) {
-          return "onboarding-chat.html";
+          return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
         }
         try {
           const profileRes = await apiCall("/users/profile");
           const isDone = !!profileRes?.user?.onboarding_completed;
           saveToLocal("onboarding_completed", isDone);
-          return isDone ? "lounge.html" : "onboarding-chat.html";
+          return isDone
+            ? "lounge.html"
+            : isVoiceMode()
+              ? "onboarding-voice.html"
+              : "onboarding-chat.html";
         } catch (e) {
-          return "onboarding-chat.html";
+          return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
         }
       }
+
+      // Test toggle: tap the title 5 times quickly to enable/disable voice onboarding.
+      (function enableVoiceToggle() {
+        const title = document.querySelector(".brand-text");
+        if (!title) return;
+        let taps = 0;
+        let timer = null;
+        title.addEventListener("click", () => {
+          taps += 1;
+          clearTimeout(timer);
+          timer = setTimeout(() => { taps = 0; }, 1500);
+          if (taps >= 3) {
+            taps = 0;
+            const enabled = getFromLocal(FORCE_VOICE_KEY) === true;
+            saveToLocal(FORCE_VOICE_KEY, !enabled);
+            showError(
+              "error",
+              `voice onboarding ${!enabled ? "enabled" : "disabled"} (test mode)`
+            );
+          }
+        });
+      })();
 
       async function requestLocation() {
         hideError("error");

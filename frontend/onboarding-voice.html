@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onboarding</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" src="js/firebase.js"></script>
+    <style>
+      .onboarding-page {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: calc(30px + var(--safe-top)) 24px
+          calc(36px + var(--safe-bottom));
+        height: 100vh;
+        max-width: 480px;
+        margin: 0 auto;
+      }
+      @supports (height: 100svh) {
+        .onboarding-page {
+          height: 100svh;
+        }
+      }
+
+      .ob-stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        width: 100%;
+      }
+
+      .pulse-circle {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        animation: pulseIdle 2s ease-in-out infinite;
+        box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
+        transition: box-shadow 0.3s;
+      }
+      @keyframes pulseIdle {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 0.8;
+        }
+      }
+      .coco-speaking .pulse-circle {
+        animation: pulseSpeaking 0.6s ease-in-out infinite;
+        box-shadow: 0 0 60px rgba(255, 110, 196, 0.85);
+      }
+      @keyframes pulseSpeaking {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.15);
+        }
+      }
+
+      .ob-textbox {
+        width: 100%;
+        text-align: center;
+        min-height: 80px;
+      }
+      .ob-cmsg {
+        font-family: "Merriweather", serif;
+        font-size: 18px;
+        line-height: 1.6;
+        white-space: pre-line;
+      }
+      .ob-heard {
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-style: italic;
+        margin-top: 8px;
+        min-height: 18px;
+      }
+
+      .voice-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        height: 48px;
+        margin-bottom: calc(16px + var(--safe-bottom));
+        flex-shrink: 0;
+      }
+      .vi-bar {
+        width: 3px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.25);
+        transition: background 0.15s;
+      }
+      .user-speaking .vi-bar {
+        background: rgba(255, 255, 255, 0.85);
+        animation: viPulse 0.4s ease-in-out infinite;
+      }
+      .user-speaking .vi-bar:nth-child(1) {
+        animation-delay: 0s;
+        animation-duration: 0.45s;
+      }
+      .user-speaking .vi-bar:nth-child(2) {
+        animation-delay: 0.09s;
+        animation-duration: 0.38s;
+      }
+      .user-speaking .vi-bar:nth-child(3) {
+        animation-delay: 0.18s;
+        animation-duration: 0.42s;
+      }
+      .user-speaking .vi-bar:nth-child(4) {
+        animation-delay: 0.09s;
+        animation-duration: 0.38s;
+      }
+      .user-speaking .vi-bar:nth-child(5) {
+        animation-delay: 0s;
+        animation-duration: 0.45s;
+      }
+      @keyframes viPulse {
+        0%,
+        100% {
+          height: 4px;
+        }
+        50% {
+          height: 22px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="onboarding-page">
+      <div
+        class="chat-header brand-text"
+        style="text-align: center; padding: 30px 0 20px"
+      >
+        COCO
+      </div>
+
+      <div class="ob-stage">
+        <div class="waiting-animation">
+          <div class="pulse-circle" id="obPulse"></div>
+        </div>
+        <div class="ob-textbox">
+          <div id="obMsg" class="ob-cmsg"></div>
+          <div id="obHeard" class="ob-heard"></div>
+        </div>
+      </div>
+
+      <div class="voice-indicator" id="voiceIndicator">
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+      </div>
+    </div>
+
+    <script src="js/common.js"></script>
+
+    <script>
+      /* ================= USER INFO ================= */
+
+      const firstName = getFromLocal("firstName") || "there";
+      const userId = getFromLocal("user_id");
+      const age = getFromLocal("age");
+      const birthdate = getFromLocal("birthdate");
+      const phone = getFromLocal("phone");
+      const lastName = getFromLocal("lastName") || "";
+      const VOICE_API_BASE = `${API_BASE}/voice`;
+
+      /* ================= FLOW ================= */
+
+      const FLOW = [
+        { t: "bot", text: `hi ${firstName}, i'm coco` },
+        { t: "bot", text: "let's find someone\nwho really gets you" },
+        { t: "bot", text: "to do that,\ni need to get to know you first" },
+        {
+          t: "ask",
+          id: "gender",
+          q: "how do you identify\nyour gender?",
+          opts: ["woman", "man", "non-binary"],
+        },
+        { t: "gender_detail" },
+        {
+          t: "ask",
+          id: "drink",
+          q: "do you drink alcohol?",
+          opts: ["yes", "no"],
+        },
+        { t: "ask", id: "smoke", q: "do you smoke?", opts: ["yes", "no"] },
+        {
+          t: "ask",
+          id: "marijuana",
+          q: "do you use marijuana?",
+          opts: ["yes", "no"],
+        },
+        {
+          t: "ask",
+          id: "sexual_orientation",
+          q: "who are you attracted to?",
+          opts: [
+            "men",
+            "women",
+            "men and women",
+            "men and non-binary people",
+            "women and non-binary people",
+            "all types of genders",
+          ],
+        },
+        {
+          t: "range",
+          id: "age_preference",
+          q: "what age range\nare you looking for?",
+        },
+        { t: "bot", text: "thanks for telling me" },
+        { t: "bot", text: "now let's switch gears" },
+        { t: "bot", text: "let's fill your playlist\nwith the music you love" },
+        { t: "done" },
+      ];
+
+      /* ================= STATE ================= */
+
+      let step = 0;
+      const answers = {};
+      const voiceTranscripts = [];
+      let currentQ = null;
+      const GENDER_STEP_INDEX = FLOW.findIndex((item) => item.id === "gender");
+
+      /* ================= DOM ================= */
+
+      const $msg = document.getElementById("obMsg");
+      const $heard = document.getElementById("obHeard");
+      const $page = document.querySelector(".onboarding-page"); // #8: 한 곳에서만 선언
+      const $voiceIndicator = document.getElementById("voiceIndicator");
+
+      /* ================= AUDIO HELPER ================= */
+
+      function playAudio(b64) {
+        const audio = new Audio("data:audio/mp3;base64," + b64);
+        $page.classList.add("coco-speaking");
+        audio.onended = () => $page.classList.remove("coco-speaking");
+        audio.play();
+      }
+
+      function setStatus(message, heard = "") {
+        if (message) $msg.textContent = message;
+        if (heard !== null) $heard.textContent = heard;
+      }
+
+      /* ================= VOICE RECORD ================= */
+
+      let mediaRecorder,
+        chunks = [],
+        silenceTimer,
+        stream;
+
+      async function initVoice() {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setStatus(
+            "mic access isn't supported on this device.\nplease use the text onboarding instead.",
+            ""
+          );
+          return;
+        }
+
+        if (!window.MediaRecorder) {
+          setStatus(
+            "voice recording isn't supported here.\nplease use the text onboarding instead.",
+            ""
+          );
+          return;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+            ? "audio/mp4"
+            : "";
+
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+
+        mediaRecorder.onstop = async () => {
+          if (!currentQ) return;
+          const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+          chunks = [];
+          if (blob.size < 2000) return;
+
+          const form = new FormData();
+          form.append("audio", blob, "speech.webm");
+          form.append("voice", "nova");
+
+          // range일 때 opts 안 보냄 → backend가 is_range=True로 인식
+          if (currentQ.opts) {
+            form.append("options", JSON.stringify(currentQ.opts));
+          }
+
+          try {
+            const res = await fetch(`${VOICE_API_BASE}/turn`, {
+              method: "POST",
+              body: form,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data?.error) {
+              setStatus(
+                "voice service isn't available right now.\nplease try again or use text onboarding.",
+                ""
+              );
+              return;
+            }
+
+            if (data.transcript) $heard.textContent = data.transcript;
+            if (data.audio) playAudio(data.audio);
+
+            await handleUtteranceServer(data, currentQ);
+          } catch (e) {
+            console.error("turn error:", e);
+            setStatus(
+              "voice service isn't available right now.\nplease try again or use text onboarding.",
+              ""
+            );
+          }
+        };
+
+        const ctx = new AudioContext();
+        await ctx.resume();
+        const src = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        src.connect(analyser);
+        const buf = new Uint8Array(analyser.fftSize);
+
+        function detect() {
+          analyser.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) {
+            const v = (buf[i] - 128) / 128;
+            sum += v * v;
+          }
+          const vol = Math.sqrt(sum / buf.length);
+
+          if (vol > 0.03) {
+            $voiceIndicator.classList.add("user-speaking");
+            if (mediaRecorder.state === "inactive") {
+              chunks = [];
+              mediaRecorder.start();
+            }
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+              if (mediaRecorder.state === "recording") mediaRecorder.stop();
+              $voiceIndicator.classList.remove("user-speaking");
+            }, 900);
+          }
+
+          requestAnimationFrame(detect);
+          // #8: $page를 detect 안에서 다시 선언하지 않음
+        }
+        detect();
+      }
+
+      document.addEventListener(
+        "click",
+        function startOnFirstTap() {
+          document.removeEventListener("click", startOnFirstTap);
+          initVoice().catch((err) => {
+            console.error("마이크 초기화 실패:", err);
+            setStatus(
+              "mic permission is required.\nplease allow access or use text onboarding.",
+              ""
+            );
+          });
+        },
+        { once: true },
+      );
+
+      /* ================= HANDLE UTTERANCE ================= */
+
+      // #7: range와 ask 완전히 분기 — 이중 저장 없음
+      async function handleUtteranceServer(data, q) {
+        if (q.t === "range") {
+          if (data.min !== undefined && data.max !== undefined) {
+            answers[q.id] = { min: data.min, max: data.max };
+            $msg.textContent = data.reply || "got it";
+            step++;
+            next();
+          } else {
+            // #5: min/max 없을 때 재질문
+            $msg.textContent =
+              (data.reply ||
+                "could you tell me the age range you have in mind?") +
+              "\n\n" +
+              q.q.replace(/\n/g, " ");
+          }
+          return;
+        }
+
+        // 일반 ask
+        const mapped = data.mapped;
+        if (!mapped) {
+          $msg.textContent =
+            (data.reply || "hmm, could you say that differently?") +
+            "\n\n" +
+            q.q.replace(/\n/g, " ");
+          return;
+        }
+
+        answers[q.id] = mapped;
+        voiceTranscripts.push({
+          question: q.q,
+          said: data.transcript,
+          mappedTo: mapped,
+        });
+        $msg.textContent = (data.reply || "got it") + "\n— " + mapped + " —";
+        step++;
+        next();
+      }
+
+      /* ================= FLOW ================= */
+
+      async function next() {
+        const q = FLOW[step];
+        if (!q) return;
+
+        currentQ = null;
+
+        if (q.t === "bot") {
+          $msg.textContent = q.text;
+          step++;
+          setTimeout(next, 1500);
+          return;
+        }
+
+        if (q.t === "gender_detail") {
+          if (!answers.gender) {
+            setStatus("before this, tell me your gender first.");
+            if (GENDER_STEP_INDEX >= 0) {
+              step = GENDER_STEP_INDEX;
+            } else {
+              step = Math.max(0, step - 1);
+            }
+            next();
+            return;
+          }
+          const map = {
+            woman: [
+              "cis woman",
+              "trans woman",
+              "intersex woman",
+              "transfeminine",
+              "woman and non-binary",
+            ],
+            man: [
+              "cis man",
+              "trans man",
+              "intersex man",
+              "transmasculine",
+              "man and non-binary",
+              "or something else",
+            ],
+            "non-binary": [
+              "agender",
+              "bigender",
+              "genderfluid",
+              "genderqueer",
+              "gender nonconforming",
+            ],
+          };
+          const opts = map[answers.gender];
+          if (!opts) {
+            setStatus("could you choose a gender first?");
+            step = GENDER_STEP_INDEX >= 0 ? GENDER_STEP_INDEX : Math.max(0, step - 1);
+            next();
+            return;
+          }
+          FLOW.splice(step, 1, {
+            t: "ask",
+            id: "gender_detail",
+            q: "now, choose the description\nthat best matches your gender",
+            opts,
+          });
+          next();
+          return;
+        }
+
+        if (q.t === "ask") {
+          $msg.textContent = q.q;
+          currentQ = q;
+          return;
+        }
+
+        if (q.t === "range") {
+          $msg.textContent = q.q;
+          currentQ = q; // opts 없음 → backend is_range=True
+          return; // #6: return 추가 — done으로 fall-through 없음
+        }
+
+        if (q.t === "done") {
+          finish();
+        }
+      }
+
+      /* ================= BIO ================= */
+
+      async function generateBio() {
+        if (!voiceTranscripts.length) return "";
+        try {
+          const res = await fetch(`${VOICE_API_BASE}/bio`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcripts: voiceTranscripts }),
+          });
+          if (!res.ok) return "";
+          const d = await res.json();
+          return d.bio || "";
+        } catch {
+          return "";
+        }
+      }
+
+      /* ================= FINISH ================= */
+
+      async function finish() {
+        showLoading();
+        try {
+          const bio = await generateBio();
+          await apiCall("/onboarding/save", "POST", {
+            user_id: userId,
+            profile: answers,
+            firstName,
+            lastName,
+            age,
+            birthdate,
+            phone,
+            ...(bio ? { bio } : {}),
+          });
+          saveToLocal("onboarding_completed", true);
+          saveToLocal("just_completed_onboarding", true);
+          hideLoading();
+          navigateTo("playlist.html");
+        } catch (error) {
+          console.error("Failed to save onboarding:", error);
+          hideLoading();
+          setStatus("failed to save profile.\nplease try again.", "");
+        }
+      }
+
+      /* ================= START ================= */
+
+      next();
+    </script>
+  </body>
+</html>

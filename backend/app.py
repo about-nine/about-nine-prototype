@@ -40,6 +40,7 @@ from backend.routes.talks import talks_bp
 from backend.routes.match import match_bp
 from backend.routes.debug import debug_bp
 from backend.routes.spotify import spotify_bp, spotify_auth_bp
+from backend.routes.voice import voice_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
@@ -50,6 +51,7 @@ app.register_blueprint(talks_bp)
 app.register_blueprint(match_bp)
 app.register_blueprint(spotify_bp)
 app.register_blueprint(spotify_auth_bp)
+app.register_blueprint(voice_bp)
 
 if DEBUG:
     app.register_blueprint(debug_bp)

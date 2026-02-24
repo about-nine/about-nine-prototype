@@ -6,7 +6,6 @@ from backend.utils.request import get_json
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
 
-
 @onboarding_bp.route("/save", methods=["POST"])
 def save_onboarding():
 
@@ -24,6 +23,7 @@ def save_onboarding():
     age = data.get("age")
     birthdate = data.get("birthdate")
     phone = data.get("phone")
+    bio = data.get("bio")
 
     if profile is None:
         return jsonify(success=False, message="profile is required"), 400
@@ -53,6 +53,9 @@ def save_onboarding():
         update_data["birthdate"] = birthdate
     if phone:
         update_data["phone"] = phone
+        
+    if bio and bio.strip():
+        update_data["bio"] = bio.strip()
 
     db.collection("users").document(user_id).set(update_data, merge=True)
 
