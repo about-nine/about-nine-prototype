@@ -292,6 +292,60 @@ button.secondary {
   display: none !important;
 }
 
+/* Permission Overlay (shared) */
+.ob-permission {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 24px;
+}
+
+.ob-permission.hidden {
+  display: none;
+}
+
+.ob-permission-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ob-permission-title {
+  font-family: "Merriweather", serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.ob-permission-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.ob-permission-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.ob-permission-actions .ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
 /* 링크 */
 a {
   color: var(--text-secondary);

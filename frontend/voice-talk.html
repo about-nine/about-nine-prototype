@@ -297,46 +297,17 @@
       </div>
     </div>
 
-    <div
-      id="tapOverlay"
-      style="
-        position: fixed;
-        inset: 0;
-        background: var(--overlay-bg);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        flex-direction: column;
-        gap: 16px;
-      "
-    >
-      <div
-        style="
-          color: white;
-          font-size: 16px;
-          font-family: &quot;Merriweather&quot;, serif;
-        "
-      >
-        allow microphone access to start
+    <div class="ob-permission" id="tapOverlay">
+      <div class="ob-permission-card">
+        <div class="ob-permission-title">enable mic & audio</div>
+        <div class="ob-permission-text">
+          we need microphone access to start the voice call.
+        </div>
+        <div class="ob-permission-actions">
+          <button id="tapToStart">connect</button>
+        </div>
+        <span id="tapPermissionError" class="error hidden"></span>
       </div>
-      <button
-        id="tapToStart"
-        style="
-          width: 60%;
-          padding: 14px 40px;
-          border-radius: 30px;
-          border: none;
-          background: var(--accent-yellow, #f5c542);
-          color: black;
-          font-size: 16px;
-          font-weight: 600;
-          font-family: &quot;Merriweather&quot;, serif;
-          cursor: pointer;
-        "
-      >
-        connect
-      </button>
     </div>
 
     <script src="js/common.js"></script>
