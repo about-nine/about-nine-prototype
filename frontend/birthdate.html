@@ -61,10 +61,11 @@
         return;
       }
 
-      const y = parseInt(year);
-      const m = parseInt(month);
-      const d = parseInt(day);
-      const candidate = new Date(`${year}-${month}-${day}`);
+      const y = parseInt(year, 10);
+      const m = parseInt(month, 10);
+      const d = parseInt(day, 10);
+      // Use local date construction to avoid UTC timezone shifts.
+      const candidate = new Date(y, m - 1, d);
       if (
         Number.isNaN(candidate.getTime()) ||
         candidate.getFullYear() !== y ||

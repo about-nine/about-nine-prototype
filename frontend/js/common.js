@@ -145,7 +145,8 @@ function formatPhoneNumber(value) {
 }
 
 function calculateAge(birthDate) {
-  const birth = new Date(birthDate);
+  const [y, m, d] = birthDate.split("-").map(Number);
+  const birth = new Date(y, m - 1, d);
   const today = new Date();
   const age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
