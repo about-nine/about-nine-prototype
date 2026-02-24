@@ -486,7 +486,16 @@
 
         try {
           const form = new FormData();
-          const ext = currentMimeType.includes("mp4") ? "mp4" : "webm";
+          const blobType = blob.type || currentMimeType || "";
+          const ext = blobType.includes("mp4")
+            ? "mp4"
+            : blobType.includes("mpeg")
+              ? "mp3"
+              : blobType.includes("ogg") || blobType.includes("oga")
+                ? "ogg"
+                : blobType.includes("wav")
+                  ? "wav"
+                  : "webm";
           form.append("audio", blob, `speech.${ext}`);
 
           if (currentQ.opts) {
@@ -512,7 +521,7 @@
           }
 
           if (data.transcript) $heard.textContent = data.transcript;
-          await handleUtteranceServer(data, currentQ);
+          await handleUtteranceServer(data, activeQ);
         } catch (e) {
           console.error("turn error:", e);
           setStatus(
@@ -588,7 +597,6 @@
           : MediaRecorder.isTypeSupported("audio/mp4")
             ? "audio/mp4"
             : "";
-        currentMimeType = mimeType || "audio/webm";
 
         try {
           mediaRecorder = new MediaRecorder(
@@ -602,12 +610,17 @@
           setStatus(msg, "");
           return false;
         }
+        currentMimeType = mediaRecorder.mimeType || mimeType || "audio/webm";
         mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) speechChunks.push(e.data);
+          if (e.data && e.data.size > 0) {
+            if (e.data.type) currentMimeType = e.data.type;
+            speechChunks.push(e.data);
+          }
         };
         mediaRecorder.onstop = () => {
           if (!speechChunks.length) return;
-          const blob = new Blob(speechChunks, { type: currentMimeType });
+          const blobType = speechChunks[0]?.type || currentMimeType;
+          const blob = new Blob(speechChunks, { type: blobType });
           speechChunks = [];
           processSpeechBlob(blob);
         };
@@ -656,6 +669,7 @@
         function detect() {
           analyser.getByteTimeDomainData(buf);
           if (!currentQ || $page.classList.contains("coco-speaking")) {
+            voiceFrameCount = 0;
             requestAnimationFrame(detect);
             return;
           }
