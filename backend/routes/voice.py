@@ -31,7 +31,8 @@ def make_audio(reply, voice_name):
         voice=voice_name,
         input=reply,
         response_format="mp3",
-        instructions="Speak in clear, natural English with a neutral accent."
+        speed=1.15, 
+        instructions="Speak in clear, natural English with a gender-neutral tone."
     )
     return base64.b64encode(tts.read()).decode()
 

@@ -21,7 +21,7 @@
         max-width: 480px;
         margin: 0 auto;
       }
-      
+
       @supports (height: 100svh) {
         .onboarding-page {
           height: 100svh;
@@ -222,7 +222,9 @@
         </div>
         <div class="ob-permission-actions">
           <button id="obPermissionBtn">enable microphone</button>
-          <button class="ghost" id="obPermissionSkip">use text onboarding</button>
+          <button class="ghost" id="obPermissionSkip">
+            use text onboarding
+          </button>
         </div>
         <span id="obPermissionError" class="error hidden"></span>
       </div>
@@ -242,7 +244,8 @@
       const VOICE_API_BASE = `${API_BASE}/voice`;
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
-      const IS_WEBKIT = /AppleWebKit/i.test(navigator.userAgent) &&
+      const IS_WEBKIT =
+        /AppleWebKit/i.test(navigator.userAgent) &&
         !/Chrome|Chromium|CriOS/i.test(navigator.userAgent);
       const SPEECH_LANG =
         getFromLocal("speech_lang") ||
@@ -363,7 +366,9 @@
           };
           $page.classList.add("coco-speaking");
           const timeout = setTimeout(() => {
-            try { audio.pause(); } catch {}
+            try {
+              audio.pause();
+            } catch {}
             finish(false);
           }, 8000);
           audio.onended = () => {
@@ -385,7 +390,8 @@
       }
 
       function setStatus(message, heard = "") {
-        if (message !== null && message !== undefined) $msg.textContent = message;
+        if (message !== null && message !== undefined)
+          $msg.textContent = message;
         if (heard !== null) $heard.textContent = heard;
       }
 
@@ -412,7 +418,9 @@
       }
 
       async function fetchTtsAudio(text) {
-        const plain = String(text || "").replace(/\n+/g, " ").trim();
+        const plain = String(text || "")
+          .replace(/\n+/g, " ")
+          .trim();
         if (!plain) return null;
         try {
           const res = await fetch(`${VOICE_API_BASE}/tts`, {
@@ -514,7 +522,10 @@
         if (name === "NotFoundError" || name === "DevicesNotFoundError") {
           return "no microphone found. please connect a mic and retry.";
         }
-        if (name === "NotReadableError" || msg.toLowerCase().includes("failed to start the audio device")) {
+        if (
+          name === "NotReadableError" ||
+          msg.toLowerCase().includes("failed to start the audio device")
+        ) {
           return "mic is being used by another app. close other apps and try again.";
         }
         if (name === "NotSupportedError") {
@@ -531,7 +542,9 @@
           }
         } catch {}
         if (stream) {
-          try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+          try {
+            stream.getTracks().forEach((t) => t.stop());
+          } catch {}
         }
         mediaRecorder = null;
         stream = null;
@@ -564,7 +577,7 @@
           if (!res.ok || data?.error) {
             setStatus(
               "voice service isn't available right now.\nplease try again or use text onboarding.",
-              ""
+              "",
             );
             return;
           }
@@ -575,7 +588,7 @@
           console.error("turn error:", e);
           setStatus(
             "voice service isn't available right now.\nplease try again or use text onboarding.",
-            ""
+            "",
           );
         } finally {
           isProcessing = false;
@@ -593,8 +606,7 @@
 
       /* ================= VOICE RECORD ================= */
 
-      let mediaRecorder,
-        stream;
+      let mediaRecorder, stream;
 
       async function initVoice() {
         if (initVoice.started) return true;
@@ -646,7 +658,10 @@
         currentMimeType = mimeType || "audio/webm";
 
         try {
-          mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+          mediaRecorder = new MediaRecorder(
+            stream,
+            mimeType ? { mimeType } : {},
+          );
         } catch (err) {
           console.error("MediaRecorder init failed:", err);
           const msg = micErrorMessage(err);
@@ -688,7 +703,7 @@
 
         function detect() {
           analyser.getByteTimeDomainData(buf);
-          if ($page.classList.contains("coco-speaking")) {
+          if (!currentQ || $page.classList.contains("coco-speaking")) {
             requestAnimationFrame(detect);
             return;
           }
@@ -847,7 +862,10 @@
           const opts = map[answers.gender];
           if (!opts) {
             setStatus("could you choose a gender first?");
-            step = GENDER_STEP_INDEX >= 0 ? GENDER_STEP_INDEX : Math.max(0, step - 1);
+            step =
+              GENDER_STEP_INDEX >= 0
+                ? GENDER_STEP_INDEX
+                : Math.max(0, step - 1);
             next();
             return;
           }
@@ -931,7 +949,7 @@
 
       setStatus(
         "please enable mic and audio to continue.",
-        "permission is required before we can start"
+        "permission is required before we can start",
       );
     </script>
   </body>
