@@ -45,7 +45,7 @@ def voice_turn():
     if "audio" not in request.files:
         return jsonify(error="missing audio"), 400
 
-    voice_name = request.form.get("voice", "marin")
+    voice_name = request.form.get("voice", "alloy")
 
     # 🔥 프론트에서 전달된 옵션 배열
     import json

@@ -314,7 +314,11 @@
       let recognitionActive = false;
       let liveFinal = "";
       let flowStarted = false;
-      let isRecording = false;
+      let speechChunks = [];
+      let speechActive = false;
+      let lastVoiceAt = 0;
+      let currentMimeType = "audio/webm";
+      let isProcessing = false;
 
       /* ================= DOM ================= */
 
@@ -521,7 +525,6 @@
 
       function resetVoice() {
         stopLiveTranscription();
-        if (silenceTimer) clearTimeout(silenceTimer);
         try {
           if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
@@ -532,35 +535,65 @@
         }
         mediaRecorder = null;
         stream = null;
-        isRecording = false;
+        speechChunks = [];
+        speechActive = false;
+        lastVoiceAt = 0;
+        isProcessing = false;
         initVoice.started = false;
       }
 
-      function startRecordingSafely() {
-        if (!mediaRecorder) return false;
-        if (mediaRecorder.state !== "inactive") return true;
+      async function processSpeechBlob(blob) {
+        if (!currentQ || !blob) return;
+        if (isProcessing) return;
+        if (blob.size < 200) return;
+        isProcessing = true;
         try {
-          startLiveTranscription();
-          mediaRecorder.start();
-          isRecording = true;
-          return true;
-        } catch (err) {
-          console.error("MediaRecorder start failed:", err);
-          const msg = micErrorMessage(err);
-          showPermissionError(msg);
-          setStatus(msg, "");
-          $permission?.classList.remove("hidden");
-          $permissionBtn && ($permissionBtn.disabled = false);
-          resetVoice();
-          return false;
+          const form = new FormData();
+          form.append("audio", blob, "speech.webm");
+          form.append("voice", "marin");
+
+          if (currentQ.opts) {
+            form.append("options", JSON.stringify(currentQ.opts));
+          }
+
+          const res = await fetch(`${VOICE_API_BASE}/turn`, {
+            method: "POST",
+            body: form,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data?.error) {
+            setStatus(
+              "voice service isn't available right now.\nplease try again or use text onboarding.",
+              ""
+            );
+            return;
+          }
+
+          if (data.transcript) $heard.textContent = data.transcript;
+          await handleUtteranceServer(data, currentQ);
+        } catch (e) {
+          console.error("turn error:", e);
+          setStatus(
+            "voice service isn't available right now.\nplease try again or use text onboarding.",
+            ""
+          );
+        } finally {
+          isProcessing = false;
         }
+      }
+
+      function finalizeSpeech() {
+        if (!speechActive) return;
+        speechActive = false;
+        stopLiveTranscription();
+        const blob = new Blob(speechChunks, { type: currentMimeType });
+        speechChunks = [];
+        processSpeechBlob(blob);
       }
 
       /* ================= VOICE RECORD ================= */
 
       let mediaRecorder,
-        chunks = [],
-        silenceTimer,
         stream;
 
       async function initVoice() {
@@ -610,6 +643,7 @@
           : MediaRecorder.isTypeSupported("audio/mp4")
             ? "audio/mp4"
             : "";
+        currentMimeType = mimeType || "audio/webm";
 
         try {
           mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
@@ -620,48 +654,21 @@
           setStatus(msg, "");
           return false;
         }
-        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-
-        mediaRecorder.onstop = async () => {
-          stopLiveTranscription();
-          if (!currentQ) return;
-          const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
-          chunks = [];
-          if (blob.size < 2000) return;
-
-          const form = new FormData();
-          form.append("audio", blob, "speech.webm");
-          form.append("voice", "marin");
-
-          // range일 때 opts 안 보냄 → backend가 is_range=True로 인식
-          if (currentQ.opts) {
-            form.append("options", JSON.stringify(currentQ.opts));
-          }
-
-          try {
-            const res = await fetch(`${VOICE_API_BASE}/turn`, {
-              method: "POST",
-              body: form,
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || data?.error) {
-              setStatus(
-                "voice service isn't available right now.\nplease try again or use text onboarding.",
-                ""
-              );
-              return;
-            }
-
-            if (data.transcript) $heard.textContent = data.transcript;
-            await handleUtteranceServer(data, currentQ);
-          } catch (e) {
-            console.error("turn error:", e);
-            setStatus(
-              "voice service isn't available right now.\nplease try again or use text onboarding.",
-              ""
-            );
-          }
+        mediaRecorder.ondataavailable = (e) => {
+          if (!speechActive) return;
+          if (e.data && e.data.size > 0) speechChunks.push(e.data);
         };
+        mediaRecorder.onstop = () => {};
+
+        try {
+          mediaRecorder.start(250);
+        } catch (err) {
+          console.error("MediaRecorder start failed:", err);
+          const msg = micErrorMessage(err);
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
+        }
 
         let ctx;
         try {
@@ -692,22 +699,18 @@
           }
           const vol = Math.sqrt(sum / buf.length);
 
+          const now = Date.now();
           if (vol > 0.03) {
             $voiceIndicator.classList.add("user-speaking");
-            if (mediaRecorder.state === "inactive") {
-              chunks = [];
-              if (!startRecordingSafely()) {
-                return;
-              }
+            if (!speechActive) {
+              speechChunks = [];
+              speechActive = true;
+              startLiveTranscription();
             }
-            clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(() => {
-              if (mediaRecorder.state === "recording") {
-                stopLiveTranscription();
-                mediaRecorder.stop();
-              }
-              $voiceIndicator.classList.remove("user-speaking");
-            }, 900);
+            lastVoiceAt = now;
+          } else if (speechActive && now - lastVoiceAt > 900) {
+            $voiceIndicator.classList.remove("user-speaking");
+            finalizeSpeech();
           }
 
           requestAnimationFrame(detect);
