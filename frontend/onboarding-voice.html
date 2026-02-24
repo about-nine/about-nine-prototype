@@ -139,6 +139,53 @@
           height: 22px;
         }
       }
+
+      .ob-permission {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.88);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        padding: 24px;
+      }
+      .ob-permission.hidden {
+        display: none;
+      }
+      .ob-permission-card {
+        width: 100%;
+        max-width: 420px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .ob-permission-title {
+        font-family: "Merriweather", serif;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .ob-permission-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+      .ob-permission-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 6px;
+      }
+      .ob-permission-actions .ghost {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      }
     </style>
   </head>
 
@@ -165,6 +212,21 @@
       </div>
     </div>
 
+    <div class="ob-permission" id="obPermission">
+      <div class="ob-permission-card">
+        <div class="ob-permission-title">enable mic & audio</div>
+        <div class="ob-permission-text">
+          we need microphone access to hear you and audio playback for coco's
+          voice. please allow permissions to continue.
+        </div>
+        <div class="ob-permission-actions">
+          <button id="obPermissionBtn">enable microphone</button>
+          <button class="ghost" id="obPermissionSkip">use text onboarding</button>
+        </div>
+        <span id="obPermissionError" class="error hidden"></span>
+      </div>
+    </div>
+
     <script src="js/common.js"></script>
 
     <script>
@@ -179,6 +241,11 @@
       const VOICE_API_BASE = `${API_BASE}/voice`;
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SPEECH_LANG =
+        getFromLocal("speech_lang") ||
+        (Array.isArray(navigator.languages) && navigator.languages[0]) ||
+        navigator.language ||
+        "en-US";
       const SILENT_WAV_B64 =
         "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -243,6 +310,7 @@
       let recognizer = null;
       let recognitionActive = false;
       let liveFinal = "";
+      let flowStarted = false;
 
       /* ================= DOM ================= */
 
@@ -250,6 +318,10 @@
       const $heard = document.getElementById("obHeard");
       const $page = document.querySelector(".onboarding-page"); // #8: 한 곳에서만 선언
       const $voiceIndicator = document.getElementById("voiceIndicator");
+      const $permission = document.getElementById("obPermission");
+      const $permissionBtn = document.getElementById("obPermissionBtn");
+      const $permissionSkip = document.getElementById("obPermissionSkip");
+      const $permissionError = document.getElementById("obPermissionError");
 
       /* ================= AUDIO HELPER ================= */
 
@@ -279,6 +351,23 @@
       function setStatus(message, heard = "") {
         if (message !== null && message !== undefined) $msg.textContent = message;
         if (heard !== null) $heard.textContent = heard;
+      }
+
+      function showPermissionError(message) {
+        if (!$permissionError) return;
+        if (!message) {
+          $permissionError.textContent = "";
+          $permissionError.classList.add("hidden");
+          return;
+        }
+        $permissionError.textContent = message;
+        $permissionError.classList.remove("hidden");
+      }
+
+      function startFlow() {
+        if (flowStarted) return;
+        flowStarted = true;
+        next();
       }
 
       function speakText(text) {
@@ -323,7 +412,7 @@
         if (!SpeechRecognition || recognizer) return;
         try {
           recognizer = new SpeechRecognition();
-          recognizer.lang = navigator.language || "en-US";
+          recognizer.lang = SPEECH_LANG;
           recognizer.interimResults = true;
           recognizer.continuous = true;
           recognizer.onresult = (event) => {
@@ -373,6 +462,24 @@
         }
       }
 
+      function micErrorMessage(err) {
+        const name = err?.name || "";
+        const msg = String(err?.message || "");
+        if (name === "NotAllowedError" || name === "SecurityError") {
+          return "mic permission was blocked. please allow access in the browser.";
+        }
+        if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+          return "no microphone found. please connect a mic and retry.";
+        }
+        if (name === "NotReadableError" || msg.toLowerCase().includes("failed to start the audio device")) {
+          return "mic is being used by another app. close other apps and try again.";
+        }
+        if (name === "NotSupportedError") {
+          return "mic is not supported in this browser.";
+        }
+        return "failed to start the microphone. please try again.";
+      }
+
       /* ================= VOICE RECORD ================= */
 
       let mediaRecorder,
@@ -381,45 +488,43 @@
         stream;
 
       async function initVoice() {
-        if (initVoice.started) return;
-        initVoice.started = true;
+        if (initVoice.started) return true;
 
         const host = window.location.hostname;
         const isLocal =
           host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
         if (!window.isSecureContext && !isLocal) {
-          setStatus(
-            "mic access requires https (or localhost).\nplease open with a secure url.",
-            ""
-          );
-          return;
+          const msg =
+            "mic access requires https (or localhost).\nplease open with a secure url.";
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
         }
 
         if (!navigator.mediaDevices?.getUserMedia) {
-          setStatus(
-            "mic access isn't supported on this device.\nplease use the text onboarding instead.",
-            ""
-          );
-          return;
+          const msg =
+            "mic access isn't supported on this device.\nplease use the text onboarding instead.";
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
         }
 
         if (!window.MediaRecorder) {
-          setStatus(
-            "voice recording isn't supported here.\nplease use the text onboarding instead.",
-            ""
-          );
-          return;
+          const msg =
+            "voice recording isn't supported here.\nplease use the text onboarding instead.";
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
         }
 
         try {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (err) {
           console.error("getUserMedia failed:", err);
-          setStatus(
-            "mic permission is required.\nplease allow access or use text onboarding.",
-            ""
-          );
-          return;
+          const msg = micErrorMessage(err);
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
         }
 
         initLiveTranscription();
@@ -430,7 +535,15 @@
             ? "audio/mp4"
             : "";
 
-        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+        try {
+          mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+        } catch (err) {
+          console.error("MediaRecorder init failed:", err);
+          const msg = micErrorMessage(err);
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
+        }
         mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
 
         mediaRecorder.onstop = async () => {
@@ -442,7 +555,7 @@
 
           const form = new FormData();
           form.append("audio", blob, "speech.webm");
-          form.append("voice", "nova");
+          form.append("voice", "marin");
 
           // range일 때 opts 안 보냄 → backend가 is_range=True로 인식
           if (currentQ.opts) {
@@ -480,8 +593,17 @@
           }
         };
 
-        const ctx = new AudioContext();
-        await ctx.resume();
+        let ctx;
+        try {
+          ctx = new AudioContext();
+          await ctx.resume();
+        } catch (err) {
+          console.error("AudioContext init failed:", err);
+          const msg = "audio output is blocked. please allow sound and retry.";
+          showPermissionError(msg);
+          setStatus(msg, "");
+          return false;
+        }
         const src = ctx.createMediaStreamSource(stream);
         const analyser = ctx.createAnalyser();
         src.connect(analyser);
@@ -517,23 +639,29 @@
           // #8: $page를 detect 안에서 다시 선언하지 않음
         }
         detect();
+        initVoice.started = true;
+        showPermissionError("");
+        return true;
       }
 
-      document.addEventListener(
-        "click",
-        function startOnFirstTap() {
-          document.removeEventListener("click", startOnFirstTap);
-          unlockAudioPlayback();
-          initVoice().catch((err) => {
-            console.error("마이크 초기화 실패:", err);
-            setStatus(
-              "mic permission is required.\nplease allow access or use text onboarding.",
-              ""
-            );
-          });
-        },
-        { once: true },
-      );
+      async function handlePermissionStart() {
+        if (!$permissionBtn) return;
+        $permissionBtn.disabled = true;
+        showPermissionError("");
+        unlockAudioPlayback();
+        const ok = await initVoice();
+        if (ok) {
+          $permission?.classList.add("hidden");
+          startFlow();
+        } else {
+          $permissionBtn.disabled = false;
+        }
+      }
+
+      $permissionBtn?.addEventListener("click", handlePermissionStart);
+      $permissionSkip?.addEventListener("click", () => {
+        navigateTo("onboarding-chat.html");
+      });
 
       /* ================= HANDLE UTTERANCE ================= */
 
@@ -715,8 +843,10 @@
 
       /* ================= START ================= */
 
-      setStatus(null, "tap anywhere to enable mic");
-      next();
+      setStatus(
+        "please enable mic and audio to continue.",
+        "permission is required before we can start"
+      );
     </script>
   </body>
 </html>

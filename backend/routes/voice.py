@@ -27,9 +27,10 @@ def check_size(file_storage):
 
 def make_audio(reply, voice_name):
     tts = client.audio.speech.create(
-        model="tts-1",
+        model="gpt-4o-mini-tts",
         voice=voice_name,
-        input=reply
+        input=reply,
+        instructions="Speak in clear, natural English with a neutral accent."
     )
     return base64.b64encode(tts.read()).decode()
 
@@ -43,7 +44,7 @@ def voice_turn():
     if "audio" not in request.files:
         return jsonify(error="missing audio"), 400
 
-    voice_name = request.form.get("voice", "nova")
+    voice_name = request.form.get("voice", "marin")
 
     # 🔥 프론트에서 전달된 옵션 배열
     import json
@@ -74,6 +75,7 @@ def voice_turn():
             # age range 자유응답 파싱
             system = """
 Parse the user's spoken age range preference into min and max integers.
+The user may speak any language. Translate/understand it before extracting numbers.
 Return JSON only: {"min": <int>, "max": <int>, "reply": "<short warm acknowledgement under 10 words>"}
 Examples:
   "20 to 35" → min:20, max:35
@@ -124,6 +126,7 @@ Return JSON only:
 }}
 
 Rules:
+- The user may speak any language. Translate/understand it, then map to the list.
 - mapped MUST be verbatim from the list or null
 - be generous — ambiguous answers almost always map to something
 - if mapped is null (truly off-topic), reply must be a gentle re-ask,
@@ -180,6 +183,7 @@ Create a short natural dating bio.
 
 Rules:
 - first person, max 2 sentences, lowercase
+- if the user's words are not in English, translate into natural English
 - ONLY include genuinely personal expressions: personality traits, passions,
   feelings, humor, life philosophy, unique habits or quirks
 - EXCLUDE anything that is already captured as structured data:
