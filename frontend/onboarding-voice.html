@@ -322,6 +322,7 @@
       let lastVoiceAt = 0;
       let currentMimeType = "audio/webm";
       let isProcessing = false;
+      let correctionTimer = null;
 
       /* ================= DOM ================= */
 
@@ -426,7 +427,7 @@
           const res = await fetch(`${VOICE_API_BASE}/tts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: plain, voice: "marin" }),
+            body: JSON.stringify({ text: plain }),
           });
           if (!res.ok) return null;
           const data = await res.json().catch(() => ({}));
@@ -460,57 +461,13 @@
       }
 
       function initLiveTranscription() {
-        if (!SpeechRecognition || recognizer) return;
-        try {
-          recognizer = new SpeechRecognition();
-          recognizer.lang = SPEECH_LANG;
-          recognizer.interimResults = true;
-          recognizer.continuous = true;
-          recognizer.onresult = (event) => {
-            let interim = "";
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const res = event.results[i];
-              const text = res?.[0]?.transcript || "";
-              if (res.isFinal) {
-                liveFinal += text + " ";
-              } else {
-                interim += text;
-              }
-            }
-            const display = `${liveFinal}${interim}`.trim();
-            if (display) $heard.textContent = display;
-          };
-          recognizer.onerror = () => {
-            recognitionActive = false;
-          };
-          recognizer.onend = () => {
-            recognitionActive = false;
-          };
-        } catch {
-          recognizer = null;
-        }
+        /* disabled */
       }
-
       function startLiveTranscription() {
-        if (!recognizer || recognitionActive) return;
-        liveFinal = "";
-        $heard.textContent = "";
-        recognitionActive = true;
-        try {
-          recognizer.start();
-        } catch {
-          recognitionActive = false;
-        }
+        /* disabled */
       }
-
       function stopLiveTranscription() {
-        if (!recognizer || !recognitionActive) return;
-        recognitionActive = false;
-        try {
-          recognizer.stop();
-        } catch {
-          // no-op
-        }
+        /* disabled */
       }
 
       function micErrorMessage(err) {
@@ -560,13 +517,30 @@
         if (isProcessing) return;
         if (blob.size < 200) return;
         isProcessing = true;
+
+        const isCorrection = currentQ.t === "correction_window";
+        const prevAnswer = isCorrection ? answers[currentQ.id] || "" : "";
+        const activeQ = isCorrection
+          ? { ...currentQ, t: currentQ.originalT }
+          : currentQ;
+
+        if (isCorrection) {
+          clearTimeout(correctionTimer);
+          correctionTimer = null;
+        }
+
         try {
           const form = new FormData();
-          form.append("audio", blob, "speech.webm");
-          form.append("voice", "marin");
+          const ext = currentMimeType.includes("mp4") ? "mp4" : "webm";
+          form.append("audio", blob, `speech.${ext}`);
 
           if (currentQ.opts) {
             form.append("options", JSON.stringify(currentQ.opts));
+          }
+
+          if (isCorrection) {
+            form.append("is_correction", "true");
+            form.append("prev_answer", prevAnswer);
           }
 
           const res = await fetch(`${VOICE_API_BASE}/turn`, {
@@ -723,7 +697,7 @@
               startLiveTranscription();
             }
             lastVoiceAt = now;
-          } else if (speechActive && now - lastVoiceAt > 900) {
+          } else if (speechActive && now - lastVoiceAt > 1800) {
             $voiceIndicator.classList.remove("user-speaking");
             finalizeSpeech();
           }
@@ -796,14 +770,30 @@
         }
 
         answers[q.id] = mapped;
+        if (q.id === "gender" && data.gender_detail) {
+          answers["gender_detail"] = data.gender_detail;
+        }
         voiceTranscripts.push({
           question: q.q,
           said: data.transcript,
           mappedTo: mapped,
         });
+
         const replyText = data.reply || "got it";
-        $msg.textContent = replyText + "\n— " + mapped + " —";
+        $msg.textContent = replyText;
         await playAudio(data.audio);
+
+        // ✅ 에코 후 correction window 진입 (3초 대기)
+        $heard.textContent = "";
+        currentQ = { ...q, t: "correction_window", originalT: q.t };
+
+        correctionTimer = setTimeout(() => {
+          correctionTimer = null;
+          currentQ = null;
+          step++;
+          next();
+        }, 3000);
+
         step++;
         next();
       }
@@ -825,6 +815,11 @@
         }
 
         if (q.t === "gender_detail") {
+          if (answers.gender_detail) {
+            step++;
+            next();
+            return;
+          }
           if (!answers.gender) {
             setStatus("before this, tell me your gender first.");
             if (GENDER_STEP_INDEX >= 0) {

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import base64, tempfile, os
+import mimetypes
 
 from openai import OpenAI
 client = OpenAI()
@@ -13,8 +14,16 @@ MAX_AUDIO_MB = 6
 # helpers
 # =========================
 
-def safe_temp_save(file_storage):
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
+def safe_temp_save(file_storage, mime_type="audio/webm"):
+    # mime → 확장자 매핑
+    ext_map = {
+        "audio/webm": ".webm",
+        "audio/mp4":  ".mp4",
+        "audio/mpeg": ".mp3",
+        "audio/ogg":  ".ogg",
+    }
+    ext = ext_map.get(mime_type, ".webm")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     file_storage.save(tmp.name)
     return tmp.name
 
@@ -40,13 +49,13 @@ def make_audio(reply, voice_name):
 # TURN endpoint
 # =========================
 
+COCO_VOICE = "alloy"
+
 @voice_bp.route("/turn", methods=["POST"])
 def voice_turn():
 
     if "audio" not in request.files:
         return jsonify(error="missing audio"), 400
-
-    voice_name = request.form.get("voice", "alloy")
 
     # 🔥 프론트에서 전달된 옵션 배열
     import json
@@ -57,13 +66,15 @@ def voice_turn():
     try:
         audio_file = request.files["audio"]
         check_size(audio_file)
-        path = safe_temp_save(audio_file)
+        mime_type = audio_file.content_type or "audio/webm"
+        path = safe_temp_save(audio_file, mime_type)
 
         # -------- STT --------
         with open(path, "rb") as f:
             stt = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=f
+                file=f,
+                prompt="This is a dating app onboarding. The user may speak any language."
             )
 
         transcript = (stt.text or "").strip()
@@ -76,15 +87,19 @@ def voice_turn():
         if is_range:
             # age range 자유응답 파싱
             system = """
-Parse the user's spoken age range preference into min and max integers.
-The user may speak any language. Translate/understand it before extracting numbers.
-Return JSON only: {"min": <int>, "max": <int>, "reply": "<short warm acknowledgement under 10 words>"}
-Examples:
-  "20 to 35" → min:20, max:35
-  "mid twenties to early forties" → min:24, max:42
-  "i don't mind, anyone" → min:18, max:65
-If unclear, default to min:20, max:40.
-"""
+            You are COCO, a warm dating app companion.
+            The user was asked what age range they're looking for.
+
+            Return JSON only:
+            {"min": <int>, "max": <int>, "reply": "<1-2 sentences naturally echoing their preference back. e.g. 'someone between 25 and 35 — a solid range for something real.' or 'you're open to anyone from 20 to 45, i like that openness in you.'>"}
+
+            User may speak any language. Translate and extract numbers.
+            Examples:
+            "20 to 35" → 20, 35
+            "mid twenties to early forties" → 24, 42
+            "i don't mind, anyone" → 18, 65
+            If unclear, default to min:20, max:40.
+            """
             gpt = client.chat.completions.create(
                 model="gpt-4o-mini",
                 temperature=0.2,
@@ -103,7 +118,7 @@ If unclear, default to min:20, max:40.
             if mn > mx:
                 mn, mx = mx, mn
 
-            audio_b64 = make_audio(reply, voice_name)
+            audio_b64 = make_audio(reply, COCO_VOICE)
 
             return jsonify(
                 transcript=transcript,
@@ -114,44 +129,76 @@ If unclear, default to min:20, max:40.
             )
 
         else:
-            # 일반 ask — opts 중 하나로 매핑
-            system = f"""
-You are COCO onboarding assistant.
+            is_gender_q = set(opts) == {"woman", "man", "non-binary"}
+            is_correction = request.form.get("is_correction") == "true"
+            prev_answer = request.form.get("prev_answer", "")
 
-Map the user speech to EXACTLY ONE option from this list:
-{opts}
+            if is_gender_q:
+                system = f"""
+                You are COCO, a warm and emotionally intelligent dating app companion.
+                The user was asked: "how do you identify your gender?"
+                {"They previously said: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
 
-Return JSON only:
-{{
-  "mapped": "<exact option or null>",
-  "reply":  "<short warm acknowledgement under 12 words>"
-}}
+                Map their answer to ONE of: {opts}
 
-Rules:
-- The user may speak any language. Translate/understand it, then map to the list.
-- mapped MUST be verbatim from the list or null
-- be generous — ambiguous answers almost always map to something
-- if mapped is null (truly off-topic), reply must be a gentle re-ask,
-  e.g. "that's interesting — but could you tell me more about your gender?"
-"""
+                Also check if they mentioned a more specific identity.
+                Gender detail options:
+                - woman → ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"]
+                - man → ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"]
+                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming"]
+
+                Return JSON only:
+                {{
+                "mapped": "<exact option or null>",
+                "gender_detail": "<exact detail match or null>",
+                "reply": "<1-2 sentences: warmly echo what they said using their own words. feel human, not robotic. e.g. 'a trans woman — thank you for sharing that with me.' or 'non-binary and genderfluid, i love that.'>"
+                }}
+
+                Rules:
+                - User may speak any language. Understand and map correctly.
+                - mapped MUST be verbatim from the list or null
+                - If correction, acknowledge the correction naturally e.g. 'oh, cis woman — got it, my bad.'
+                - If null, reply is a gentle warm re-ask
+                """
+            else:
+                system = f"""
+                You are COCO, a warm and emotionally intelligent dating app companion.
+                The user was asked a question with these options: {opts}
+                {"They previously answered: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
+
+                Return JSON only:
+                {{
+                "mapped": "<exact option or null>",
+                "reply": "<1-2 sentences that naturally echo their answer in their own spirit. feel like a real person responding, not a bot confirming. e.g. if they said 'yeah socially', reply: 'a social drinker — love that.' if correction: 'oh wait, no worries — got it now.'>"
+                }}
+
+                Rules:
+                - User may speak any language. Understand and map correctly.
+                - mapped MUST be verbatim from the list or null
+                - Be generous — map ambiguous answers when possible
+                - If null, warm gentle re-ask referencing what they actually said
+                """
+
             gpt = client.chat.completions.create(
                 model="gpt-4o-mini",
-                temperature=0.2,
+                temperature=0.3,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system},
-                    {"role": "user",   "content": transcript}
+                    {"role": "user", "content": transcript}
                 ]
             )
             parsed = json.loads(gpt.choices[0].message.content)
             mapped = parsed.get("mapped")
-            reply  = parsed.get("reply", "got it")
+            gender_detail = parsed.get("gender_detail")
+            reply = parsed.get("reply", "got it")
 
-            audio_b64 = make_audio(reply, voice_name)
+            audio_b64 = make_audio(reply, COCO_VOICE)
 
             return jsonify(
                 transcript=transcript,
                 mapped=mapped,
+                gender_detail=gender_detail,
                 reply=reply,
                 audio=audio_b64
             )
@@ -172,10 +219,8 @@ def voice_tts():
     if not text:
         return jsonify(error="missing text"), 400
 
-    voice_name = data.get("voice", "marin")
-
     try:
-        audio_b64 = make_audio(text, voice_name)
+        audio_b64 = make_audio(text, COCO_VOICE)
         return jsonify(audio=audio_b64)
     except Exception as e:
         print("voice_tts error:", e)
