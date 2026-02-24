@@ -144,12 +144,7 @@
 
   <body>
     <div class="onboarding-page">
-      <div
-        class="chat-header brand-text"
-        style="text-align: center; padding: 30px 0 20px"
-      >
-        COCO
-      </div>
+      <div class="chat-header brand-text">COCO</div>
 
       <div class="ob-stage">
         <div class="waiting-animation">
@@ -258,8 +253,23 @@
       }
 
       function setStatus(message, heard = "") {
-        if (message) $msg.textContent = message;
+        if (message !== null && message !== undefined) $msg.textContent = message;
         if (heard !== null) $heard.textContent = heard;
+      }
+
+      function speakText(text) {
+        if (!("speechSynthesis" in window)) return;
+        const plain = String(text || "").replace(/\n+/g, " ").trim();
+        if (!plain) return;
+        try {
+          const utter = new SpeechSynthesisUtterance(plain);
+          utter.rate = 1;
+          utter.pitch = 1;
+          speechSynthesis.cancel();
+          speechSynthesis.speak(utter);
+        } catch {
+          // no-op
+        }
       }
 
       /* ================= VOICE RECORD ================= */
@@ -270,6 +280,20 @@
         stream;
 
       async function initVoice() {
+        if (initVoice.started) return;
+        initVoice.started = true;
+
+        const host = window.location.hostname;
+        const isLocal =
+          host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+        if (!window.isSecureContext && !isLocal) {
+          setStatus(
+            "mic access requires https (or localhost).\nplease open with a secure url.",
+            ""
+          );
+          return;
+        }
+
         if (!navigator.mediaDevices?.getUserMedia) {
           setStatus(
             "mic access isn't supported on this device.\nplease use the text onboarding instead.",
@@ -286,7 +310,16 @@
           return;
         }
 
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+          console.error("getUserMedia failed:", err);
+          setStatus(
+            "mic permission is required.\nplease allow access or use text onboarding.",
+            ""
+          );
+          return;
+        }
 
         const mimeType = MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
@@ -441,6 +474,7 @@
 
         if (q.t === "bot") {
           $msg.textContent = q.text;
+          speakText(q.text);
           step++;
           setTimeout(next, 1500);
           return;
@@ -500,12 +534,14 @@
 
         if (q.t === "ask") {
           $msg.textContent = q.q;
+          speakText(q.q);
           currentQ = q;
           return;
         }
 
         if (q.t === "range") {
           $msg.textContent = q.q;
+          speakText(q.q);
           currentQ = q; // opts 없음 → backend is_range=True
           return; // #6: return 추가 — done으로 fall-through 없음
         }
@@ -562,6 +598,7 @@
 
       /* ================= START ================= */
 
+      setStatus(null, "tap anywhere to enable mic");
       next();
     </script>
   </body>
