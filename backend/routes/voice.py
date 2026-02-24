@@ -66,14 +66,14 @@ def voice_turn():
     try:
         audio_file = request.files["audio"]
         check_size(audio_file)
-        mime_type = audio_file.content_type or "audio/webm"
+        mime_type = (audio_file.content_type or "audio/webm").split(";")[0].strip()
         path = safe_temp_save(audio_file, mime_type)
 
         # -------- STT --------
         with open(path, "rb") as f:
             stt = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=(os.path.basename(path), f, mime_type),
+                file=f,
                 prompt="This is a dating app onboarding. The user may speak any language."
             )
 
