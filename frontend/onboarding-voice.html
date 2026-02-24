@@ -284,7 +284,7 @@
         {
           t: "ask",
           id: "sexual_orientation",
-          q: "who are you attracted to?",
+          q: "who catches your eye?\nmen, women, everyone —\ntell me however feels natural",
           opts: [
             "men",
             "women",
@@ -793,9 +793,6 @@
           step++;
           next();
         }, 3000);
-
-        step++;
-        next();
       }
 
       /* ================= FLOW ================= */
@@ -867,7 +864,7 @@
           FLOW.splice(step, 1, {
             t: "ask",
             id: "gender_detail",
-            q: "now, choose the description\nthat best matches your gender",
+            q: "a little more specific —\ncis, trans, non-binary?\nor something else entirely?",
             opts,
           });
           next();

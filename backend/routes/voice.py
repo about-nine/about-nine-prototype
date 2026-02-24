@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import base64, tempfile, os
-import mimetypes
+import traceback
 
 from openai import OpenAI
 client = OpenAI()
@@ -158,7 +158,7 @@ def voice_turn():
                 - User may speak any language. Understand and map correctly.
                 - mapped MUST be verbatim from the list or null
                 - If correction, acknowledge the correction naturally e.g. 'oh, cis woman — got it, my bad.'
-                - If null, reply is a gentle warm re-ask
+                - If null, reply naturally hints at options without listing them robotically. e.g. 'totally okay — are you more on the cis side, trans, or somewhere in between?' or 'no worries — do you identify more as a woman, man, or somewhere outside that?'
                 """
             else:
                 system = f"""
@@ -176,7 +176,7 @@ def voice_turn():
                 - User may speak any language. Understand and map correctly.
                 - mapped MUST be verbatim from the list or null
                 - Be generous — map ambiguous answers when possible
-                - If null, warm gentle re-ask referencing what they actually said
+                - If null, reply naturally hints at the options without reading them aloud like a list. Weave 1-2 options into a conversational sentence. e.g. for attraction: 'no worries — do you lean toward men, women, or does it depend on the person?' e.g. for smoking: 'just checking — would you say yes or no to smoking?' Always reference what they actually said if possible.
                 """
 
             gpt = client.chat.completions.create(
@@ -204,7 +204,7 @@ def voice_turn():
             )
 
     except Exception as e:
-        print("voice_turn error:", e)
+        traceback.print_exc()
         return jsonify(error="voice processing failed"), 500
 
 
