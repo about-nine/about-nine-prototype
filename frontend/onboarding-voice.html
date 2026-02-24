@@ -21,6 +21,7 @@
         max-width: 480px;
         margin: 0 auto;
       }
+      
       @supports (height: 100svh) {
         .onboarding-page {
           height: 100svh;
@@ -326,26 +327,42 @@
       /* ================= AUDIO HELPER ================= */
 
       function playAudio(b64, fallbackText = "") {
-        if (!b64) {
-          if (fallbackText) speakText(fallbackText);
-          return;
-        }
-        const audio = new Audio("data:audio/mpeg;base64," + b64);
-        audio.preload = "auto";
-        audio.volume = 1;
-        $page.classList.add("coco-speaking");
-        audio.onended = () => $page.classList.remove("coco-speaking");
-        audio.onerror = () => {
-          $page.classList.remove("coco-speaking");
-          if (fallbackText) speakText(fallbackText);
-        };
-        const playPromise = audio.play();
-        if (playPromise?.catch) {
-          playPromise.catch(() => {
+        return new Promise((resolve) => {
+          if (!b64) {
+            if (fallbackText) {
+              speakText(fallbackText).then(() => resolve(false));
+            } else {
+              resolve(false);
+            }
+            return;
+          }
+          const audio = new Audio("data:audio/mpeg;base64," + b64);
+          audio.preload = "auto";
+          audio.volume = 1;
+          const finish = (played) => {
             $page.classList.remove("coco-speaking");
-            if (fallbackText) speakText(fallbackText);
-          });
-        }
+            resolve(played);
+          };
+          $page.classList.add("coco-speaking");
+          audio.onended = () => finish(true);
+          audio.onerror = () => {
+            if (fallbackText) {
+              speakText(fallbackText).then(() => finish(false));
+            } else {
+              finish(false);
+            }
+          };
+          const playPromise = audio.play();
+          if (playPromise?.catch) {
+            playPromise.catch(() => {
+              if (fallbackText) {
+                speakText(fallbackText).then(() => finish(false));
+              } else {
+                finish(false);
+              }
+            });
+          }
+        });
       }
 
       function setStatus(message, heard = "") {
@@ -371,18 +388,56 @@
       }
 
       function speakText(text) {
-        if (!("speechSynthesis" in window)) return;
+        if (!("speechSynthesis" in window)) return Promise.resolve(false);
         const plain = String(text || "").replace(/\n+/g, " ").trim();
-        if (!plain) return;
+        if (!plain) return Promise.resolve(false);
+        return new Promise((resolve) => {
+          try {
+            const utter = new SpeechSynthesisUtterance(plain);
+            utter.rate = 1;
+            utter.pitch = 1;
+            $page.classList.add("coco-speaking");
+            utter.onend = () => {
+              $page.classList.remove("coco-speaking");
+              resolve(true);
+            };
+            utter.onerror = () => {
+              $page.classList.remove("coco-speaking");
+              resolve(false);
+            };
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utter);
+          } catch {
+            $page.classList.remove("coco-speaking");
+            resolve(false);
+          }
+        });
+      }
+
+      async function fetchTtsAudio(text) {
+        const plain = String(text || "").replace(/\n+/g, " ").trim();
+        if (!plain) return null;
         try {
-          const utter = new SpeechSynthesisUtterance(plain);
-          utter.rate = 1;
-          utter.pitch = 1;
-          speechSynthesis.cancel();
-          speechSynthesis.speak(utter);
+          const res = await fetch(`${VOICE_API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: plain, voice: "marin" }),
+          });
+          if (!res.ok) return null;
+          const data = await res.json().catch(() => ({}));
+          return data.audio || null;
         } catch {
-          // no-op
+          return null;
         }
+      }
+
+      async function playCoco(text) {
+        const audio = await fetchTtsAudio(text);
+        if (audio) {
+          await playAudio(audio);
+          return;
+        }
+        await speakText(text);
       }
 
       function unlockAudioPlayback() {
@@ -577,12 +632,6 @@
             }
 
             if (data.transcript) $heard.textContent = data.transcript;
-            if (data.audio) {
-              playAudio(data.audio, data.reply || "");
-            } else if (data.reply) {
-              speakText(data.reply);
-            }
-
             await handleUtteranceServer(data, currentQ);
           } catch (e) {
             console.error("turn error:", e);
@@ -611,6 +660,10 @@
 
         function detect() {
           analyser.getByteTimeDomainData(buf);
+          if ($page.classList.contains("coco-speaking")) {
+            requestAnimationFrame(detect);
+            return;
+          }
           let sum = 0;
           for (let i = 0; i < buf.length; i++) {
             const v = (buf[i] - 128) / 128;
@@ -670,16 +723,20 @@
         if (q.t === "range") {
           if (data.min !== undefined && data.max !== undefined) {
             answers[q.id] = { min: data.min, max: data.max };
-            $msg.textContent = data.reply || "got it";
+            const replyText = data.reply || "got it";
+            $msg.textContent = replyText;
+            await playAudio(data.audio, replyText);
             step++;
             next();
           } else {
             // #5: min/max 없을 때 재질문
-            $msg.textContent =
+            const reaskText =
               (data.reply ||
                 "could you tell me the age range you have in mind?") +
               "\n\n" +
               q.q.replace(/\n/g, " ");
+            $msg.textContent = reaskText;
+            await playCoco(reaskText);
           }
           return;
         }
@@ -687,10 +744,12 @@
         // 일반 ask
         const mapped = data.mapped;
         if (!mapped) {
-          $msg.textContent =
+          const reaskText =
             (data.reply || "hmm, could you say that differently?") +
             "\n\n" +
             q.q.replace(/\n/g, " ");
+          $msg.textContent = reaskText;
+          await playCoco(reaskText);
           return;
         }
 
@@ -702,7 +761,7 @@
         });
         const replyText = data.reply || "got it";
         $msg.textContent = replyText + "\n— " + mapped + " —";
-        speakText(replyText);
+        await playAudio(data.audio, replyText);
         step++;
         next();
       }
@@ -717,9 +776,9 @@
 
         if (q.t === "bot") {
           $msg.textContent = q.text;
-          speakText(q.text);
+          await playCoco(q.text);
           step++;
-          setTimeout(next, 1500);
+          next();
           return;
         }
 
@@ -778,7 +837,7 @@
         if (q.t === "ask") {
           $msg.textContent = q.q;
           $heard.textContent = "";
-          speakText(q.q);
+          await playCoco(q.q);
           currentQ = q;
           return;
         }
@@ -786,7 +845,7 @@
         if (q.t === "range") {
           $msg.textContent = q.q;
           $heard.textContent = "";
-          speakText(q.q);
+          await playCoco(q.q);
           currentQ = q; // opts 없음 → backend is_range=True
           return; // #6: return 추가 — done으로 fall-through 없음
         }

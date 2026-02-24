@@ -160,6 +160,27 @@ Rules:
 
 
 # =========================
+# TTS endpoint
+# =========================
+
+@voice_bp.route("/tts", methods=["POST"])
+def voice_tts():
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify(error="missing text"), 400
+
+    voice_name = data.get("voice", "marin")
+
+    try:
+        audio_b64 = make_audio(text, voice_name)
+        return jsonify(audio=audio_b64)
+    except Exception as e:
+        print("voice_tts error:", e)
+        return jsonify(error="tts failed"), 500
+
+
+# =========================
 # BIO endpoint
 # =========================
 
