@@ -329,37 +329,51 @@
       function playAudio(b64, fallbackText = "") {
         return new Promise((resolve) => {
           if (!b64) {
-            if (fallbackText) {
-              speakText(fallbackText).then(() => resolve(false));
-            } else {
-              resolve(false);
-            }
+            resolve(false);
             return;
           }
-          const audio = new Audio("data:audio/mpeg;base64," + b64);
+          let audioUrl = "";
+          try {
+            const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: "audio/mpeg" });
+            audioUrl = URL.createObjectURL(blob);
+          } catch {
+            audioUrl = "data:audio/mpeg;base64," + b64;
+          }
+          const audio = new Audio(audioUrl);
           audio.preload = "auto";
           audio.volume = 1;
+          let done = false;
           const finish = (played) => {
+            if (done) return;
+            done = true;
             $page.classList.remove("coco-speaking");
+            if (audioUrl.startsWith("blob:")) {
+              try { URL.revokeObjectURL(audioUrl); } catch {}
+            }
             resolve(played);
           };
           $page.classList.add("coco-speaking");
-          audio.onended = () => finish(true);
+          const fallback = () => {
+            finish(false);
+          };
+          const timeout = setTimeout(() => {
+            try { audio.pause(); } catch {}
+            fallback();
+          }, 8000);
+          audio.onended = () => {
+            clearTimeout(timeout);
+            finish(true);
+          };
           audio.onerror = () => {
-            if (fallbackText) {
-              speakText(fallbackText).then(() => finish(false));
-            } else {
-              finish(false);
-            }
+            clearTimeout(timeout);
+            fallback();
           };
           const playPromise = audio.play();
           if (playPromise?.catch) {
             playPromise.catch(() => {
-              if (fallbackText) {
-                speakText(fallbackText).then(() => finish(false));
-              } else {
-                finish(false);
-              }
+              clearTimeout(timeout);
+              fallback();
             });
           }
         });
@@ -387,31 +401,9 @@
         next();
       }
 
-      function speakText(text) {
-        if (!("speechSynthesis" in window)) return Promise.resolve(false);
-        const plain = String(text || "").replace(/\n+/g, " ").trim();
-        if (!plain) return Promise.resolve(false);
-        return new Promise((resolve) => {
-          try {
-            const utter = new SpeechSynthesisUtterance(plain);
-            utter.rate = 1;
-            utter.pitch = 1;
-            $page.classList.add("coco-speaking");
-            utter.onend = () => {
-              $page.classList.remove("coco-speaking");
-              resolve(true);
-            };
-            utter.onerror = () => {
-              $page.classList.remove("coco-speaking");
-              resolve(false);
-            };
-            speechSynthesis.cancel();
-            speechSynthesis.speak(utter);
-          } catch {
-            $page.classList.remove("coco-speaking");
-            resolve(false);
-          }
-        });
+      function speakText() {
+        // Web speech synthesis is intentionally disabled.
+        return Promise.resolve(false);
       }
 
       async function fetchTtsAudio(text) {
@@ -434,10 +426,9 @@
       async function playCoco(text) {
         const audio = await fetchTtsAudio(text);
         if (audio) {
-          await playAudio(audio);
-          return;
+          const played = await playAudio(audio);
+          if (played) return;
         }
-        await speakText(text);
       }
 
       function unlockAudioPlayback() {
@@ -450,16 +441,6 @@
           if (p?.catch) p.catch(() => {});
         } catch {
           // no-op
-        }
-
-        if ("speechSynthesis" in window) {
-          try {
-            const utter = new SpeechSynthesisUtterance(" ");
-            speechSynthesis.speak(utter);
-            speechSynthesis.cancel();
-          } catch {
-            // no-op
-          }
         }
       }
 

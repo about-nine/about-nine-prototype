@@ -30,6 +30,7 @@ def make_audio(reply, voice_name):
         model="gpt-4o-mini-tts",
         voice=voice_name,
         input=reply,
+        response_format="mp3",
         instructions="Speak in clear, natural English with a neutral accent."
     )
     return base64.b64encode(tts.read()).decode()
