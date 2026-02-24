@@ -575,17 +575,10 @@
         stopLiveTranscription();
         $voiceIndicator.classList.remove("user-speaking");
 
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-          mediaRecorder.onstop = () => {
-            const blob = new Blob(speechChunks, { type: currentMimeType });
-            speechChunks = [];
-            processSpeechBlob(blob);
-            // 다음 발화를 위해 재시작 — 재시작 첫 청크에 헤더가 새로 포함됨
-            try {
-              mediaRecorder.start(250);
-            } catch (e) {}
-          };
-          mediaRecorder.stop();
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          try {
+            mediaRecorder.stop();
+          } catch (e) {}
         }
       }
 
@@ -655,20 +648,14 @@
           return false;
         }
         mediaRecorder.ondataavailable = (e) => {
-          if (!speechActive) return;
           if (e.data && e.data.size > 0) speechChunks.push(e.data);
         };
-        mediaRecorder.onstop = () => {};
-
-        try {
-          mediaRecorder.start(250);
-        } catch (err) {
-          console.error("MediaRecorder start failed:", err);
-          const msg = micErrorMessage(err);
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
+        mediaRecorder.onstop = () => {
+          if (!speechChunks.length) return;
+          const blob = new Blob(speechChunks, { type: currentMimeType });
+          speechChunks = [];
+          processSpeechBlob(blob);
+        };
 
         let ctx;
         try {
@@ -706,6 +693,11 @@
               speechChunks = [];
               speechActive = true;
               startLiveTranscription();
+              if (mediaRecorder && mediaRecorder.state === "inactive") {
+                try {
+                  mediaRecorder.start(250);
+                } catch (e) {}
+              }
             }
             lastVoiceAt = now;
           } else if (speechActive && now - lastVoiceAt > 1800) {

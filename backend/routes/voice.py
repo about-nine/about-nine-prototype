@@ -43,7 +43,7 @@ def make_audio(reply, voice_name):
         voice=voice_name,
         input=reply,
         response_format="mp3",
-        speed=1.15, 
+        speed=1.2, 
         instructions="Speak in a warm, balanced, and gender-neutral voice. Your tone should be inviting and charismatic, striking a perfect balance between a professional concierge and a close friend. Maintain a natural, rhythmic pace with slight pauses to sound thoughtful. Avoid any mechanical stiffness; instead, use a soft, melodic intonation that conveys genuine curiosity and empathy. Your goal is to make the user feel heard, valued, and comfortable sharing their story."
     )
     return base64.b64encode(tts.read()).decode()
