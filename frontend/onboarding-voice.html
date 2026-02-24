@@ -177,6 +177,10 @@
       const phone = getFromLocal("phone");
       const lastName = getFromLocal("lastName") || "";
       const VOICE_API_BASE = `${API_BASE}/voice`;
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SILENT_WAV_B64 =
+        "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
       /* ================= FLOW ================= */
 
@@ -235,6 +239,10 @@
       const voiceTranscripts = [];
       let currentQ = null;
       const GENDER_STEP_INDEX = FLOW.findIndex((item) => item.id === "gender");
+      let audioUnlocked = false;
+      let recognizer = null;
+      let recognitionActive = false;
+      let liveFinal = "";
 
       /* ================= DOM ================= */
 
@@ -245,11 +253,27 @@
 
       /* ================= AUDIO HELPER ================= */
 
-      function playAudio(b64) {
-        const audio = new Audio("data:audio/mp3;base64," + b64);
+      function playAudio(b64, fallbackText = "") {
+        if (!b64) {
+          if (fallbackText) speakText(fallbackText);
+          return;
+        }
+        const audio = new Audio("data:audio/mpeg;base64," + b64);
+        audio.preload = "auto";
+        audio.volume = 1;
         $page.classList.add("coco-speaking");
         audio.onended = () => $page.classList.remove("coco-speaking");
-        audio.play();
+        audio.onerror = () => {
+          $page.classList.remove("coco-speaking");
+          if (fallbackText) speakText(fallbackText);
+        };
+        const playPromise = audio.play();
+        if (playPromise?.catch) {
+          playPromise.catch(() => {
+            $page.classList.remove("coco-speaking");
+            if (fallbackText) speakText(fallbackText);
+          });
+        }
       }
 
       function setStatus(message, heard = "") {
@@ -267,6 +291,83 @@
           utter.pitch = 1;
           speechSynthesis.cancel();
           speechSynthesis.speak(utter);
+        } catch {
+          // no-op
+        }
+      }
+
+      function unlockAudioPlayback() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+        try {
+          const audio = new Audio("data:audio/wav;base64," + SILENT_WAV_B64);
+          audio.volume = 0;
+          const p = audio.play();
+          if (p?.catch) p.catch(() => {});
+        } catch {
+          // no-op
+        }
+
+        if ("speechSynthesis" in window) {
+          try {
+            const utter = new SpeechSynthesisUtterance(" ");
+            speechSynthesis.speak(utter);
+            speechSynthesis.cancel();
+          } catch {
+            // no-op
+          }
+        }
+      }
+
+      function initLiveTranscription() {
+        if (!SpeechRecognition || recognizer) return;
+        try {
+          recognizer = new SpeechRecognition();
+          recognizer.lang = navigator.language || "en-US";
+          recognizer.interimResults = true;
+          recognizer.continuous = true;
+          recognizer.onresult = (event) => {
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const res = event.results[i];
+              const text = res?.[0]?.transcript || "";
+              if (res.isFinal) {
+                liveFinal += text + " ";
+              } else {
+                interim += text;
+              }
+            }
+            const display = `${liveFinal}${interim}`.trim();
+            if (display) $heard.textContent = display;
+          };
+          recognizer.onerror = () => {
+            recognitionActive = false;
+          };
+          recognizer.onend = () => {
+            recognitionActive = false;
+          };
+        } catch {
+          recognizer = null;
+        }
+      }
+
+      function startLiveTranscription() {
+        if (!recognizer || recognitionActive) return;
+        liveFinal = "";
+        $heard.textContent = "";
+        recognitionActive = true;
+        try {
+          recognizer.start();
+        } catch {
+          recognitionActive = false;
+        }
+      }
+
+      function stopLiveTranscription() {
+        if (!recognizer || !recognitionActive) return;
+        recognitionActive = false;
+        try {
+          recognizer.stop();
         } catch {
           // no-op
         }
@@ -321,6 +422,8 @@
           return;
         }
 
+        initLiveTranscription();
+
         const mimeType = MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
           : MediaRecorder.isTypeSupported("audio/mp4")
@@ -331,6 +434,7 @@
         mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
 
         mediaRecorder.onstop = async () => {
+          stopLiveTranscription();
           if (!currentQ) return;
           const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
           chunks = [];
@@ -360,7 +464,11 @@
             }
 
             if (data.transcript) $heard.textContent = data.transcript;
-            if (data.audio) playAudio(data.audio);
+            if (data.audio) {
+              playAudio(data.audio, data.reply || "");
+            } else if (data.reply) {
+              speakText(data.reply);
+            }
 
             await handleUtteranceServer(data, currentQ);
           } catch (e) {
@@ -392,11 +500,15 @@
             $voiceIndicator.classList.add("user-speaking");
             if (mediaRecorder.state === "inactive") {
               chunks = [];
+              startLiveTranscription();
               mediaRecorder.start();
             }
             clearTimeout(silenceTimer);
             silenceTimer = setTimeout(() => {
-              if (mediaRecorder.state === "recording") mediaRecorder.stop();
+              if (mediaRecorder.state === "recording") {
+                stopLiveTranscription();
+                mediaRecorder.stop();
+              }
               $voiceIndicator.classList.remove("user-speaking");
             }, 900);
           }
@@ -411,6 +523,7 @@
         "click",
         function startOnFirstTap() {
           document.removeEventListener("click", startOnFirstTap);
+          unlockAudioPlayback();
           initVoice().catch((err) => {
             console.error("마이크 초기화 실패:", err);
             setStatus(
@@ -459,7 +572,9 @@
           said: data.transcript,
           mappedTo: mapped,
         });
-        $msg.textContent = (data.reply || "got it") + "\n— " + mapped + " —";
+        const replyText = data.reply || "got it";
+        $msg.textContent = replyText + "\n— " + mapped + " —";
+        speakText(replyText);
         step++;
         next();
       }
@@ -534,6 +649,7 @@
 
         if (q.t === "ask") {
           $msg.textContent = q.q;
+          $heard.textContent = "";
           speakText(q.q);
           currentQ = q;
           return;
@@ -541,6 +657,7 @@
 
         if (q.t === "range") {
           $msg.textContent = q.q;
+          $heard.textContent = "";
           speakText(q.q);
           currentQ = q; // opts 없음 → backend is_range=True
           return; // #6: return 추가 — done으로 fall-through 없음
