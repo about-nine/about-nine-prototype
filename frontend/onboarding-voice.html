@@ -923,6 +923,7 @@
             age,
             birthdate,
             phone,
+            transcripts: voiceTranscripts,
             ...(bio ? { bio } : {}),
           });
           saveToLocal("onboarding_completed", true);

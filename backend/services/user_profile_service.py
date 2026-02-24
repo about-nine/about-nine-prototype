@@ -1,10 +1,11 @@
+import os
 import time
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 from firebase_admin import firestore
 
-from backend.services.embedding_service import normalize_vector
+from backend.services.embedding_service import EmbeddingService, normalize_vector
 from backend.services.firestore import get_firestore
 
 def _get_db():
@@ -13,6 +14,51 @@ def _get_db():
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+DEFAULT_EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1536"))
+
+
+def default_embedding_payload(source: str = "default") -> Dict[str, Any]:
+    return {
+        "is_default": True,
+        "dim": DEFAULT_EMBEDDING_DIM,
+        "updated_at": _now_ms(),
+        "source": source,
+    }
+
+
+def transcripts_to_text(transcripts: Iterable[Dict[str, Any]]) -> str:
+    if not transcripts:
+        return ""
+    lines: List[str] = []
+    for item in transcripts:
+        if not isinstance(item, dict):
+            continue
+        question = (item.get("question") or "").strip()
+        said = (item.get("said") or "").strip()
+        if not said:
+            continue
+        if question:
+            lines.append(f"Q: {question}\nA: {said}")
+        else:
+            lines.append(said)
+    return "\n".join(lines).strip()
+
+
+def embedding_payload_from_text(text: str, source: str) -> Optional[Dict[str, Any]]:
+    if not text or not text.strip():
+        return None
+    vec = EmbeddingService().encode_text(text)
+    if not vec:
+        return None
+    return {
+        "vector": vec,
+        "dim": len(vec),
+        "updated_at": _now_ms(),
+        "is_default": False,
+        "source": source,
+    }
 
 
 def _as_vector(values: Iterable) -> Optional[List[float]]:
@@ -65,6 +111,8 @@ def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: f
                 "vector": new_vec,
                 "dim": len(new_vec),
                 "updated_at": _now_ms(),
+                "is_default": False,
+                "source": "pair_embedding",
             }
         },
         merge=True,

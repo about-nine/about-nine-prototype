@@ -2,6 +2,11 @@ from datetime import datetime
 from flask import Blueprint, jsonify, session
 
 from backend.services.firestore import get_firestore
+from backend.services.user_profile_service import (
+    default_embedding_payload,
+    embedding_payload_from_text,
+    transcripts_to_text,
+)
 from backend.utils.request import get_json
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
@@ -24,6 +29,7 @@ def save_onboarding():
     birthdate = data.get("birthdate")
     phone = data.get("phone")
     bio = data.get("bio")
+    transcripts = data.get("transcripts")
 
     if profile is None:
         return jsonify(success=False, message="profile is required"), 400
@@ -73,6 +79,18 @@ def save_onboarding():
         
     if bio and bio.strip():
         update_data["bio"] = bio.strip()
+
+    # Embedding: voice onboarding uses transcripts; chat onboarding gets default embedding.
+    embedding_payload = None
+    if isinstance(transcripts, list) and transcripts:
+        text = transcripts_to_text(transcripts)
+        embedding_payload = embedding_payload_from_text(text, "onboarding_voice")
+        if not embedding_payload:
+            embedding_payload = default_embedding_payload("onboarding_voice_fallback")
+    else:
+        embedding_payload = default_embedding_payload("onboarding_chat")
+
+    update_data["embedding"] = embedding_payload
 
     db.collection("users").document(user_id).set(update_data, merge=True)
 

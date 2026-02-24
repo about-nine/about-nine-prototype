@@ -31,12 +31,12 @@ def _label_from_go_no_go(go_no_go: Dict) -> int | None:
     if not isinstance(go_no_go, dict) or not go_no_go:
         return None
     values = [v for v in go_no_go.values() if isinstance(v, bool)]
-    if not values:
+    if len(values) < 2:
         return None
 
     # 둘 다 Go → 1 (케미 있음)
     # 한쪽이라도 No → 0 (케미 없음)
-    # 한 명만 응답해도 사용 (데이터 버리지 않음)
+    # 둘 다 응답한 페어만 사용
     return 1 if all(values) else 0
 
 

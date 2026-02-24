@@ -452,7 +452,7 @@ def update_profile():
         update_data["gender_detail"] = final_gender_detail
     elif final_gender_detail:
         update_data["gender_detail"] = final_gender_detail
-    
+
     db.collection("users").document(user_id).set(update_data, merge=True)
     
     return jsonify(success=True)

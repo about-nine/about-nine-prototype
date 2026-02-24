@@ -127,7 +127,9 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     }
 
     me = users.get(uid) or {}
-    my_vec = (me.get("embedding") or {}).get("vector")
+    my_embedding = me.get("embedding") or {}
+    my_vec = my_embedding.get("vector")
+    my_default = my_embedding.get("is_default") is True
 
     my_blocked = set(me.get("blocked_users") or [])
     my_loc = me.get("location") or {}
@@ -194,6 +196,8 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
                 continue
 
         candidates.append(other_id)
+        if my_default or not my_vec:
+            continue
 
         other_vec = (user.get("embedding") or {}).get("vector")
         if not other_vec:
@@ -202,12 +206,16 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
         s = _cosine(my_vec, other_vec)
         scores.append((other_id, s))
 
-    if not my_vec:
+    def _random_fallback():
+        if not candidates:
+            return []
         random.shuffle(candidates)
-        return [(uid, 0.0) for uid in candidates[: min(5, len(candidates))]]
+        return [(cid, 0.0) for cid in candidates[: min(top_k, len(candidates))]]
+
+    if my_default or not my_vec:
+        return _random_fallback()
 
     scores.sort(key=lambda x: -x[1])
     if not scores:
-        random.shuffle(candidates)
-        return [(uid, 0.0) for uid in candidates[: min(5, len(candidates))]]
+        return _random_fallback()
     return scores[:top_k]

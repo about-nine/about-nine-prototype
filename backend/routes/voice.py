@@ -52,7 +52,7 @@ def make_audio(reply, voice_name):
 # TURN endpoint
 # =========================
 
-COCO_VOICE = "alloy"
+COCO_VOICE = "echo"
 
 @voice_bp.route("/turn", methods=["POST"])
 def voice_turn():
