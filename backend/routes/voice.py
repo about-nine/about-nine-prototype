@@ -74,10 +74,13 @@ def voice_turn():
 
         # -------- STT --------
         with open(path, "rb") as f:
+            question_ctx = request.form.get("question_ctx", "")
+            prompt = f"This is a dating app onboarding. The user may speak any language. The question asked was: {question_ctx}" if question_ctx else "This is a dating app onboarding. The user may speak any language."
+
             stt = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f,
-                prompt="This is a dating app onboarding. The user may speak any language."
+                prompt=prompt
             )
 
         transcript = (stt.text or "").strip()
