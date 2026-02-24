@@ -573,9 +573,20 @@
         if (!speechActive) return;
         speechActive = false;
         stopLiveTranscription();
-        const blob = new Blob(speechChunks, { type: currentMimeType });
-        speechChunks = [];
-        processSpeechBlob(blob);
+        $voiceIndicator.classList.remove("user-speaking");
+
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(speechChunks, { type: currentMimeType });
+            speechChunks = [];
+            processSpeechBlob(blob);
+            // 다음 발화를 위해 재시작 — 재시작 첫 청크에 헤더가 새로 포함됨
+            try {
+              mediaRecorder.start(250);
+            } catch (e) {}
+          };
+          mediaRecorder.stop();
+        }
       }
 
       /* ================= VOICE RECORD ================= */

@@ -17,10 +17,13 @@ MAX_AUDIO_MB = 6
 def safe_temp_save(file_storage, mime_type="audio/webm"):
     # mime → 확장자 매핑
     ext_map = {
-        "audio/webm": ".webm",
-        "audio/mp4":  ".m4a",
-        "audio/mpeg": ".mp3",
-        "audio/ogg":  ".ogg",
+        "audio/webm":  ".webm",
+        "audio/mp4":   ".m4a",
+        "audio/mpeg":  ".mp3",
+        "audio/ogg":   ".ogg",
+        "audio/wav":   ".wav",
+        "audio/x-wav": ".wav",
+        "audio/oga":   ".ogg",
     }
     ext = ext_map.get(mime_type, ".webm")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
@@ -247,21 +250,17 @@ def voice_bio():
         )
 
         system = """
-Create a short natural dating bio.
+        Create a short natural dating bio.
 
-Rules:
-- first person, max 2 sentences, lowercase
-- if the user's words are not in English, translate into natural English
-- ONLY include genuinely personal expressions: personality traits, passions,
-  feelings, humor, life philosophy, unique habits or quirks
-- EXCLUDE anything that is already captured as structured data:
-  gender identity, gender detail, drinking habits, smoking, marijuana use,
-  sexual orientation, age preferences
-- If the person's words reveal nothing personal BEYOND those structured fields,
-  return exactly: (empty string)
-- Do NOT mention the app or matchmaking context
-- Write naturally, as if the person wrote it themselves
-"""
+        Rules:
+        - first person, max 2 sentences, lowercase
+        - if the user's words are not in English, translate into natural English
+        - ONLY include genuinely personal expressions: personality traits, passions, feelings, humor, life philosophy, unique habits or quirks
+        - EXCLUDE anything that is already captured as structured data: gender identity, gender detail, drinking habits, smoking, marijuana use, sexual orientation, age preferences
+        - If the person's words reveal nothing personal BEYOND those structured fields, return exactly: (empty string)
+        - Do NOT mention the app or matchmaking context
+        - Write naturally, as if the person wrote it themselves
+        """
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
