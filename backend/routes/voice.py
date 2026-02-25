@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 import base64, tempfile, os
 import traceback
+import re
 
 from openai import OpenAI
 client = OpenAI()
@@ -84,7 +85,14 @@ def voice_turn():
         if not transcript:
             return jsonify(transcript="")
         
-        if len(transcript) < 2:
+        clean = transcript.strip()
+
+        # 최소 한 글자 이상의 알파벳/숫자 포함 필요
+        if not re.search(r"[a-zA-Z0-9]", clean):
+            return jsonify(transcript="")
+
+        # 너무 짧은 단일 문자 noise 제거 (예: "uh","h")
+        if len(clean) <= 1:
             return jsonify(transcript="")
 
         # -------- GPT mapping --------
@@ -157,17 +165,18 @@ def voice_turn():
                 "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man", 
                 "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"]
 
-                Mapping rules:
+                 Mapping rules:
+                - if base gender is clear, ALWAYS set mapped — even if detail is unknown
+                - "woman", "i'm a woman", "female" → mapped: woman, detail: null (ask detail separately)
+                - "man", "i'm a man", "male" → mapped: man, detail: null
+                - "non-binary" → mapped: non-binary, detail: null
                 - "trans woman", "transgender woman" → mapped: woman, detail: trans woman
                 - "trans man", "transgender man" → mapped: man, detail: trans man
-                - "genderfluid", "genderqueer", "agender", "two-spirit" etc → mapped: non-binary, detail: <match>
-                - "transgender" alone (no base gender) → mapped: null, detail: transgender
+                - "genderfluid", "agender", "two-spirit" etc → mapped: non-binary, detail: <match>
+                - "transgender" alone → mapped: null, detail: transgender
                 - "intersex" alone → mapped: null, detail: intersex
-                - anything implying woman/female → mapped: woman
-                - anything implying man/male → mapped: man
-                - anything outside binary → mapped: non-binary
                 - if truly unclear → mapped: null
-
+                
                 When mapped is null: reply asks ONLY about base gender in one sentence.
                 e.g. 'got it — do you identify more as a woman, man, or non-binary?'
 
@@ -175,7 +184,7 @@ def voice_turn():
                 {{
                 "mapped": "<exact option from {opts} or null>",
                 "gender_detail": "<exact detail match or null>",
-                "reply": "<one sentence. if both mapped+detail, echo the detail. if only mapped, echo that. if null, ask for base gender only.>"
+                "reply": "<one sentence. if mapped is set (even with null detail), echo the mapped gender warmly and move on. e.g. 'a woman — love that.' ONLY ask a follow-up if mapped is null.>"
                 }}
 
                 Rules:

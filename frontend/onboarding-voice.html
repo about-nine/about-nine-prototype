@@ -277,8 +277,8 @@
       let correctionTimer = null;
       let ambientLevel = 0.03;
       let voiceFrameCount = 0;
-      let silentFrameCount = 0;
-      const SILENT_FRAMES_TO_FINALIZE = 75; // 60fps 기준 약 1.25초
+      let lastVoiceTime = 0;
+      const SILENCE_MS = 1300;
 
       /* ================= DOM ================= */
 
@@ -673,9 +673,11 @@
 
         function detect() {
           analyser.getByteTimeDomainData(buf);
-          if (!currentQ || $page.classList.contains("coco-speaking")) {
+          if (
+            !currentQ ||
+            $page.classList.contains("coco-speaking")
+          ) {
             voiceFrameCount = 0;
-            silentFrameCount = 0;
             requestAnimationFrame(detect);
             return;
           }
@@ -687,7 +689,7 @@
           const vol = Math.sqrt(sum / buf.length);
 
           if (vol > ambientLevel) {
-            silentFrameCount = 0;
+            lastVoiceTime = Date.now();
             voiceFrameCount++;
             if (voiceFrameCount >= 3) {
               $voiceIndicator.classList.add("user-speaking");
@@ -697,7 +699,7 @@
                 startLiveTranscription();
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
                   try {
-                    mediaRecorder.start(250);
+                    mediaRecorder.start();
                   } catch (e) {}
                 }
               }
@@ -705,14 +707,10 @@
           } else {
             voiceFrameCount = 0;
             if (speechActive) {
-              silentFrameCount++;
-              if (silentFrameCount >= SILENT_FRAMES_TO_FINALIZE) {
-                silentFrameCount = 0;
+              if (speechActive && Date.now() - lastVoiceTime > SILENCE_MS) {
                 $voiceIndicator.classList.remove("user-speaking");
                 finalizeSpeech();
               }
-            } else {
-              silentFrameCount = 0;
             }
           }
 
