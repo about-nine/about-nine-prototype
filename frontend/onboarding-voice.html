@@ -272,12 +272,13 @@
       let flowStarted = false;
       let speechChunks = [];
       let speechActive = false;
-      let lastVoiceAt = 0;
       let currentMimeType = "audio/webm";
       let isProcessing = false;
       let correctionTimer = null;
       let ambientLevel = 0.03;
       let voiceFrameCount = 0;
+      let silentFrameCount = 0;
+      const SILENT_FRAMES_TO_FINALIZE = 75; // 60fps 기준 약 1.25초
 
       /* ================= DOM ================= */
 
@@ -462,7 +463,6 @@
         stream = null;
         speechChunks = [];
         speechActive = false;
-        lastVoiceAt = 0;
         isProcessing = false;
         initVoice.started = false;
       }
@@ -497,7 +497,7 @@
                   ? "wav"
                   : "webm";
           form.append("audio", blob, `speech.${ext}`);
-          form.append("question_ctx", activeQ.q?.replace(/\n/g, " ") || "");
+          form.append("type", activeQ.t || "ask");
 
           if (currentQ.opts) {
             form.append("options", JSON.stringify(currentQ.opts));
@@ -655,7 +655,7 @@
               }
               samples.push(Math.sqrt(sum / buf.length));
               count++;
-              if (count < 20) {
+              if (count < 60) {
                 requestAnimationFrame(sample);
               } else {
                 const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
@@ -671,6 +671,7 @@
           analyser.getByteTimeDomainData(buf);
           if (!currentQ || $page.classList.contains("coco-speaking")) {
             voiceFrameCount = 0;
+            silentFrameCount = 0;
             requestAnimationFrame(detect);
             return;
           }
@@ -681,8 +682,8 @@
           }
           const vol = Math.sqrt(sum / buf.length);
 
-          const now = Date.now();
           if (vol > ambientLevel) {
+            silentFrameCount = 0;
             voiceFrameCount++;
             if (voiceFrameCount >= 3) {
               $voiceIndicator.classList.add("user-speaking");
@@ -696,13 +697,18 @@
                   } catch (e) {}
                 }
               }
-              lastVoiceAt = now;
             }
           } else {
             voiceFrameCount = 0;
-            if (speechActive && now - lastVoiceAt > 1800) {
-              $voiceIndicator.classList.remove("user-speaking");
-              finalizeSpeech();
+            if (speechActive) {
+              silentFrameCount++;
+              if (silentFrameCount >= SILENT_FRAMES_TO_FINALIZE) {
+                silentFrameCount = 0;
+                $voiceIndicator.classList.remove("user-speaking");
+                finalizeSpeech();
+              }
+            } else {
+              silentFrameCount = 0;
             }
           }
 
@@ -710,6 +716,14 @@
           // #8: $page를 detect 안에서 다시 선언하지 않음
         }
         await calibrateAmbient();
+
+        // 30초마다 말 안 할 때 재캘리브레이션
+        setInterval(async () => {
+          if (!speechActive && !$page.classList.contains("coco-speaking")) {
+            await calibrateAmbient();
+          }
+        }, 30000);
+
         detect();
         initVoice.started = true;
         showPermissionError("");

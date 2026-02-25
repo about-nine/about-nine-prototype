@@ -37,10 +37,10 @@ def check_size(file_storage):
     if size > MAX_AUDIO_MB * 1024 * 1024:
         raise ValueError("audio too large")
 
-def make_audio(reply, voice_name):
+def make_audio(reply):
     tts = client.audio.speech.create(
         model="gpt-4o-mini-tts",
-        voice=voice_name,
+        voice="echo",
         input=reply,
         response_format="mp3",
         speed=1.2, 
@@ -52,8 +52,6 @@ def make_audio(reply, voice_name):
 # TURN endpoint
 # =========================
 
-COCO_VOICE = "echo"
-
 @voice_bp.route("/turn", methods=["POST"])
 def voice_turn():
 
@@ -64,27 +62,24 @@ def voice_turn():
     import json
     opts_raw   = request.form.get("options")
     opts       = json.loads(opts_raw) if opts_raw else []
-    is_range   = not opts
+    qtype = request.form.get("type", "")
+    is_range = qtype == "range"
 
+    path = None
     try:
         audio_file = request.files["audio"]
         check_size(audio_file)
         mime_type = (audio_file.content_type or "audio/webm").split(";")[0].strip()
         path = safe_temp_save(audio_file, mime_type)
 
-        # -------- STT --------
         with open(path, "rb") as f:
-            question_ctx = request.form.get("question_ctx", "")
-            prompt = f"This is a dating app onboarding. The user may speak any language. The question asked was: {question_ctx}" if question_ctx else "This is a dating app onboarding. The user may speak any language."
-
             stt = client.audio.transcriptions.create(
-                model="whisper-1",
+                model="gpt-4o-transcribe",
                 file=f,
-                prompt=prompt
+                temperature=0
             )
 
         transcript = (stt.text or "").strip()
-        os.remove(path)
 
         if not transcript:
             return jsonify(transcript="")
@@ -124,7 +119,7 @@ def voice_turn():
             if mn > mx:
                 mn, mx = mx, mn
 
-            audio_b64 = make_audio(reply, COCO_VOICE)
+            audio_b64 = make_audio(reply) if reply else None
 
             return jsonify(
                 transcript=transcript,
@@ -157,7 +152,7 @@ def voice_turn():
                 {{
                 "mapped": "<exact option or null>",
                 "gender_detail": "<exact detail match or null>",
-                "reply": "<one short sentence only. echo warmly if mapped. if null, gently redirect to the question — stay on task. e.g. 'no worries — are you more on the cis side, trans, or somewhere else?' never offer to change topics or skip the question.>"
+                "reply": "<one short sentence. if gender_detail is present, echo the detail — not just the base gender. e.g. 'a cis woman — got it.' or 'a trans woman — thank you for sharing that.' if only base gender, echo that. if null, redirect gently.>"
                 }}
 
                 Rules:
@@ -187,7 +182,7 @@ def voice_turn():
                 - Be generous — map ambiguous answers when possible
                 - If null, reply naturally hints at the options without reading them aloud like a list. Weave 1-2 options into a conversational sentence. e.g. for attraction: 'no worries — do you lean toward men, women, or does it depend on the person?' e.g. for smoking: 'just checking — would you say yes or no to smoking?' Always reference what they actually said if possible.
                 - reply MUST be one sentence, under 15 words
-                - if user deflects or says they don't want to answer, briefly acknowledge and ask again: 'no pressure — just a quick yes or no?'
+                - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
                 - NEVER suggest skipping or moving on
                 """
 
@@ -203,8 +198,10 @@ def voice_turn():
             parsed = json.loads(gpt.choices[0].message.content)
             mapped = parsed.get("mapped")
             if isinstance(mapped, str):
-                mapped = mapped.strip().lower()
-            if mapped not in opts:
+                mapped_norm = mapped.strip().lower()
+                opts_norm = {o.lower(): o for o in opts}
+                mapped = opts_norm.get(mapped_norm)
+            else:
                 mapped = None
 
             gender_detail = parsed.get("gender_detail")
@@ -242,7 +239,7 @@ def voice_turn():
                     gender_detail = None
             reply = parsed.get("reply", "got it")
 
-            audio_b64 = make_audio(reply, COCO_VOICE)
+            audio_b64 = make_audio(reply) if reply else None
 
             return jsonify(
                 transcript=transcript,
@@ -255,6 +252,10 @@ def voice_turn():
     except Exception as e:
         traceback.print_exc()
         return jsonify(error="voice processing failed"), 500
+
+    finally:
+        if path and os.path.exists(path):
+            os.remove(path)
 
 
 # =========================
@@ -269,7 +270,7 @@ def voice_tts():
         return jsonify(error="missing text"), 400
 
     try:
-        audio_b64 = make_audio(text, COCO_VOICE)
+        audio_b64 = make_audio(text)
         return jsonify(audio=audio_b64)
     except Exception as e:
         print("voice_tts error:", e)
