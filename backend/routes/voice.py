@@ -66,6 +66,17 @@ def voice_turn():
     opts       = json.loads(opts_raw) if opts_raw else []
     qtype = request.form.get("type", "")
     is_range = qtype == "range"
+    lang_candidates_raw = request.form.get("lang_candidates")
+    lang_codes = []
+    if lang_candidates_raw:
+        try:
+            lang_candidates = json.loads(lang_candidates_raw)
+            if isinstance(lang_candidates, dict):
+                codes = lang_candidates.get("codes") or []
+                if isinstance(codes, list):
+                    lang_codes = [str(c) for c in codes if c]
+        except Exception:
+            lang_codes = []
 
     path = None
     try:
@@ -74,11 +85,16 @@ def voice_turn():
         mime_type = (audio_file.content_type or "audio/webm").split(";")[0].strip()
         path = safe_temp_save(audio_file, mime_type)
 
+        stt_prompt = "This is a dating app onboarding. The user may speak any language."
+        if lang_codes:
+            stt_prompt += f" Language hints: {', '.join(lang_codes)}."
+
         with open(path, "rb") as f:
             stt = client.audio.transcriptions.create(
                 model="gpt-4o-transcribe",
                 file=f,
-                temperature=0
+                temperature=0,
+                prompt=stt_prompt
             )
 
         transcript = (stt.text or "").strip()
