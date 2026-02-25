@@ -123,7 +123,10 @@
 
         listEl.innerHTML = items.map((item) => {
           const id   = item.partner_id;
-          const name = `${item.first_name || ""} ${item.last_name || ""}`.trim() || "your match";
+          const deleted = item.deleted === true;
+          const name = deleted
+            ? "(deleted)"
+            : `${item.first_name || ""} ${item.last_name || ""}`.trim() || "your match";
 
           const scores = [1, 2, 3].flatMap((r) => {
             const t = item.talks_by_round?.[r];
@@ -137,13 +140,20 @@
           );
           const startEnabled =
             !item.had_no &&
+            !deleted &&
             online &&
             item.blocked !== true &&
             !completedAllRounds;
           const scoreHtml    = scores.length
             ? scores.map((s) => `<span>${s}</span>`).join("")
             : "<span>no scores yet</span>";
-          const statusDot    = item.blocked === true ? "blocked" : online ? "online" : "offline";
+          const statusDot    = deleted
+            ? "offline"
+            : item.blocked === true
+              ? "blocked"
+              : online
+                ? "online"
+                : "offline";
 
           return `
             <div class="history-card ${online ? "" : "offline"}">

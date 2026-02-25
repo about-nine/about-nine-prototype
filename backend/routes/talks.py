@@ -457,7 +457,20 @@ def history_list():
     for pid in partner_ids:
         user_doc = db.collection("users").document(pid).get()
         if not user_doc.exists:
+            items.append(
+                {
+                    "partner_id": pid,
+                    "first_name": "(deleted)",
+                    "last_name": "",
+                    "talks_by_round": partner_map[pid]["talks_by_round"],
+                    "last_timestamp": partner_map[pid]["last_timestamp"],
+                    "had_no": partner_map[pid]["had_no"],
+                    "blocked": pid in my_blocked,
+                    "deleted": True,
+                }
+            )
             continue
+
         user_data = user_doc.to_dict() or {}
         other_blocked = set(user_data.get("blocked_users") or [])
         is_blocked = pid in my_blocked or user_id in other_blocked
@@ -471,6 +484,7 @@ def history_list():
                 "last_timestamp": partner_map[pid]["last_timestamp"],
                 "had_no": partner_map[pid]["had_no"],
                 "blocked": is_blocked,
+                "deleted": False,
             }
         )
 
@@ -489,15 +503,20 @@ def history_detail(partner_id):
 
     db = get_firestore()
     partner_doc = db.collection("users").document(partner_id).get()
-    if not partner_doc.exists:
-        return jsonify(success=False, message="partner not found"), 404
-
+    partner_exists = partner_doc.exists
     partner = partner_doc.to_dict() or {}
+    deleted = not partner_exists
+    if deleted:
+        partner = {
+            "first_name": "(deleted)",
+            "last_name": "",
+            "phone": None,
+        }
 
     # block check
     me = db.collection("users").document(user_id).get().to_dict() or {}
     my_blocked = set(me.get("blocked_users") or [])
-    other_blocked = set(partner.get("blocked_users") or [])
+    other_blocked = set(partner.get("blocked_users") or []) if partner_exists else set()
     is_blocked = partner_id in my_blocked or user_id in other_blocked
 
     talks_ref = db.collection("talk_history")
@@ -562,6 +581,7 @@ def history_detail(partner_id):
             "last_name": partner.get("last_name") or partner.get("lastName"),
             "phone": partner.get("phone"),
         },
+        deleted=deleted,
         rounds=rounds,
         had_no=had_no,
         max_round=max_round,

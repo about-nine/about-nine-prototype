@@ -137,6 +137,7 @@
       let hadNo = false;
       let maxRound = 0;
       let isBlocked = false;
+      let isDeleted = false;
 
       function getPartnerName() {
         const first = partner?.first_name || partner?.firstName || "";
@@ -263,9 +264,15 @@
 
         const actionHtml = maxRound >= 3
           ? `<div class="history-phone">${partner?.phone || "--"}</div>`
-          : `<button class="primary history-btn" ${online && !isBlocked ? "" : "disabled"} onclick="startTalk()">start talk</button>`;
+          : `<button class="primary history-btn" ${online && !isBlocked && !isDeleted ? "" : "disabled"} onclick="startTalk()">start talk</button>`;
 
-        const statusDot = isBlocked ? "blocked" : online ? "online" : "offline";
+        const statusDot = isDeleted
+          ? "offline"
+          : isBlocked
+            ? "blocked"
+            : online
+              ? "online"
+              : "offline";
 
         cardEl.className = `history-card ${online ? "" : "offline"}`;
         cardEl.innerHTML = `
@@ -287,7 +294,7 @@
       /* ── startTalk ───────────────────────────────────── */
 
       window.startTalk = async () => {
-        if (hadNo || isBlocked) return;
+        if (hadNo || isBlocked || isDeleted) return;
         if (!partner) {
           const res = await apiCall(`/talks/history-detail/${partnerId}`);
           if (!res.success || !res.partner) return;
@@ -348,6 +355,7 @@
         }
 
         isBlocked = detailRes.blocked === true;
+        isDeleted = detailRes.deleted === true;
         partner   = detailRes.partner || null;
         roundsMap = detailRes.rounds  || {};
         hadNo     = detailRes.had_no  === true;
