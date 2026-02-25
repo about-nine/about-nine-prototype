@@ -88,6 +88,55 @@ const API_BASE = (() => {
   ensureMeta("theme-color", "#000000");
 })();
 
+// Prevent zoom (pinch/double-tap) to keep layout stable on mobile.
+(function preventZoom() {
+  const head = document.head || document.getElementsByTagName("head")[0];
+  if (!head) return;
+
+  let viewport = document.querySelector('meta[name="viewport"]');
+  if (!viewport) {
+    viewport = document.createElement("meta");
+    viewport.name = "viewport";
+    head.appendChild(viewport);
+  }
+  viewport.content =
+    "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
+
+  // iOS Safari: block gesture zoom.
+  ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
+    document.addEventListener(
+      type,
+      (e) => {
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+  });
+
+  // Prevent ctrl/cmd + wheel zoom (desktop).
+  document.addEventListener(
+    "wheel",
+    (e) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    },
+    { passive: false },
+  );
+
+  // Prevent double-tap zoom on iOS.
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false },
+  );
+})();
+
 // Lock app height to avoid viewport jumps when mobile keyboards appear.
 (function manageAppHeight() {
   const root = document.documentElement;
@@ -99,7 +148,12 @@ const API_BASE = (() => {
     if (!el) return false;
     if (el.isContentEditable) return true;
     const tag = el.tagName;
-    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    if (tag === "INPUT") {
+      const type = (el.getAttribute("type") || "").toLowerCase();
+      if (type === "range") return false;
+      return true;
+    }
+    return tag === "TEXTAREA" || tag === "SELECT";
   };
 
   const setHeight = (value) => {
@@ -123,6 +177,68 @@ const API_BASE = (() => {
     setTimeout(() => {
       if (!isEditable(document.activeElement)) update(true);
     }, 50);
+  });
+})();
+
+// Hard lock scroll when focusing inputs to keep screen fixed.
+(function lockScreenOnInput() {
+  let locked = false;
+  let scrollY = 0;
+
+  const isEditable = (el) => {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    if (tag === "INPUT") {
+      const type = (el.getAttribute("type") || "").toLowerCase();
+      if (type === "range") return false;
+      return true;
+    }
+    return tag === "TEXTAREA" || tag === "SELECT";
+  };
+
+  const preventTouch = (e) => {
+    if (!locked) return;
+    const target = e.target;
+    if (target && target.closest) {
+      if (target.closest('input[type="range"]')) return;
+      if (target.closest(".age-slider-track")) return;
+    }
+    e.preventDefault();
+  };
+
+  const lock = () => {
+    if (locked) return;
+    locked = true;
+    scrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add("scroll-locked");
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.height = "100%";
+    document.body.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", preventTouch, { passive: false });
+  };
+
+  const unlock = () => {
+    if (!locked) return;
+    locked = false;
+    document.body.classList.remove("scroll-locked");
+    document.body.style.top = "";
+    document.body.style.height = "";
+    document.body.style.overscrollBehavior = "";
+    document.removeEventListener("touchmove", preventTouch, { passive: false });
+    window.scrollTo(0, scrollY);
+  };
+
+  document.addEventListener("focusin", (e) => {
+    if (isEditable(e.target)) lock();
+  });
+
+  document.addEventListener("focusout", (e) => {
+    if (isEditable(e.target)) {
+      setTimeout(() => {
+        if (!isEditable(document.activeElement)) unlock();
+      }, 50);
+    }
   });
 })();
 

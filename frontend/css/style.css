@@ -28,6 +28,8 @@
 
 html {
   height: 100%;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body {
@@ -45,6 +47,15 @@ body {
   line-height: 1.6;
   margin: 0;
   text-transform: lowercase;
+  touch-action: manipulation;
+}
+
+body.scroll-locked {
+  position: fixed;
+  overflow: hidden;
+  width: 100%;
+  left: 0;
+  right: 0;
 }
 
 .container {
