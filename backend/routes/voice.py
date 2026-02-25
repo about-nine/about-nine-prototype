@@ -188,12 +188,17 @@ def voice_turn():
                 - if correction, acknowledge naturally: 'oh, trans woman — got it.'
                 - NEVER list options robotically
                 - NEVER suggest skipping
+                - if user says just "woman", "man", "non-binary" with NO detail qualifier, set gender_detail to null — NEVER assume cis or any specific identity
+                - only set gender_detail when the user explicitly mentions it
                 """
             else:
+                question_id = request.form.get("question_id", "")
+                
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
                 IMPORTANT: Always reply in English only, regardless of what language the user speaks.
                 The user was asked a question with these options: {opts}
+                The specific question being asked is about: {question_id}
                 {f"The user's base gender is: {base_gender}. Use this context to pick the correct option." if base_gender else ""}
                 {"They previously answered: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
 
@@ -214,6 +219,9 @@ def voice_turn():
                 - NEVER suggest skipping or moving on
                 - if mapped, reply is a confirmation only — NEVER ask how often, how much, or any follow-up
                 - reply must reference the actual question topic — NEVER confuse marijuana with smoking
+                - reply must be about {question_id} — never reference a different topic
+                - Map based on intent: "sometimes", "occasionally", "yeah" → yes; "nah", "not really", "i quit" → no
+                - Only return null if genuinely unclear or completely off-topic
                 """
 
             gpt = client.chat.completions.create(

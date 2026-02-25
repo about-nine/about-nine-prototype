@@ -498,6 +498,7 @@
                   : "webm";
           form.append("audio", blob, `speech.${ext}`);
           form.append("type", activeQ.t || "ask");
+          form.append("question_id", activeQ.id || "");
 
           if (activeQ.id === "gender_detail") {
             form.append("base_gender", answers.gender || "");
