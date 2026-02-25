@@ -148,50 +148,45 @@ def voice_turn():
             prev_answer = request.form.get("prev_answer", "")
 
             if is_gender_q:
+                all_details = [
+                    "cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary",
+                    "cis man", "trans man", "intersex man", "transmasculine", "man and non-binary",
+                    "agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming",
+                    "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man",
+                    "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"
+                ]
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
                 IMPORTANT: Always reply in English only.
                 The user was asked: "how do you identify your gender?"
                 {"They previously said: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
 
-                Your job:
-                1. Infer the BASE gender: one of {opts} — or null if truly unclear
-                2. Infer the DETAIL identity from the full gender detail list below — or null
+                Your job is to understand what they mean — across ANY language, phrasing, or identity term —
+                and map it to the closest fit using your judgment.
 
-                Gender detail options:
-                - woman → ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"]
-                - man → ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"]
-                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming", 
-                "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man", 
-                "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"]
+                BASE gender must be one of: {opts}
+                Ask yourself: does this person relate more to woman, man, or neither/outside the binary?
+                Be generous and thoughtful. Someone who says "queer", "femme", "they/them", "non-binair",
+                "I'm more on the feminine side", "androgynous" — reason about what fits best.
+                Only return null if you genuinely cannot infer even a rough direction.
 
-                 Mapping rules:
-                - if base gender is clear, ALWAYS set mapped — even if detail is unknown
-                - "woman", "i'm a woman", "female" → mapped: woman, detail: null (ask detail separately)
-                - "man", "i'm a man", "male" → mapped: man, detail: null
-                - "non-binary" → mapped: non-binary, detail: null
-                - "trans woman", "transgender woman" → mapped: woman, detail: trans woman
-                - "trans man", "transgender man" → mapped: man, detail: trans man
-                - "genderfluid", "agender", "two-spirit" etc → mapped: non-binary, detail: <match>
-                - "transgender" alone → mapped: null, detail: transgender
-                - "intersex" alone → mapped: null, detail: intersex
-                - if truly unclear → mapped: null
-                
-                When mapped is null: reply asks ONLY about base gender in one sentence.
-                e.g. 'got it — do you identify more as a woman, man, or non-binary?'
+                DETAIL: pick the single closest match from this list, or null if unknown:
+                {all_details}
 
                 Return JSON only:
                 {{
-                "mapped": "<exact option from {opts} or null>",
-                "gender_detail": "<exact detail match or null>",
-                "reply": "<one sentence. if mapped is set (even with null detail), echo the mapped gender warmly and move on. e.g. 'a woman — love that.' ONLY ask a follow-up if mapped is null.>"
+                "mapped": "<one of {opts} or null>",
+                "gender_detail": "<closest match from detail list or null>",
+                "reply": "<one warm sentence in English. if mapped is set, echo it and move on — e.g. 'non-binary — love that.' if mapped is null, ask only about base gender.>"
                 }}
 
                 Rules:
                 - reply MUST be one sentence, under 15 words, English only
-                - If correction, acknowledge naturally: 'oh, trans woman — got it.'
-                - NEVER list all options robotically
-                - NEVER suggest moving on or skipping
+                - if mapped is set, NEVER ask a follow-up — just confirm and move on
+                - if mapped is null, ask ONLY: woman, man, or non-binary — nothing else
+                - if correction, acknowledge naturally: 'oh, trans woman — got it.'
+                - NEVER list options robotically
+                - NEVER suggest skipping
                 """
             else:
                 system = f"""
@@ -217,6 +212,7 @@ def voice_turn():
                 - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
                 - NEVER suggest skipping or moving on
                 - if mapped, reply is a confirmation only — NEVER ask how often, how much, or any follow-up
+                - reply must reference the actual question topic — NEVER confuse marijuana with smoking
                 """
 
             gpt = client.chat.completions.create(
