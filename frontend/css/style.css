@@ -24,6 +24,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --app-height: 100vh;
+  --bottom-nav-height: 70px;
 }
 
 html {
@@ -1040,7 +1041,7 @@ a:hover {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  height: calc(78px + var(--safe-bottom));
+  height: calc(var(--bottom-nav-height) + var(--safe-bottom));
   background: linear-gradient(
     to top,
     rgba(42, 42, 42, 1) 0%,
@@ -1229,7 +1230,7 @@ a:hover {
   }
 
   .bottom-nav {
-    height: 70px;
+    height: calc(var(--bottom-nav-height) + var(--safe-bottom));
   }
 
   .nav-item {
