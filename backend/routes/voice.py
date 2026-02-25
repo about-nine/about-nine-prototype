@@ -83,12 +83,16 @@ def voice_turn():
 
         if not transcript:
             return jsonify(transcript="")
+        
+        if len(transcript) < 2:
+            return jsonify(transcript="")
 
         # -------- GPT mapping --------
         if is_range:
             # age range 자유응답 파싱
             system = """
             You are COCO, a warm dating app companion.
+            IMPORTANT: Always reply in English only, regardless of what language the user speaks.
             The user was asked what age range they're looking for.
 
             Return JSON only:
@@ -138,36 +142,52 @@ def voice_turn():
             if is_gender_q:
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
+                IMPORTANT: Always reply in English only.
                 The user was asked: "how do you identify your gender?"
                 {"They previously said: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
 
-                Map their answer to ONE of: {opts}
+                Your job:
+                1. Infer the BASE gender: one of {opts} — or null if truly unclear
+                2. Infer the DETAIL identity from the full gender detail list below — or null
 
-                Also check if they mentioned a more specific identity.
                 Gender detail options:
                 - woman → ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"]
                 - man → ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"]
-                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming", "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man", "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"]
+                - non-binary → ["agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming", 
+                "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man", 
+                "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"]
+
+                Mapping rules:
+                - "trans woman", "transgender woman" → mapped: woman, detail: trans woman
+                - "trans man", "transgender man" → mapped: man, detail: trans man
+                - "genderfluid", "genderqueer", "agender", "two-spirit" etc → mapped: non-binary, detail: <match>
+                - "transgender" alone (no base gender) → mapped: null, detail: transgender
+                - "intersex" alone → mapped: null, detail: intersex
+                - anything implying woman/female → mapped: woman
+                - anything implying man/male → mapped: man
+                - anything outside binary → mapped: non-binary
+                - if truly unclear → mapped: null
+
+                When mapped is null: reply asks ONLY about base gender in one sentence.
+                e.g. 'got it — do you identify more as a woman, man, or non-binary?'
 
                 Return JSON only:
                 {{
-                "mapped": "<exact option or null>",
+                "mapped": "<exact option from {opts} or null>",
                 "gender_detail": "<exact detail match or null>",
-                "reply": "<one short sentence. if gender_detail is present, echo the detail — not just the base gender. e.g. 'a cis woman — got it.' or 'a trans woman — thank you for sharing that.' if only base gender, echo that. if null, redirect gently.>"
+                "reply": "<one sentence. if both mapped+detail, echo the detail. if only mapped, echo that. if null, ask for base gender only.>"
                 }}
 
                 Rules:
-                - User may speak any language. Understand and map correctly.
-                - mapped MUST be verbatim from the list or null
-                - If correction, acknowledge the correction naturally e.g. 'oh, cis woman — got it, my bad.'
-                - If null, reply naturally hints at options without listing them robotically. e.g. 'totally okay — are you more on the cis side, trans, or somewhere in between?' or 'no worries — do you identify more as a woman, man, or somewhere outside that?'
-                - reply MUST be one sentence, under 15 words
-                - if user tries to skip or deflect, redirect in one sentence: 'take your time — cis, trans, or something else?'
-                - NEVER suggest moving on or chatting about something else
+                - reply MUST be one sentence, under 15 words, English only
+                - If correction, acknowledge naturally: 'oh, trans woman — got it.'
+                - NEVER list all options robotically
+                - NEVER suggest moving on or skipping
                 """
             else:
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
+                IMPORTANT: Always reply in English only, regardless of what language the user speaks.
                 The user was asked a question with these options: {opts}
                 {f"The user's base gender is: {base_gender}. Use this context to pick the correct option." if base_gender else ""}
                 {"They previously answered: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
@@ -181,7 +201,8 @@ def voice_turn():
                 Rules:
                 - User may speak any language. Understand and map correctly.
                 - mapped MUST be verbatim from the list or null
-                - Be generous — map ambiguous answers when possible
+                - Only map if the answer clearly corresponds to one of the options
+                - Do NOT map if the transcript is noise, filler words, or completely unrelated
                 - If null, reply naturally hints at the options without reading them aloud like a list. Weave 1-2 options into a conversational sentence. e.g. for attraction: 'no worries — do you lean toward men, women, or does it depend on the person?' e.g. for smoking: 'just checking — would you say yes or no to smoking?' Always reference what they actually said if possible.
                 - reply MUST be one sentence, under 15 words
                 - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no

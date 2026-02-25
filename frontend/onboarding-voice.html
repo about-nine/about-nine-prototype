@@ -470,7 +470,7 @@
       async function processSpeechBlob(blob) {
         if (!currentQ || !blob) return;
         if (isProcessing) return;
-        if (blob.size < 200) return;
+        if (blob.size < 500) return;
         isProcessing = true;
 
         const isCorrection = currentQ.t === "correction_window";
