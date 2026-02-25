@@ -10,6 +10,7 @@ users.py - 사용자 관련 엔드포인트
 from datetime import datetime
 from flask import Blueprint, jsonify, session
 from firebase_admin import firestore
+from firebase_admin import auth as fb_auth
 from backend.services.firestore import get_firestore
 from backend.utils.request import get_json
 import math
@@ -469,6 +470,23 @@ def delete_account():
         return jsonify(success=False, message="not logged in"), 401
 
     db = get_firestore()
+    firebase_uid = session.get("firebase_uid")
+    if not firebase_uid:
+        try:
+            existing = db.collection("users").document(user_id).get().to_dict() or {}
+            firebase_uid = existing.get("firebase_uid")
+        except Exception:
+            firebase_uid = None
+
+    if firebase_uid:
+        try:
+            fb_auth.delete_user(firebase_uid)
+        except fb_auth.UserNotFoundError:
+            pass
+        except Exception as e:
+            print(f"❌ Failed to delete auth user {firebase_uid}: {e}")
+            return jsonify(success=False, message="auth delete failed"), 500
+
     try:
         db.collection("users").document(user_id).delete()
     except Exception as e:
