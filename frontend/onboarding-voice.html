@@ -517,6 +517,16 @@
             body: form,
           });
           const data = await res.json().catch(() => ({}));
+
+          console.group(`🎤 [${activeQ.id}] "${data.transcript}"`);
+          console.log("question type:", activeQ.t);
+          console.log("options:", activeQ.opts);
+          console.log("mapped:", data.mapped);
+          console.log("gender_detail:", data.gender_detail);
+          console.log("reply:", data.reply);
+          console.log("raw server data:", data);
+          console.groupEnd();
+
           if (!res.ok || data?.error) {
             setStatus(
               "voice service isn't available right now.\nplease try again or use text onboarding.",
@@ -673,10 +683,7 @@
 
         function detect() {
           analyser.getByteTimeDomainData(buf);
-          if (
-            !currentQ ||
-            $page.classList.contains("coco-speaking")
-          ) {
+          if (!currentQ || $page.classList.contains("coco-speaking")) {
             voiceFrameCount = 0;
             requestAnimationFrame(detect);
             return;
@@ -790,6 +797,10 @@
         if (q.id === "gender" && data.gender_detail) {
           answers["gender_detail"] = data.gender_detail;
         }
+
+        console.log("📋 answers so far:", JSON.parse(JSON.stringify(answers)));
+        console.log("📝 transcripts so far:", voiceTranscripts.length);
+
         voiceTranscripts.push({
           question: q.q,
           said: data.transcript,
@@ -898,6 +909,7 @@
         }
 
         if (q.t === "ask") {
+          console.log(`➡️ step ${step}: ask [${q.id}]`, q.opts);
           $msg.textContent = q.q;
           $heard.textContent = "";
           await playCoco(q.q);
@@ -906,6 +918,7 @@
         }
 
         if (q.t === "range") {
+          console.log(`➡️ step ${step}: range [${q.id}]`);
           $msg.textContent = q.q;
           $heard.textContent = "";
           await playCoco(q.q);
@@ -914,6 +927,10 @@
         }
 
         if (q.t === "done") {
+          console.log(
+            "✅ DONE. Final answers:",
+            JSON.parse(JSON.stringify(answers)),
+          );
           finish();
         }
       }
