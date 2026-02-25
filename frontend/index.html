@@ -93,6 +93,17 @@
 
     <script src="js/common.js"></script>
     <script>
+      async function ensureSessionFromToken() {
+        const token = getFromLocal("id_token");
+        if (!token) return;
+        try {
+          await apiCall("/auth/firebase-login", "POST", { idToken: token });
+        } catch (e) {
+          // If token is invalid/expired, clear to avoid loops.
+          try { localStorage.removeItem("id_token"); } catch {}
+        }
+      }
+
       async function enterApp() {
         hideError("error");
         // localStorage에 user_id가 없으면 로그인 플로우로
@@ -102,6 +113,7 @@
         }
 
         try {
+          await ensureSessionFromToken();
           await apiCall("/users/profile");
           navigateTo("lounge.html");
         } catch (error) {

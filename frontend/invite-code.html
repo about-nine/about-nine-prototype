@@ -42,7 +42,7 @@
       }
       
       try {
-        showLoading('verifying code...');
+        showLoading("verifying code...");
         const result = await apiCall('/verify-invite', 'POST', { code });
         hideLoading();
         

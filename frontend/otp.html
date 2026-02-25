@@ -6,6 +6,17 @@
     <title>인증번호 입력</title>
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
+    <style>
+      .otp-autofill {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+        height: 1px;
+        width: 1px;
+        border: 0;
+        padding: 0;
+      }
+    </style>
   </head>
   <body>
     <div class="container">
@@ -13,12 +24,26 @@
         <h1 class="brand-text">enter the code<br />sent to the message</h1>
 
         <div class="code-inputs" id="codeInputs">
-          <input type="text" class="code-input" maxlength="1" data-index="0" />
-          <input type="text" class="code-input" maxlength="1" data-index="1" />
-          <input type="text" class="code-input" maxlength="1" data-index="2" />
-          <input type="text" class="code-input" maxlength="1" data-index="3" />
-          <input type="text" class="code-input" maxlength="1" data-index="4" />
-          <input type="text" class="code-input" maxlength="1" data-index="5" />
+          <input
+            id="otpAutoFill"
+            class="otp-autofill"
+            type="tel"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+          />
+          <input
+            type="tel"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            class="code-input"
+            maxlength="1"
+            data-index="0"
+          />
+          <input type="tel" inputmode="numeric" class="code-input" maxlength="1" data-index="1" />
+          <input type="tel" inputmode="numeric" class="code-input" maxlength="1" data-index="2" />
+          <input type="tel" inputmode="numeric" class="code-input" maxlength="1" data-index="3" />
+          <input type="tel" inputmode="numeric" class="code-input" maxlength="1" data-index="4" />
+          <input type="tel" inputmode="numeric" class="code-input" maxlength="1" data-index="5" />
         </div>
 
         <span id="error" class="error hidden"></span>
@@ -43,6 +68,7 @@
     <script src="js/common.js"></script>
     <script>
       const inputs = document.querySelectorAll(".code-input");
+      const autoFillInput = document.getElementById("otpAutoFill");
       const nextBtn = document.getElementById("nextBtn");
       const backLink = document.getElementById("backLink");
       let timerSeconds = 179; // 2:59
@@ -91,6 +117,25 @@
           checkComplete();
         });
       });
+
+      function fillCode(code) {
+        const value = String(code || "").replace(/[^0-9]/g, "").slice(0, 6);
+        if (!value) return;
+        value.split("").forEach((char, i) => {
+          if (inputs[i]) inputs[i].value = char;
+        });
+        checkComplete();
+      }
+
+      if (autoFillInput) {
+        autoFillInput.addEventListener("input", (e) => {
+          const value = e.target.value || "";
+          if (value.length >= 6) {
+            fillCode(value);
+            autoFillInput.value = "";
+          }
+        });
+      }
 
       function checkComplete() {
         const code = Array.from(inputs)
@@ -245,7 +290,11 @@
       }
 
       // 첫 입력창에 자동 포커스
-      inputs[0].focus();
+      if (autoFillInput) {
+        setTimeout(() => autoFillInput.focus(), 200);
+      } else {
+        inputs[0].focus();
+      }
       startTimer();
 
       backLink.addEventListener("click", () => navigateTo("phone.html"));
