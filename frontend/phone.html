@@ -86,7 +86,7 @@
         hideError("error");
 
         const countryCode = countrySelect.value;
-        const raw = phoneInput.value.replace(/[^0-9]/g, "");
+        let raw = phoneInput.value.replace(/[^0-9]/g, "");
 
         if (!raw || raw.length < 8) {
           showError("error", "please enter a valid phone number");
@@ -99,9 +99,13 @@
           return;
         }
 
+        const ccDigits = countryCode.replace("+", "");
+        if (raw.startsWith(ccDigits)) {
+          raw = raw.slice(ccDigits.length);
+        }
         let formatted = raw;
-        if (countryCode === "+82" && raw.startsWith("0")) {
-          formatted = raw.slice(1);
+        if (countryCode === "+82" && formatted.startsWith("0")) {
+          formatted = formatted.slice(1);
         }
 
         const fullPhone = countryCode + formatted;
@@ -122,7 +126,22 @@
         } catch (e) {
           console.error(e);
           hideLoading();
-          showError("error", "failed to send verification code");
+          try {
+            if (window.recaptchaVerifier?.clear) {
+              window.recaptchaVerifier.clear();
+            }
+          } catch {}
+          window.recaptchaVerifier = null;
+          const code = e?.code || "";
+          if (code.includes("invalid-phone-number")) {
+            showError("error", "invalid phone number. please remove country code and try again.");
+          } else if (code.includes("too-many-requests")) {
+            showError("error", "too many attempts. please try again later.");
+          } else if (code.includes("captcha-check-failed") || code.includes("invalid-app-credential")) {
+            showError("error", "verification blocked. please disable content blockers or try another network.");
+          } else {
+            showError("error", "failed to send verification code");
+          }
         }
       }
 

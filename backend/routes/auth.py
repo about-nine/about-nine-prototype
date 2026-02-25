@@ -31,7 +31,6 @@ def verify_invite():
         return err, code
 
     if is_valid_invite(data.get("code")):
-        session["invite_verified"] = True
         return jsonify(success=True)
 
     return jsonify(success=False), 400
@@ -76,9 +75,9 @@ def firebase_login():
         user_id = user_data["id"]
         is_existing_user = user_data.get("onboarding_completed", False)
     else:
-        # 신규 유저 → invite 필수
+        # 신규 유저 → invite 필수 (cookie/session 없이 body로만 검증)
         invite_code = data.get("invite_code") or data.get("inviteCode")
-        if not session.get("invite_verified") and not is_valid_invite(invite_code):
+        if not is_valid_invite(invite_code):
             return jsonify(success=False, message="invite required"), 403
 
         user_id = secrets.token_urlsafe(16)
@@ -99,8 +98,7 @@ def firebase_login():
     session["phone_verified"] = True
     session.permanent = True
 
-    # invite 1회용
-    session.pop("invite_verified", None)
+    # invite_verified는 더 이상 사용하지 않음
 
     return jsonify(
         success=True,
