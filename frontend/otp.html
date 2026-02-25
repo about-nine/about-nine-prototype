@@ -34,7 +34,6 @@
           <input
             type="tel"
             inputmode="numeric"
-            autocomplete="one-time-code"
             class="code-input"
             maxlength="1"
             data-index="0"
@@ -68,6 +67,7 @@
     <script src="js/common.js"></script>
     <script>
       const inputs = document.querySelectorAll(".code-input");
+      const codeInputs = document.getElementById("codeInputs");
       const autoFillInput = document.getElementById("otpAutoFill");
       const nextBtn = document.getElementById("nextBtn");
       const backLink = document.getElementById("backLink");
@@ -75,6 +75,10 @@
       let timerInterval;
       let resendInProgress = false;
       let isExpired = false;
+
+      function normalizeCode(value) {
+        return String(value || "").replace(/[^0-9]/g, "").slice(0, 6);
+      }
 
       function setInputsDisabled(disabled) {
         inputs.forEach((input) => {
@@ -119,23 +123,38 @@
       });
 
       function fillCode(code) {
-        const value = String(code || "").replace(/[^0-9]/g, "").slice(0, 6);
-        if (!value) return;
-        value.split("").forEach((char, i) => {
-          if (inputs[i]) inputs[i].value = char;
+        const value = normalizeCode(code);
+        inputs.forEach((input, i) => {
+          input.value = value[i] || "";
         });
         checkComplete();
       }
 
+      function focusAutoFill() {
+        if (!autoFillInput) return;
+        try {
+          autoFillInput.focus({ preventScroll: true });
+        } catch {
+          autoFillInput.focus();
+        }
+      }
+
       if (autoFillInput) {
         autoFillInput.addEventListener("input", (e) => {
-          const value = e.target.value || "";
-          if (value.length >= 6) {
-            fillCode(value);
-            autoFillInput.value = "";
-          }
+          const value = normalizeCode(e.target.value);
+          e.target.value = value;
+          fillCode(value);
         });
       }
+
+      if (codeInputs) {
+        codeInputs.addEventListener("click", focusAutoFill);
+        codeInputs.addEventListener("touchstart", focusAutoFill, { passive: true });
+      }
+
+      inputs.forEach((input) => {
+        input.addEventListener("focus", focusAutoFill);
+      });
 
       function checkComplete() {
         const code = Array.from(inputs)
@@ -291,7 +310,12 @@
 
       // 첫 입력창에 자동 포커스
       if (autoFillInput) {
-        setTimeout(() => autoFillInput.focus(), 200);
+        setTimeout(() => focusAutoFill(), 200);
+        document.addEventListener(
+          "touchstart",
+          () => focusAutoFill(),
+          { once: true, passive: true },
+        );
       } else {
         inputs[0].focus();
       }

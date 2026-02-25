@@ -14,18 +14,15 @@
       .onboarding-page {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        padding: calc(30px + var(--safe-top)) 24px
-          calc(36px + var(--safe-bottom));
-        height: 100vh;
+        align-items: stretch;
+        padding: var(--safe-top) 0 calc(36px + var(--safe-bottom));
+        height: var(--app-height);
         max-width: 480px;
         margin: 0 auto;
       }
 
-      @supports (height: 100svh) {
-        .onboarding-page {
-          height: 100svh;
-        }
+      .onboarding-page .chat-header {
+        width: 100%;
       }
 
       .ob-stage {
@@ -36,6 +33,8 @@
         justify-content: center;
         gap: 28px;
         width: 100%;
+        padding: 0 24px;
+        box-sizing: border-box;
       }
 
       .pulse-circle {
@@ -99,6 +98,8 @@
         height: 48px;
         margin-bottom: calc(16px + var(--safe-bottom));
         flex-shrink: 0;
+        padding: 0 24px;
+        box-sizing: border-box;
       }
       .vi-bar {
         width: 3px;
@@ -140,11 +141,17 @@
           height: 22px;
         }
       }
+
+      @media (max-height: 700px) {
+        .onboarding-page .chat-header {
+          padding-top: 18px;
+        }
+      }
     </style>
   </head>
 
   <body>
-    <div class="onboarding-page">
+    <div class="onboarding-page chat-container">
       <div class="chat-header brand-text">COCO</div>
 
       <div class="ob-stage">

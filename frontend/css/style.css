@@ -1040,7 +1040,7 @@ a:hover {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  height: calc(70px + var(--safe-bottom));
+  height: calc(78px + var(--safe-bottom));
   background: linear-gradient(
     to top,
     rgba(42, 42, 42, 1) 0%,
@@ -1229,7 +1229,7 @@ a:hover {
   }
 
   .bottom-nav {
-    height: 64px;
+    height: 70px;
   }
 
   .nav-item {
