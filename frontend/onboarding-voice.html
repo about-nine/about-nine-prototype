@@ -499,6 +499,10 @@
           form.append("audio", blob, `speech.${ext}`);
           form.append("type", activeQ.t || "ask");
 
+          if (activeQ.id === "gender_detail") {
+            form.append("base_gender", answers.gender || "");
+          }
+
           if (currentQ.opts) {
             form.append("options", JSON.stringify(currentQ.opts));
           }
@@ -807,7 +811,7 @@
           currentQ = null;
           step++;
           next();
-        }, 2000);
+        }, 4000);
       }
 
       /* ================= FLOW ================= */

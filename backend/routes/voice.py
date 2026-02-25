@@ -130,6 +130,7 @@ def voice_turn():
             )
 
         else:
+            base_gender = request.form.get("base_gender", "")
             is_gender_q = set(opts) == {"woman", "man", "non-binary"}
             is_correction = request.form.get("is_correction") == "true"
             prev_answer = request.form.get("prev_answer", "")
@@ -168,6 +169,7 @@ def voice_turn():
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
                 The user was asked a question with these options: {opts}
+                {f"The user's base gender is: {base_gender}. Use this context to pick the correct option." if base_gender else ""}
                 {"They previously answered: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
 
                 Return JSON only:
