@@ -173,7 +173,7 @@ def voice_turn():
                 Return JSON only:
                 {{
                 "mapped": "<exact option or null>",
-                "reply": "<one short sentence only. echo warmly if mapped. if null, redirect gently with a hint. e.g. 'just checking — yes or no to smoking?' never offer to skip.>"
+                "reply": "<one short sentence only. if mapped, ONLY echo/confirm — never ask follow-up questions. e.g. 'a drinker — love that.' or 'non-smoker, got it.' if null, redirect gently with a hint toward the options.>"
                 }}
 
                 Rules:
@@ -184,6 +184,7 @@ def voice_turn():
                 - reply MUST be one sentence, under 15 words
                 - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
                 - NEVER suggest skipping or moving on
+                - if mapped, reply is a confirmation only — NEVER ask how often, how much, or any follow-up
                 """
 
             gpt = client.chat.completions.create(
