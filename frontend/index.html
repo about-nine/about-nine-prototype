@@ -106,7 +106,13 @@
           navigateTo("lounge.html");
         } catch (error) {
           const status = error?.status;
-          if (status === 401 || error?.message?.includes("not logged in")) {
+          if (
+            status === 401 ||
+            status === 404 ||
+            error?.message?.includes("not logged in") ||
+            error?.message?.includes("user not found")
+          ) {
+            try { localStorage.clear(); } catch {}
             navigateTo("invite-code.html");
             return;
           }
