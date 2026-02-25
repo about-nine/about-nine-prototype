@@ -88,6 +88,44 @@ const API_BASE = (() => {
   ensureMeta("theme-color", "#000000");
 })();
 
+// Lock app height to avoid viewport jumps when mobile keyboards appear.
+(function manageAppHeight() {
+  const root = document.documentElement;
+  if (!root) return;
+
+  let lastHeight = 0;
+
+  const isEditable = (el) => {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  };
+
+  const setHeight = (value) => {
+    const next = Math.max(0, Math.round(value || 0));
+    if (!next || next === lastHeight) return;
+    lastHeight = next;
+    root.style.setProperty("--app-height", `${next}px`);
+  };
+
+  const update = (force = false) => {
+    if (!force && isEditable(document.activeElement)) return;
+    setHeight(window.innerHeight || (window.visualViewport && window.visualViewport.height));
+  };
+
+  setHeight(window.innerHeight);
+
+  window.addEventListener("resize", () => update());
+  window.addEventListener("orientationchange", () => update(true));
+  window.addEventListener("pageshow", () => update(true));
+  document.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (!isEditable(document.activeElement)) update(true);
+    }, 50);
+  });
+})();
+
 // API 호출 헬퍼
 async function getAuthToken() {
   if (typeof window.getFirebaseIdToken === "function") {
