@@ -97,7 +97,7 @@ def voice_turn():
             The user was asked what age range they're looking for.
 
             Return JSON only:
-            {"min": <int>, "max": <int>, "reply": "<1-2 sentences naturally echoing their preference back. e.g. 'someone between 25 and 35 — a solid range for something real.' or 'you're open to anyone from 20 to 45, i like that openness in you.'>"}
+            {"min": <int>, "max": <int>, "reply": "<one short sentence echoing their range. e.g. 'someone between 25 and 35 — love that.' under 12 words.>"}
 
             User may speak any language. Translate and extract numbers.
             Examples:
@@ -157,7 +157,7 @@ def voice_turn():
                 {{
                 "mapped": "<exact option or null>",
                 "gender_detail": "<exact detail match or null>",
-                "reply": "<1-2 sentences: warmly echo what they said using their own words. feel human, not robotic. e.g. 'a trans woman — thank you for sharing that with me.' or 'non-binary and genderfluid, i love that.'>"
+                "reply": "<one short sentence only. echo warmly if mapped. if null, gently redirect to the question — stay on task. e.g. 'no worries — are you more on the cis side, trans, or somewhere else?' never offer to change topics or skip the question.>"
                 }}
 
                 Rules:
@@ -165,6 +165,9 @@ def voice_turn():
                 - mapped MUST be verbatim from the list or null
                 - If correction, acknowledge the correction naturally e.g. 'oh, cis woman — got it, my bad.'
                 - If null, reply naturally hints at options without listing them robotically. e.g. 'totally okay — are you more on the cis side, trans, or somewhere in between?' or 'no worries — do you identify more as a woman, man, or somewhere outside that?'
+                - reply MUST be one sentence, under 15 words
+                - if user tries to skip or deflect, redirect in one sentence: 'take your time — cis, trans, or something else?'
+                - NEVER suggest moving on or chatting about something else
                 """
             else:
                 system = f"""
@@ -175,7 +178,7 @@ def voice_turn():
                 Return JSON only:
                 {{
                 "mapped": "<exact option or null>",
-                "reply": "<1-2 sentences that naturally echo their answer in their own spirit. feel like a real person responding, not a bot confirming. e.g. if they said 'yeah socially', reply: 'a social drinker — love that.' if correction: 'oh wait, no worries — got it now.'>"
+                "reply": "<one short sentence only. echo warmly if mapped. if null, redirect gently with a hint. e.g. 'just checking — yes or no to smoking?' never offer to skip.>"
                 }}
 
                 Rules:
@@ -183,6 +186,9 @@ def voice_turn():
                 - mapped MUST be verbatim from the list or null
                 - Be generous — map ambiguous answers when possible
                 - If null, reply naturally hints at the options without reading them aloud like a list. Weave 1-2 options into a conversational sentence. e.g. for attraction: 'no worries — do you lean toward men, women, or does it depend on the person?' e.g. for smoking: 'just checking — would you say yes or no to smoking?' Always reference what they actually said if possible.
+                - reply MUST be one sentence, under 15 words
+                - if user deflects or says they don't want to answer, briefly acknowledge and ask again: 'no pressure — just a quick yes or no?'
+                - NEVER suggest skipping or moving on
                 """
 
             gpt = client.chat.completions.create(
