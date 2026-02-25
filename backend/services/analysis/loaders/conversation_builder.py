@@ -1,3 +1,4 @@
+# services/analysis/loaders/conversation_builder.py - STT and conversation assembly
 """
 Conversation Builder (OpenAI Whisper API + VAD preprocessing)
 ==============================================================

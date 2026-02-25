@@ -1,3 +1,4 @@
+# routes/onboarding.py - onboarding submission and embedding endpoints
 from datetime import datetime
 from flask import Blueprint, jsonify, session
 

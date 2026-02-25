@@ -1,3 +1,4 @@
+# services/matching_service.py - matching filters and recommendation scoring
 from typing import Dict, List, Tuple
 import math
 import random
@@ -7,23 +8,11 @@ import numpy as np
 from backend.services.firestore import get_firestore
 
 
-def _get_db():
-    return get_firestore()
+DEFAULT_DISTANCE_KM = 10
+BYPASS_USER_FILTERS = False
 
 
-def _cosine(a: List[float], b: List[float]) -> float:
-    if not a or not b:
-        return 0.0
-    va = np.array(a, dtype=float)
-    vb = np.array(b, dtype=float)
-    if va.size == 0 or vb.size == 0 or va.size != vb.size:
-        return 0.0
-    denom = (np.linalg.norm(va) * np.linalg.norm(vb))
-    if denom == 0:
-        return 0.0
-    return float(np.dot(va, vb) / denom)
-
-def _distance_km(lat1, lng1, lat2, lng2) -> float:
+def distance_km(lat1, lng1, lat2, lng2) -> float:
     r = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlng = math.radians(lng2 - lng1)
@@ -37,7 +26,7 @@ def _distance_km(lat1, lng1, lat2, lng2) -> float:
     return r * c
 
 
-def _matches_orientation(orientation, target_gender) -> bool:
+def matches_orientation(orientation, target_gender) -> bool:
     if not target_gender:
         return False
 
@@ -59,7 +48,7 @@ def _matches_orientation(orientation, target_gender) -> bool:
     if orientation == "women" or "women only" in orientation:
         return target_gender == "woman"
 
-    if "non-binary" == orientation or "non-binary only" in orientation:
+    if orientation == "non-binary" or "non-binary only" in orientation:
         return target_gender == "non-binary"
 
     if "men and non-binary" in orientation:
@@ -71,10 +60,7 @@ def _matches_orientation(orientation, target_gender) -> bool:
     return False
 
 
-def _partners_completed_three_rounds(db, user_id: str):
-    """
-    Return partner IDs that have completed all 3 rounds with the user.
-    """
+def partners_completed_three_rounds(db, user_id: str):
     if not user_id:
         return set()
 
@@ -117,11 +103,24 @@ def _partners_completed_three_rounds(db, user_id: str):
     }
 
 
+def _cosine(a: List[float], b: List[float]) -> float:
+    if not a or not b:
+        return 0.0
+    va = np.array(a, dtype=float)
+    vb = np.array(b, dtype=float)
+    if va.size == 0 or vb.size == 0 or va.size != vb.size:
+        return 0.0
+    denom = (np.linalg.norm(va) * np.linalg.norm(vb))
+    if denom == 0:
+        return 0.0
+    return float(np.dot(va, vb) / denom)
+
+
 def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     if not uid:
         return []
 
-    db = _get_db()
+    db = get_firestore()
     users: Dict[str, Dict] = {
         d.id: (d.to_dict() or {}) for d in db.collection("users").stream()
     }
@@ -138,7 +137,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
 
-    completed_partners = _partners_completed_three_rounds(db, uid)
+    completed_partners = partners_completed_three_rounds(db, uid)
 
     scores: List[Tuple[str, float]] = []
     candidates: List[str] = []
@@ -162,7 +161,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
             continue
 
         try:
-            d = _distance_km(
+            d = distance_km(
                 float(my_loc.get("lat")),
                 float(my_loc.get("lng")),
                 float(other_loc.get("lat")),
@@ -170,7 +169,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
             )
         except Exception:
             continue
-        if d > 10:
+        if d > DEFAULT_DISTANCE_KM:
             continue
 
         other_gender = user.get("gender")
@@ -181,14 +180,14 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
         if not other_gender or other_age is None:
             continue
 
-        if not _matches_orientation(my_orientation, other_gender):
+        if not matches_orientation(my_orientation, other_gender):
             continue
 
         if my_age_pref:
             if not (my_age_pref.get("min", 0) <= other_age <= my_age_pref.get("max", 100)):
                 continue
 
-        if not _matches_orientation(other_orientation, my_gender):
+        if not matches_orientation(other_orientation, my_gender):
             continue
 
         if other_age_pref:
@@ -219,3 +218,144 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     if not scores:
         return _random_fallback()
     return scores[:top_k]
+
+
+def filter_users_for_list(user_id, bypass_filters=False):
+    """
+    주변 사용자 목록 (필터링 적용)
+
+    필터:
+    - 거리 10km 이내
+    - 성적 지향 일치 (양방향)
+    - 나이 선호 일치 (양방향)
+    - 이미 3라운드를 완료한 파트너 제외
+    """
+    db = get_firestore()
+
+    if bypass_filters:
+        users = []
+        for doc in db.collection("users").stream():
+            u = doc.to_dict()
+            if "id" not in u:
+                u["id"] = doc.id
+            if u["id"] == user_id:
+                continue
+            users.append(u)
+        return users, {"bypass": True}, None
+
+    me = db.collection("users").document(user_id).get().to_dict() or {}
+
+    my_loc = me.get("location")
+    my_gender = me.get("gender")
+    my_age = me.get("age")
+    my_sexual_orientation = me.get("sexual_orientation")
+    my_age_pref = me.get("age_preference", {})
+    my_blocked = set(me.get("blocked_users") or [])
+
+    if not my_loc or my_loc.get("lat") is None or my_loc.get("lng") is None:
+        return None, None, (400, "missing my location")
+
+    if not my_gender or my_age is None:
+        return None, None, (400, "missing my profile")
+
+    completed_partners = partners_completed_three_rounds(db, user_id)
+
+    users = []
+    total_count = 0
+    filtered_stats = {
+        "same_user": 0,
+        "blocked": 0,
+        "no_onboarding": 0,
+        "no_location": 0,
+        "too_far": 0,
+        "missing_gender_age": 0,
+        "orientation_mismatch": 0,
+        "age_mismatch": 0,
+        "reverse_orientation": 0,
+        "reverse_age": 0,
+        "completed_all_rounds": 0,
+        "passed": 0,
+    }
+
+    for doc in db.collection("users").stream():
+        u = doc.to_dict()
+        if "id" not in u:
+            u["id"] = doc.id
+        total_count += 1
+
+        # 본인 제외
+        if u["id"] == user_id:
+            filtered_stats["same_user"] += 1
+            continue
+
+        # 차단 확인 (양방향)
+        other_blocked = set(u.get("blocked_users") or [])
+        if u.get("id") in my_blocked or user_id in other_blocked:
+            filtered_stats["blocked"] += 1
+            continue
+
+        # 3라운드까지 완료한 파트너 제외
+        if u["id"] in completed_partners:
+            filtered_stats["completed_all_rounds"] += 1
+            continue
+
+        # 온보딩 완료 확인
+        if not u.get("onboarding_completed"):
+            filtered_stats["no_onboarding"] += 1
+            continue
+
+        # 위치 확인
+        loc = u.get("location")
+        if not loc:
+            filtered_stats["no_location"] += 1
+            continue
+
+        # 거리 체크 (10km)
+        d = distance_km(
+            my_loc["lat"], my_loc["lng"],
+            loc["lat"], loc["lng"]
+        )
+        if d > DEFAULT_DISTANCE_KM:
+            filtered_stats["too_far"] += 1
+            continue
+
+        other_gender = u.get("gender")
+        other_age = u.get("age")
+        other_sexual_orientation = u.get("sexual_orientation")
+        other_age_pref = u.get("age_preference", {})
+
+        if not other_gender or not other_age:
+            filtered_stats["missing_gender_age"] += 1
+            continue
+
+        # 내가 상대를 선호하는지
+        if not matches_orientation(my_sexual_orientation, other_gender):
+            filtered_stats["orientation_mismatch"] += 1
+            continue
+
+        if my_age_pref:
+            if not (my_age_pref.get("min", 0) <= other_age <= my_age_pref.get("max", 100)):
+                filtered_stats["age_mismatch"] += 1
+                continue
+
+        # 상대가 나를 선호하는지 (양방향 확인)
+        if not matches_orientation(other_sexual_orientation, my_gender):
+            filtered_stats["reverse_orientation"] += 1
+            continue
+
+        if other_age_pref:
+            if not (other_age_pref.get("min", 0) <= my_age <= other_age_pref.get("max", 100)):
+                filtered_stats["reverse_age"] += 1
+                continue
+
+        # 모든 필터 통과
+        filtered_stats["passed"] += 1
+        users.append(u)
+
+    debug = {
+        "total_count": total_count,
+        "filtered_stats": filtered_stats,
+        "me": me,
+    }
+
+    return users, debug, None

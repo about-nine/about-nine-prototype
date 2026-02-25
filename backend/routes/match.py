@@ -1,11 +1,16 @@
-# match.py
+# routes/match.py - matching, recommendations, and analysis queue endpoints
 import time
 from flask import Blueprint, request, jsonify, session
 from firebase_admin import firestore
-from backend.services.recommend_service import recommend_for_user
+from backend.services.matching_service import (
+    filter_users_for_list,
+    BYPASS_USER_FILTERS,
+    recommend_for_user,
+)
 from backend.services.firestore import get_firestore
 
 match_bp = Blueprint("match", __name__, url_prefix="/api/match")
+analysis_bp = Blueprint("analysis", __name__, url_prefix="/api/analysis")
 
 
 def _enqueue_analysis_job(db, talk_id: str, requested_by: str | None = None) -> str:
@@ -42,14 +47,7 @@ def _enqueue_analysis_job(db, talk_id: str, requested_by: str | None = None) -> 
         return "queued"
 
 
-@match_bp.route("/analyze-talk", methods=["POST"])
-def analyze_talk():
-    data = request.get_json() or {}
-    talk_id = data.get("talk_id")
-
-    if not talk_id:
-        return jsonify(success=False, message="talk_id required"), 400
-
+def enqueue_analysis_for_talk(talk_id: str, requested_by: str | None = None):
     db = get_firestore()
     talk_ref = db.collection("talk_history").document(talk_id)
     now_ms = int(time.time() * 1000)
@@ -65,11 +63,11 @@ def analyze_talk():
             return "complete"
         status = talk.get("analysis_status")
         started = int(talk.get("analysis_started_at") or 0)
-        
+
         # 🔥 3분 이상 "running"이면 재시도 허용
         if status == "running" and started and now_ms - started < 180_000:
             return "running"
-        
+
         transaction.update(
             talk_ref,
             {"analysis_status": "running", "analysis_started_at": now_ms},
@@ -83,14 +81,56 @@ def analyze_talk():
         state = "start"
 
     if state == "missing":
-        return jsonify(success=False, message="talk_history not found"), 404
+        return {"success": False, "message": "talk_history not found"}, 404
     if state == "complete":
-        return jsonify(success=True, talk_id=talk_id, status="complete")
+        return {"success": True, "talk_id": talk_id, "status": "complete"}, 200
     if state == "running":
-        return jsonify(success=True, talk_id=talk_id, status="running")
+        return {"success": True, "talk_id": talk_id, "status": "running"}, 200
 
-    _enqueue_analysis_job(db, talk_id, requested_by=session.get("user_id"))
-    return jsonify(success=True, talk_id=talk_id, status="started")
+    _enqueue_analysis_job(db, talk_id, requested_by=requested_by)
+    return {"success": True, "talk_id": talk_id, "status": "started"}, 200
+
+
+@analysis_bp.route("/talk", methods=["POST"])
+def analyze_talk_api():
+    data = request.get_json() or {}
+    talk_id = data.get("talk_id")
+
+    if not talk_id:
+        return jsonify(success=False, message="talk_id required"), 400
+
+    payload, status = enqueue_analysis_for_talk(
+        talk_id,
+        requested_by=session.get("user_id"),
+    )
+    return jsonify(payload), status
+
+
+@match_bp.route("/list", methods=["GET"])
+def list_candidates():
+    uid = session.get("user_id")
+    if not uid:
+        return jsonify(success=False), 401
+
+    users, debug, error = filter_users_for_list(uid, bypass_filters=BYPASS_USER_FILTERS)
+    if error:
+        status, message = error
+        return jsonify(success=False, message=message), status
+
+    if debug and not debug.get("bypass"):
+        print(f"\n=== MATCH LIST DEBUG ===")
+        print(f"My ID: {uid}")
+        print(f"My profile: {debug.get('me')}")
+        total_count = debug.get("total_count", 0)
+        filtered_stats = debug.get("filtered_stats") or {}
+        print(f"\nTotal users in DB: {total_count}")
+        print(f"Filter results:")
+        for key, value in filtered_stats.items():
+            print(f"  {key}: {value}")
+        print(f"Final result: {len(users)} users")
+        print("======================\n")
+
+    return jsonify(success=True, users=users)
 
 
 @match_bp.route("/recommend", methods=["GET"])

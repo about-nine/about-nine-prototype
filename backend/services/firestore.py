@@ -1,3 +1,4 @@
+# services/firestore.py - Firebase app and Firestore client initialization
 import json
 from pathlib import Path
 import firebase_admin

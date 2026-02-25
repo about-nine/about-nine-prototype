@@ -1,3 +1,4 @@
+# routes/spotify.py - Spotify auth, token, and search endpoints
 import base64
 import os
 import secrets
@@ -11,8 +12,11 @@ from flask import Blueprint, jsonify, redirect, request, session
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
+SPOTIFY_MARKET = os.getenv("SPOTIFY_MARKET", "US")
 
 SPOTIFY_SCOPES = "streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state"
+SPOTIFY_SEARCH_LIMIT = 10
+SPOTIFY_SCAN_PAGES = 5
 
 spotify_bp = Blueprint("spotify", __name__, url_prefix="/api/spotify")
 spotify_auth_bp = Blueprint("spotify_auth", __name__)
@@ -116,6 +120,143 @@ def get_app_access_token():
         return None
 
 
+def normalize_limit(value):
+    try:
+        requested_limit = int(value)
+    except (TypeError, ValueError):
+        requested_limit = SPOTIFY_SEARCH_LIMIT
+    return max(1, min(requested_limit, SPOTIFY_SEARCH_LIMIT))
+
+
+def normalize_offset(value):
+    if value is None:
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def search_tracks(q, limit=None, offset=None):
+    if not q:
+        return []
+
+    token = get_app_access_token()
+    if not token:
+        raise RuntimeError("SPOTIFY_CLIENT_ID/SECRET missing")
+
+    limit_value = normalize_limit(limit)
+    offset_value = normalize_offset(offset)
+
+    params = {
+        "q": q,
+        "type": "track",
+        "limit": limit_value,
+        "market": SPOTIFY_MARKET,
+    }
+    if offset_value is not None:
+        params["offset"] = offset_value
+
+    items = []
+    total = None
+    current_offset = params.get("offset", 0) or 0
+    pages = 0
+
+    while len(items) < limit_value and pages < SPOTIFY_SCAN_PAGES:
+        r = requests.get(
+            "https://api.spotify.com/v1/search",
+            params={
+                **params,
+                "limit": SPOTIFY_SEARCH_LIMIT,
+                "offset": current_offset,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5,
+        )
+
+        r.raise_for_status()
+        data = r.json().get("tracks", {})
+        page_items = data.get("items", [])
+        if total is None:
+            total = data.get("total")
+
+        if not page_items:
+            break
+
+        items.extend(page_items)
+        pages += 1
+        current_offset += len(page_items)
+        if total is not None and current_offset >= total:
+            break
+
+    tracks = []
+    fallback_tracks = []
+    seen_ids = set()
+
+    for it in items:
+        preview_url = it.get("preview_url")
+        album_images = it.get("album", {}).get("images", [])
+        image_url = album_images[0]["url"] if album_images else ""
+        artists = ", ".join([a.get("name", "") for a in it.get("artists", [])])
+        track_id = it.get("id")
+
+        track = {
+            "id": track_id,
+            "uri": it.get("uri"),
+            "name": it.get("name"),
+            "artist": artists,
+            "image": image_url,
+            "preview_url": preview_url,
+            "has_preview": bool(preview_url),
+            "duration_ms": it.get("duration_ms"),
+        }
+
+        if track_id and track_id in seen_ids:
+            continue
+        if track_id:
+            seen_ids.add(track_id)
+
+        if preview_url:
+            tracks.append(track)
+        else:
+            fallback_tracks.append(track)
+
+        if len(tracks) >= limit_value:
+            break
+
+    if len(tracks) < limit_value:
+        for track in fallback_tracks:
+            if len(tracks) >= limit_value:
+                break
+            tracks.append(track)
+
+    return tracks
+
+
+def _search_response():
+    q = request.args.get("q")
+
+    if not q:
+        return jsonify(success=True, tracks=[])
+
+    try:
+        tracks = search_tracks(
+            q,
+            limit=request.args.get("limit"),
+            offset=request.args.get("offset"),
+        )
+    except RuntimeError as e:
+        return jsonify(success=False, message=str(e)), 500
+    except Exception as e:
+        details = ""
+        if hasattr(e, "response") and e.response is not None:
+            details = e.response.text
+        print("🔥 Spotify API error:", e, details)
+        return jsonify(success=True, tracks=[])
+
+    return jsonify(success=True, tracks=tracks)
+
+
 def get_valid_access_token():
     refresh_token = session.get("spotify_refresh_token")
     if not refresh_token:
@@ -167,6 +308,11 @@ def spotify_login():
 
     auth_url = "https://accounts.spotify.com/authorize?" + urlencode(params)
     return redirect(auth_url)
+
+
+@spotify_bp.route("/search")
+def spotify_search():
+    return _search_response()
 
 
 @spotify_auth_bp.route("/spotify/callback")

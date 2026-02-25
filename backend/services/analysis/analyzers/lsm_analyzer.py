@@ -1,3 +1,4 @@
+# services/analysis/analyzers/lsm_analyzer.py - language style matching analyzer
 """
 Language Style Matching Analyzer (lsm)
 =======================================

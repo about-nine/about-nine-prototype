@@ -1,3 +1,4 @@
+# services/analysis/analyzers/analyzer_core.py - analyzer base utilities
 """Shared analyzer core for 2-party conversation analyzers."""
 
 from __future__ import annotations

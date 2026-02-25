@@ -1,9 +1,12 @@
+# routes/talks.py - talk flow, history, and go/no-go endpoints
 """
 talks.py - 대화 관련 엔드포인트
 
 - calculate-round: 다음 라운드 계산
 - save-talk-history: 대화 저장 (클라이언트에서 호출하지 않음, talk-end.html에서 직접 저장)
-- get-talk-history: 대화 기록 조회
+- respond: go/no 응답 저장
+- go-no-go: realtime go/no 상태 조회
+- history: 대화 기록 조회
 """
 
 from datetime import datetime
@@ -358,235 +361,6 @@ def save_history():
     return jsonify(success=True, talk_id=request_id, talk=talk_data)
 
 
-# =========================
-# Get Talk History
-# =========================
-@talks_bp.route("/history/<talk_id>", methods=["GET"])
-def get_history(talk_id):
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify(success=False, message="not logged in"), 401
-
-    db = get_firestore()
-    snap = db.collection("talk_history").document(talk_id).get()
-    if not snap.exists:
-        return jsonify(success=False, message="talk_history not found"), 404
-
-    return jsonify(success=True, talk=snap.to_dict())
-
-
-# =========================
-# History List
-# =========================
-@talks_bp.route("/history-list", methods=["GET"])
-def history_list():
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify(success=False, message="not logged in"), 401
-
-    db = get_firestore()
-    talks_ref = db.collection("talk_history")
-
-    query1 = (
-        talks_ref.where("participants.user_a", "==", user_id).stream()
-    )
-    query2 = (
-        talks_ref.where("participants.user_b", "==", user_id).stream()
-    )
-
-    partner_map = {}
-
-    def add_talk(talk):
-        participants = talk.get("participants") or {}
-        partner_id = (
-            participants.get("user_b")
-            if participants.get("user_a") == user_id
-            else participants.get("user_a")
-        )
-        if not partner_id:
-            return
-
-        entry = partner_map.setdefault(
-            partner_id,
-            {
-                "partner_id": partner_id,
-                "talks_by_round": {},
-                "last_timestamp": 0,
-                "had_no": False,
-            },
-        )
-
-        round_num = talk.get("round") or 1
-        ts = talk.get("timestamp") or 0
-        score = None
-        if isinstance(talk.get("analysis"), dict):
-            raw = talk.get("analysis", {}).get("chemistry_score")
-            if isinstance(raw, (int, float)):
-                score = round(raw)
-
-        existing = entry["talks_by_round"].get(round_num)
-        if not existing or ts > existing.get("ts", 0):
-            entry["talks_by_round"][round_num] = {
-                "topic": talk.get("topic"),
-                "score": score,
-                "ts": ts,
-            }
-
-        entry["last_timestamp"] = max(entry["last_timestamp"], ts)
-
-        go_no_go = talk.get("go_no_go") or {}
-        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
-            entry["had_no"] = True
-        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
-            entry["had_no"] = True
-
-    for doc in query1:
-        add_talk(doc.to_dict() or {})
-    for doc in query2:
-        add_talk(doc.to_dict() or {})
-
-    partner_ids = list(partner_map.keys())
-    if not partner_ids:
-        return jsonify(success=True, items=[])
-
-    # current user's block list
-    me = db.collection("users").document(user_id).get().to_dict() or {}
-    my_blocked = set(me.get("blocked_users") or [])
-
-    items = []
-    for pid in partner_ids:
-        user_doc = db.collection("users").document(pid).get()
-        if not user_doc.exists:
-            items.append(
-                {
-                    "partner_id": pid,
-                    "first_name": "(deleted)",
-                    "last_name": "",
-                    "talks_by_round": partner_map[pid]["talks_by_round"],
-                    "last_timestamp": partner_map[pid]["last_timestamp"],
-                    "had_no": partner_map[pid]["had_no"],
-                    "blocked": pid in my_blocked,
-                    "deleted": True,
-                }
-            )
-            continue
-
-        user_data = user_doc.to_dict() or {}
-        other_blocked = set(user_data.get("blocked_users") or [])
-        is_blocked = pid in my_blocked or user_id in other_blocked
-
-        items.append(
-            {
-                "partner_id": pid,
-                "first_name": user_data.get("first_name") or user_data.get("firstName"),
-                "last_name": user_data.get("last_name") or user_data.get("lastName"),
-                "talks_by_round": partner_map[pid]["talks_by_round"],
-                "last_timestamp": partner_map[pid]["last_timestamp"],
-                "had_no": partner_map[pid]["had_no"],
-                "blocked": is_blocked,
-                "deleted": False,
-            }
-        )
-
-    items.sort(key=lambda x: x.get("last_timestamp", 0), reverse=True)
-    return jsonify(success=True, items=items)
-
-
-# =========================
-# History Detail
-# =========================
-@talks_bp.route("/history-detail/<partner_id>", methods=["GET"])
-def history_detail(partner_id):
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify(success=False, message="not logged in"), 401
-
-    db = get_firestore()
-    partner_doc = db.collection("users").document(partner_id).get()
-    partner_exists = partner_doc.exists
-    partner = partner_doc.to_dict() or {}
-    deleted = not partner_exists
-    if deleted:
-        partner = {
-            "first_name": "(deleted)",
-            "last_name": "",
-            "phone": None,
-        }
-
-    # block check
-    me = db.collection("users").document(user_id).get().to_dict() or {}
-    my_blocked = set(me.get("blocked_users") or [])
-    other_blocked = set(partner.get("blocked_users") or []) if partner_exists else set()
-    is_blocked = partner_id in my_blocked or user_id in other_blocked
-
-    talks_ref = db.collection("talk_history")
-    query1 = (
-        talks_ref.where("participants.user_a", "==", user_id)
-        .where("participants.user_b", "==", partner_id)
-        .stream()
-    )
-    query2 = (
-        talks_ref.where("participants.user_a", "==", partner_id)
-        .where("participants.user_b", "==", user_id)
-        .stream()
-    )
-
-    rounds = {}
-    had_no = False
-    max_round = 0
-
-    def add_detail(talk):
-        nonlocal had_no, max_round
-        round_num = talk.get("round") or 1
-        max_round = max(max_round, round_num)
-        ts = talk.get("timestamp") or 0
-
-        score = None
-        if isinstance(talk.get("analysis"), dict):
-            raw = talk.get("analysis", {}).get("chemistry_score")
-            if isinstance(raw, (int, float)):
-                score = round(raw)
-
-        existing = rounds.get(round_num)
-        if existing and existing.get("timestamp", 0) >= ts:
-            return
-
-        rounds[round_num] = {
-            "topic": talk.get("topic"),
-            "score": score,
-            "selections": talk.get("selections") or {},
-            "options": talk.get("options") or [],
-            "conversation": talk.get("conversation") or [],
-            "uid_mapping": talk.get("uid_mapping") or {},
-            "timestamp": ts,
-        }
-
-        go_no_go = talk.get("go_no_go") or {}
-        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
-            had_no = True
-        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
-            had_no = True
-
-    for doc in query1:
-        add_detail(doc.to_dict() or {})
-    for doc in query2:
-        add_detail(doc.to_dict() or {})
-
-    return jsonify(
-        success=True,
-        blocked=is_blocked,
-        partner={
-            "id": partner_id,
-            "first_name": partner.get("first_name") or partner.get("firstName"),
-            "last_name": partner.get("last_name") or partner.get("lastName"),
-            "phone": partner.get("phone"),
-        },
-        deleted=deleted,
-        rounds=rounds,
-        had_no=had_no,
-        max_round=max_round,
-    )
-
 
 # =========================
 # Save Response (go/no)
@@ -715,6 +489,286 @@ def get_go_no_go(request_id):
 
 
 # =========================
+# History Endpoints
+# =========================
+@talks_bp.route("/history/<talk_id>", methods=["GET"])
+def get_history(talk_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    snap = db.collection("talk_history").document(talk_id).get()
+    if not snap.exists:
+        return jsonify(success=False, message="talk_history not found"), 404
+
+    return jsonify(success=True, talk=snap.to_dict())
+
+
+@talks_bp.route("/history-list", methods=["GET"])
+def history_list():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    talks_ref = db.collection("talk_history")
+
+    query1 = (
+        talks_ref.where("participants.user_a", "==", user_id).stream()
+    )
+    query2 = (
+        talks_ref.where("participants.user_b", "==", user_id).stream()
+    )
+
+    partner_map = {}
+
+    def add_talk(talk):
+        participants = talk.get("participants") or {}
+        partner_id = (
+            participants.get("user_b")
+            if participants.get("user_a") == user_id
+            else participants.get("user_a")
+        )
+        if not partner_id:
+            return
+
+        entry = partner_map.setdefault(
+            partner_id,
+            {
+                "partner_id": partner_id,
+                "talks_by_round": {},
+                "last_timestamp": 0,
+                "had_no": False,
+            },
+        )
+
+        round_num = talk.get("round") or 1
+        ts = talk.get("timestamp") or 0
+        score = None
+        if isinstance(talk.get("analysis"), dict):
+            raw = talk.get("analysis", {}).get("chemistry_score")
+            if isinstance(raw, (int, float)):
+                score = round(raw)
+
+        existing = entry["talks_by_round"].get(round_num)
+        if not existing or ts > existing.get("ts", 0):
+            entry["talks_by_round"][round_num] = {
+                "topic": talk.get("topic"),
+                "score": score,
+                "ts": ts,
+            }
+
+        entry["last_timestamp"] = max(entry["last_timestamp"], ts)
+
+        go_no_go = talk.get("go_no_go") or {}
+        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
+            entry["had_no"] = True
+        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
+            entry["had_no"] = True
+
+    for doc in query1:
+        add_talk(doc.to_dict() or {})
+    for doc in query2:
+        add_talk(doc.to_dict() or {})
+
+    partner_ids = list(partner_map.keys())
+    if not partner_ids:
+        return jsonify(success=True, items=[])
+
+    # current user's block list
+    me = db.collection("users").document(user_id).get().to_dict() or {}
+    my_blocked = set(me.get("blocked_users") or [])
+
+    items = []
+    for pid in partner_ids:
+        user_doc = db.collection("users").document(pid).get()
+        if not user_doc.exists:
+            items.append(
+                {
+                    "partner_id": pid,
+                    "first_name": "(deleted)",
+                    "last_name": "",
+                    "talks_by_round": partner_map[pid]["talks_by_round"],
+                    "last_timestamp": partner_map[pid]["last_timestamp"],
+                    "had_no": partner_map[pid]["had_no"],
+                    "blocked": pid in my_blocked,
+                    "deleted": True,
+                }
+            )
+            continue
+
+        user_data = user_doc.to_dict() or {}
+        other_blocked = set(user_data.get("blocked_users") or [])
+        is_blocked = pid in my_blocked or user_id in other_blocked
+
+        items.append(
+            {
+                "partner_id": pid,
+                "first_name": user_data.get("first_name") or user_data.get("firstName"),
+                "last_name": user_data.get("last_name") or user_data.get("lastName"),
+                "talks_by_round": partner_map[pid]["talks_by_round"],
+                "last_timestamp": partner_map[pid]["last_timestamp"],
+                "had_no": partner_map[pid]["had_no"],
+                "blocked": is_blocked,
+                "deleted": False,
+            }
+        )
+
+    items.sort(key=lambda x: x.get("last_timestamp", 0), reverse=True)
+    return jsonify(success=True, items=items)
+
+
+@talks_bp.route("/history-detail/<partner_id>", methods=["GET"])
+def history_detail(partner_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    partner_doc = db.collection("users").document(partner_id).get()
+    partner_exists = partner_doc.exists
+    partner = partner_doc.to_dict() or {}
+    deleted = not partner_exists
+    if deleted:
+        partner = {
+            "first_name": "(deleted)",
+            "last_name": "",
+            "phone": None,
+        }
+
+    # block check
+    me = db.collection("users").document(user_id).get().to_dict() or {}
+    my_blocked = set(me.get("blocked_users") or [])
+    other_blocked = set(partner.get("blocked_users") or []) if partner_exists else set()
+    is_blocked = partner_id in my_blocked or user_id in other_blocked
+
+    talks_ref = db.collection("talk_history")
+    query1 = (
+        talks_ref.where("participants.user_a", "==", user_id)
+        .where("participants.user_b", "==", partner_id)
+        .stream()
+    )
+    query2 = (
+        talks_ref.where("participants.user_a", "==", partner_id)
+        .where("participants.user_b", "==", user_id)
+        .stream()
+    )
+
+    rounds = {}
+    had_no = False
+    max_round = 0
+
+    def add_detail(talk):
+        nonlocal had_no, max_round
+        round_num = talk.get("round") or 1
+        max_round = max(max_round, round_num)
+        ts = talk.get("timestamp") or 0
+
+        score = None
+        if isinstance(talk.get("analysis"), dict):
+            raw = talk.get("analysis", {}).get("chemistry_score")
+            if isinstance(raw, (int, float)):
+                score = round(raw)
+
+        existing = rounds.get(round_num)
+        if existing and existing.get("timestamp", 0) >= ts:
+            return
+
+        rounds[round_num] = {
+            "topic": talk.get("topic"),
+            "score": score,
+            "selections": talk.get("selections") or {},
+            "options": talk.get("options") or [],
+            "conversation": talk.get("conversation") or [],
+            "uid_mapping": talk.get("uid_mapping") or {},
+            "timestamp": ts,
+        }
+
+        go_no_go = talk.get("go_no_go") or {}
+        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
+            had_no = True
+        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
+            had_no = True
+
+    for doc in query1:
+        add_detail(doc.to_dict() or {})
+    for doc in query2:
+        add_detail(doc.to_dict() or {})
+
+    return jsonify(
+        success=True,
+        blocked=is_blocked,
+        partner={
+            "id": partner_id,
+            "first_name": partner.get("first_name") or partner.get("firstName"),
+            "last_name": partner.get("last_name") or partner.get("lastName"),
+            "phone": partner.get("phone"),
+        },
+        deleted=deleted,
+        rounds=rounds,
+        had_no=had_no,
+        max_round=max_round,
+    )
+
+
+@talks_bp.route("/history", methods=["GET"])
+def get_talk_history():
+    """
+    사용자의 대화 기록 조회
+
+    Query params:
+    - partner_id (optional): 특정 파트너와의 대화만
+    - limit (optional): 최대 개수
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    partner_id = request.args.get("partner_id")
+    limit = int(request.args.get("limit", 50))
+
+    try:
+        db = get_firestore()
+        talks_ref = db.collection("talk_history")
+
+        # user_a 또는 user_b인 대화 모두 가져오기
+        query1 = talks_ref.where("participants.user_a", "==", user_id).stream()
+        query2 = talks_ref.where("participants.user_b", "==", user_id).stream()
+
+        talks = []
+        for doc in query1:
+            talk = doc.to_dict()
+            talk["id"] = doc.id
+            talks.append(talk)
+        for doc in query2:
+            talk = doc.to_dict()
+            talk["id"] = doc.id
+            talks.append(talk)
+
+        # partner_id 필터링
+        if partner_id:
+            talks = [
+                t for t in talks
+                if t["participants"]["user_a"] == partner_id or t["participants"]["user_b"] == partner_id
+            ]
+
+        # 시간순 정렬 (최신순)
+        talks.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
+        # 제한
+        talks = talks[:limit]
+
+        print(f"📜 Talk history: {user_id} → {len(talks)}개")
+
+        return jsonify(success=True, talks=talks)
+
+    except Exception as e:
+        print(f"❌ get-talk-history 실패: {e}")
+        return jsonify(success=False, message=str(e)), 500
+
+
+# =========================
 # 🔥 Helper Functions
 # =========================
 
@@ -832,62 +886,3 @@ def select_random_options(topic):
         })
     
     return options
-
-
-# =========================
-# 🔥 Get Talk History
-# =========================
-@talks_bp.route("/history", methods=["GET"])
-def get_talk_history():
-    """
-    사용자의 대화 기록 조회
-    
-    Query params:
-    - partner_id (optional): 특정 파트너와의 대화만
-    - limit (optional): 최대 개수
-    """
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify(success=False, message="not logged in"), 401
-
-    partner_id = request.args.get("partner_id")
-    limit = int(request.args.get("limit", 50))
-
-    try:
-        db = get_firestore()
-        talks_ref = db.collection("talk_history")
-        
-        # user_a 또는 user_b인 대화 모두 가져오기
-        query1 = talks_ref.where("participants.user_a", "==", user_id).stream()
-        query2 = talks_ref.where("participants.user_b", "==", user_id).stream()
-        
-        talks = []
-        for doc in query1:
-            talk = doc.to_dict()
-            talk["id"] = doc.id
-            talks.append(talk)
-        for doc in query2:
-            talk = doc.to_dict()
-            talk["id"] = doc.id
-            talks.append(talk)
-        
-        # partner_id 필터링
-        if partner_id:
-            talks = [
-                t for t in talks
-                if t["participants"]["user_a"] == partner_id or t["participants"]["user_b"] == partner_id
-            ]
-        
-        # 시간순 정렬 (최신순)
-        talks.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-        
-        # 제한
-        talks = talks[:limit]
-        
-        print(f"📜 Talk history: {user_id} → {len(talks)}개")
-        
-        return jsonify(success=True, talks=talks)
-
-    except Exception as e:
-        print(f"❌ get-talk-history 실패: {e}")
-        return jsonify(success=False, message=str(e)), 500

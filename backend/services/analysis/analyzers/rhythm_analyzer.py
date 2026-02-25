@@ -1,3 +1,4 @@
+# services/analysis/analyzers/rhythm_analyzer.py - turn-taking/rhythm analyzer
 """
 Turn-Taking Analyzer (rhythm_synchrony)
 =========================================

@@ -1,3 +1,4 @@
+# services/user_profile_service.py - user embedding and stats updates
 import os
 import time
 from typing import Any, Dict, Iterable, List, Optional

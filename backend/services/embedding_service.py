@@ -1,3 +1,4 @@
+# services/embedding_service.py - OpenAI embedding helper
 import os
 from typing import List, Optional
 

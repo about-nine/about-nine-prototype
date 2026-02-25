@@ -1,3 +1,4 @@
+# services/chemistry_model.py - chemistry model loading and scoring
 import os
 import numpy as np
 import pickle

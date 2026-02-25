@@ -1,3 +1,4 @@
+# routes/auth.py - auth, invite verification, and logout endpoints
 import secrets
 from datetime import datetime
 from flask import Blueprint, session, jsonify

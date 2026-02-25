@@ -1059,13 +1059,13 @@
             if (fresh.analysis_status === "running") {
               const elapsed = Date.now() - (fresh.analysis_started_at || 0);
               if (elapsed > 180000) {
-                try { await fetch("/api/match/analyze-talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
+                try { await fetch("/api/analysis/talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
               }
               continue;
             }
 
             if (fresh.analysis_status === "failed" && i < 40) {
-              try { await fetch("/api/match/analyze-talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
+              try { await fetch("/api/analysis/talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
               await sleep(5000);
               continue;
             }

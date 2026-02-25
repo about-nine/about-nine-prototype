@@ -548,7 +548,7 @@
 
       async function loadUsers() {
         try {
-          const res = await apiCall("/users/list");
+          const res = await apiCall("/match/list");
           users = res.users || [];
         } catch { users = []; }
         renderUsers(users, "userList", "lounge");

@@ -1,3 +1,4 @@
+# routes/debug.py - debug-only endpoints
 from flask import Blueprint, session, jsonify
 from backend.services.firestore import get_firestore
 

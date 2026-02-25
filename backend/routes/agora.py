@@ -1,3 +1,4 @@
+# routes/agora.py - Agora recording control endpoints
 from flask import Blueprint, request, jsonify
 from backend.services.agora_service import (
     acquire_recording,

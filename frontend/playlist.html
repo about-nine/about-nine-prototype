@@ -91,7 +91,7 @@
         showLoading("searching...");
 
         try {
-          const res = await apiCall(`/music/search?q=${encodeURIComponent(q)}`);
+          const res = await apiCall(`/spotify/search?q=${encodeURIComponent(q)}`);
           hideLoading();
           renderResults(res.tracks || []);
         } catch {

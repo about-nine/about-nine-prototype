@@ -1,3 +1,4 @@
+# services/analysis/analyzers/discourse_analyzer.py - discourse/flow analysis
 """
 Discourse Quality Analyzer (topic_continuity)
 ==============================================

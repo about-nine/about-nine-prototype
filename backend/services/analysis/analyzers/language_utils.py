@@ -1,3 +1,4 @@
+# services/analysis/analyzers/language_utils.py - language feature helpers
 """Utility helpers for lightweight language detection used by analyzers."""
 
 from __future__ import annotations

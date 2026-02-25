@@ -1,3 +1,4 @@
+# services/rtdb.py - Firebase Realtime Database client
 import firebase_admin
 from firebase_admin import db
 from backend.config import FIREBASE_DB_URL

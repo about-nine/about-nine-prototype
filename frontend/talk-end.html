@@ -367,7 +367,7 @@
         if (!talkId) {
           throw new Error("talk_id missing");
         }
-        return await apiCall("/match/analyze-talk", "POST", {
+        return await apiCall("/analysis/talk", "POST", {
           talk_id: talkId,
         });
       }

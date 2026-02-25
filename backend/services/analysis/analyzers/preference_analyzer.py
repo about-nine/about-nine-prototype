@@ -1,3 +1,4 @@
+# services/analysis/analyzers/preference_analyzer.py - preference alignment analyzer
 """
 Preference Sync Analyzer (preference_sync)
 ===========================================
