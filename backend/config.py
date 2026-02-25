@@ -42,6 +42,8 @@ else:
         # 프로덕션: 배포 도메인만 허용 (보안)
         CORS_ORIGINS = [
             "https://about-nine.onrender.com",
+            "https://about-nine-prototype-46a2c.firebaseapp.com",
+            "https://about-nine-prototype-46a2c.web.app",
         ]
     else:
         # 개발: 로컬 전체 허용
