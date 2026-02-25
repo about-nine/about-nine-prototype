@@ -40,28 +40,7 @@
         color: var(--text-secondary);
       }
 
-      .swan-image {
-        position: absolute;
-        bottom: 80px; /* 하단 60px + tap-hint 높이 + 여유 */
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80%;
-        max-width: 400px;
-        opacity: 0.7;
-        animation: float 3s ease-in-out infinite;
-      }
-
-      @keyframes float {
-        0%,
-        100% {
-          transform: translateX(-50%) translateY(0);
-        }
-        50% {
-          transform: translateX(-50%) translateY(-10px);
-        }
-      }
-
-      .tap-hint {
+      .status-hint {
         animation: pulse 2s ease-in-out infinite;
       }
 
@@ -85,9 +64,7 @@
         </h1>
       </div>
 
-      <img src="images/swans.png" alt="swans" class="swan-image" />
-
-      <div class="bottom-text tap-hint">tap anywhere to continue</div>
+      <div class="bottom-text status-hint">entering...</div>
       <span id="error" class="error hidden"></span>
     </div>
 
@@ -104,7 +81,11 @@
         }
       }
 
+      let isEntering = false;
+
       async function enterApp() {
+        if (isEntering) return;
+        isEntering = true;
         hideError("error");
         // localStorage에 user_id가 없으면 로그인 플로우로
         if (!getFromLocal("user_id")) {
@@ -129,10 +110,14 @@
             return;
           }
           showError("error", "network issue. tap to retry");
+          isEntering = false;
         }
       }
 
       document.body.addEventListener("click", enterApp);
+      window.addEventListener("DOMContentLoaded", () => {
+        setTimeout(enterApp, 800);
+      });
     </script>
   </body>
 </html>
