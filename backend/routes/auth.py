@@ -7,6 +7,18 @@ from firebase_admin import auth as fb_auth
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 
+INVITE_CODES = {"9191", "ABOUTNINE"}
+
+
+def is_valid_invite(code):
+    if not code:
+        return False
+    try:
+        normalized = str(code).strip()
+    except Exception:
+        return False
+    return normalized in INVITE_CODES
+
 
 # =========================
 # Invite
@@ -17,7 +29,7 @@ def verify_invite():
     if err:
         return err, code
 
-    if data.get("code") in ["9191", "ABOUTNINE"]:
+    if is_valid_invite(data.get("code")):
         session["invite_verified"] = True
         return jsonify(success=True)
 
@@ -64,7 +76,8 @@ def firebase_login():
         is_existing_user = user_data.get("onboarding_completed", False)
     else:
         # 신규 유저 → invite 필수
-        if not session.get("invite_verified"):
+        invite_code = data.get("invite_code") or data.get("inviteCode")
+        if not session.get("invite_verified") and not is_valid_invite(invite_code):
             return jsonify(success=False, message="invite required"), 403
 
         user_id = secrets.token_urlsafe(16)
