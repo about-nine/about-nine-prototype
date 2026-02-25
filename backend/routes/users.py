@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, session
 from firebase_admin import firestore
 from firebase_admin import auth as fb_auth
 from backend.services.firestore import get_firestore
+from backend.services.rtdb import get_rtdb
 from backend.utils.request import get_json
 import math
 
@@ -486,6 +487,13 @@ def delete_account():
         except Exception as e:
             print(f"❌ Failed to delete auth user {firebase_uid}: {e}")
             return jsonify(success=False, message="auth delete failed"), 500
+
+    try:
+        rtdb = get_rtdb()
+        if rtdb:
+            rtdb.child("presence").child(user_id).delete()
+    except Exception as e:
+        print(f"❌ Failed to delete presence for {user_id}: {e}")
 
     try:
         db.collection("users").document(user_id).delete()
