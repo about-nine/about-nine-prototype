@@ -84,7 +84,7 @@
       }
 
       .ai-closed-title    { font-size: 16px; font-weight: 600; }
-      .ai-closed-asterisk { font-size: 44px; line-height: 1; letter-spacing: -2px; }
+      .ai-closed-asterisk { width: 30px; height: 30px; object-fit: contain; }
       .ai-closed-subtitle { font-size: 16px; font-weight: 400; }
 
       .ai-closed-link {
@@ -160,7 +160,7 @@
         min-height: calc(100vh - 260px);
       }
 
-      .empty-state-box img { width: 48px; height: 48px; margin-bottom: 24px; opacity: 0.9; }
+      .empty-state-box img { width: 30px; height: 30px; margin-bottom: 24px; opacity: 0.9; }
 
       .empty-state-box .message {
         font-size: 16px;
@@ -405,7 +405,7 @@
           <div class="ai-closed-title">
             just to let you know,<br />ai match officially begins at 9 p.m.
           </div>
-          <div class="ai-closed-asterisk">*</div>
+          <img src="images/asterisk.png" alt="asterisk" class="ai-closed-asterisk" />
           <div class="ai-closed-subtitle">see you then</div>
           <button class="ai-closed-link" id="aiClosedGoBtn" type="button">go to lounge</button>
         </div>
