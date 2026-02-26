@@ -42,11 +42,11 @@ def check_size(file_storage):
 def make_audio(reply):
     tts = client.audio.speech.create(
         model="gpt-4o-mini-tts",
-        voice="echo",
+        voice="shimmer",
         input=reply,
         response_format="mp3",
-        speed=1.2, 
-        instructions="Speak in a warm, balanced, and gender-neutral voice. Your tone should be inviting and charismatic, striking a perfect balance between a professional concierge and a close friend. Maintain a natural, rhythmic pace with slight pauses to sound thoughtful. Avoid any mechanical stiffness; instead, use a soft, melodic intonation that conveys genuine curiosity and empathy. Your goal is to make the user feel heard, valued, and comfortable sharing their story."
+        speed=1.0, 
+        instructions="Speak in a soft, gentle, whispering tone. Keep your voice calm, quiet, and intimate, like you're telling a secret."
     )
     return base64.b64encode(tts.read()).decode()
 
