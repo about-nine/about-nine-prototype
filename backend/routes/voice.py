@@ -45,7 +45,7 @@ def make_audio(reply):
         voice="shimmer",
         input=reply,
         response_format="mp3",
-        speed=1.0, 
+        speed=1.2, 
         instructions="Speak in a soft, gentle, whispering tone. Keep your voice calm, quiet, and intimate, like you're telling a secret."
     )
     return base64.b64encode(tts.read()).decode()
@@ -209,6 +209,19 @@ def voice_turn():
                 """
             else:
                 question_id = request.form.get("question_id", "")
+                            
+                question_text = request.form.get("question_text", "")
+
+                # question_id별 topic 명시 (GPT가 혼동 못하도록)
+                TOPIC_LABELS = {
+                    "drink":    "alcohol / drinking",
+                    "smoke":    "cigarettes / tobacco smoking",
+                    "marijuana": "marijuana / cannabis use (NOT smoking cigarettes)",
+                    "sexual_orientation": "romantic/sexual attraction",
+                    "gender": "gender identity",
+                    "gender_detail": "gender identity detail",
+                }
+                topic_label = TOPIC_LABELS.get(question_id, question_id)
                 
                 system = f"""
                 You are COCO, a warm and emotionally intelligent dating app companion.
@@ -234,7 +247,7 @@ def voice_turn():
                 - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
                 - NEVER suggest skipping or moving on
                 - if mapped, reply is a confirmation only — NEVER ask how often, how much, or any follow-up
-                - reply must reference the actual question topic — NEVER confuse marijuana with smoking
+                - f"The topic is SPECIFICALLY about: {topic_label}. The actual question asked was: '{question_text}'. reply MUST be about {topic_label} ONLY — if the topic is marijuana, NEVER say smoker/non-smoker, NEVER reference cigarettes."
                 - reply must be about {question_id} — never reference a different topic
                 - Map based on intent: "sometimes", "occasionally", "yeah" → yes; "nah", "not really", "i quit" → no
                 - Only return null if genuinely unclear or completely off-topic
