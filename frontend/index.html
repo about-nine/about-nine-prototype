@@ -40,6 +40,26 @@
         color: var(--text-secondary);
       }
 
+      .earphone-note {
+        margin-top: 16px;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+        display: inline-block;
+        animation: earphoneFloat 3.5s ease-in-out infinite;
+        font-family: "Merriweather", serif;
+      }
+
+      @keyframes earphoneFloat {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-6px);
+        }
+      }
+
       .status-hint {
         animation: pulse 2s ease-in-out infinite;
       }
@@ -62,6 +82,9 @@
         <h1 class="brand-text">
           <span class="findyour">find your</span><br />kindred soul
         </h1>
+        <p class="earphone-note">
+          Wear earphones for clearer voices<br> and a more natural, immersive vibe.
+        </p>
       </div>
 
       <div class="bottom-text status-hint">entering...</div>
@@ -116,7 +139,7 @@
 
       document.body.addEventListener("click", enterApp);
       window.addEventListener("DOMContentLoaded", () => {
-        setTimeout(enterApp, 800);
+        setTimeout(enterApp, 1000);
       });
     </script>
   </body>
