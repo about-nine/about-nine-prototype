@@ -30,12 +30,20 @@
 
       function isVoiceMode() {
         const params = new URLSearchParams(window.location.search);
-        const fromQuery = params.get("voice") === "1";
-        if (fromQuery) {
+        const voiceParam = params.get("voice");
+        if (voiceParam === "1") {
           saveToLocal(FORCE_VOICE_KEY, true);
           return true;
         }
-        return getFromLocal(FORCE_VOICE_KEY) === true;
+        if (voiceParam === "0") {
+          saveToLocal(FORCE_VOICE_KEY, false);
+          return false;
+        }
+        const stored = getFromLocal(FORCE_VOICE_KEY);
+        if (stored === true) return true;
+        if (stored === false) return false;
+        saveToLocal(FORCE_VOICE_KEY, true);
+        return true;
       }
 
       async function resolveNextRoute() {
