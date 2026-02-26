@@ -206,6 +206,9 @@ def voice_turn():
                 - NEVER suggest skipping
                 - if user says just "woman", "man", "non-binary" with NO detail qualifier, set gender_detail to null — NEVER assume cis or any specific identity
                 - only set gender_detail when the user explicitly mentions it
+                - Common speech-to-text errors to account for: "this woman/man" likely means "cis woman/man", 
+                    "sis" means "cis", "trans-gender" means "transgender", "non binary" means "non-binary".
+                    Use context to correct obvious phonetic misrecognitions before mapping.
                 """
             else:
                 question_id = request.form.get("question_id", "")
@@ -246,8 +249,12 @@ def voice_turn():
                 - reply MUST be one sentence, under 15 words
                 - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
                 - NEVER suggest skipping or moving on
-                - if mapped, reply is a confirmation only — NEVER ask how often, how much, or any follow-up
-                - f"The topic is SPECIFICALLY about: {topic_label}. The actual question asked was: '{question_text}'. reply MUST be about {topic_label} ONLY — if the topic is marijuana, NEVER say smoker/non-smoker, NEVER reference cigarettes."
+                - if mapped, reply is a warm one-sentence echo — natural and conversational, NOT label-like.
+                    e.g. 'oh, you enjoy a drink — love that.' not 'a drinker — got it.'
+                    e.g. 'ah, marijuana's your thing — totally fine.' not 'marijuana user, got it.'
+                    e.g. 'oh nice, you're into women — got it.' not 'women, noted.'
+                    Always use 'you' — make it feel like you're talking to them, not filing a form.
+                - The topic is SPECIFICALLY about: {topic_label}. The actual question asked was: '{question_text}'. reply MUST be about {topic_label} ONLY — if the topic is marijuana, NEVER say smoker/non-smoker, NEVER reference cigarettes.
                 - reply must be about {question_id} — never reference a different topic
                 - Map based on intent: "sometimes", "occasionally", "yeah" → yes; "nah", "not really", "i quit" → no
                 - Only return null if genuinely unclear or completely off-topic
