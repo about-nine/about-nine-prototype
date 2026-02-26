@@ -61,7 +61,43 @@
         }
       }
 
+      /* 듣는 중 — 같은 색, pulse 없음 */
+      .user-listening .pulse-circle {
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        animation: none;
+        box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
+      }
+
+      /* 분석 중 — grey (user-listening 다음에 선언) */
+      .coco-processing .pulse-circle {
+        background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
+        animation: pulseProcessing 2.5s ease-in-out infinite;
+        box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
+      }
+
+      @keyframes pulseProcessing {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.6;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+      }
+
+      /* correction window — 흐릿한 idle, 선택적 느낌 */
+      .correction-window .pulse-circle {
+        background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
+        animation: pulseIdle 3s ease-in-out infinite;
+        box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
+        opacity: 1;
+      }
+
+      /* Coco 말하는 중 — 마지막에 선언해서 항상 이김 */
       .coco-speaking .pulse-circle {
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
         animation: pulseSpeaking 0.6s ease-in-out infinite;
         box-shadow: 0 0 60px rgba(255, 110, 196, 0.85);
       }
@@ -73,40 +109,6 @@
         }
         50% {
           transform: scale(1.15);
-        }
-      }
-
-      /* 듣는 중 */
-      .user-listening .pulse-circle {
-        background: linear-gradient(135deg, #ff3aac 0%, #5b6ef5 100%);
-        animation: pulseListening 0.8s ease-in-out infinite;
-        box-shadow: 0 0 60px rgba(255, 58, 172, 0.8);
-      }
-      @keyframes pulseListening {
-        0%,
-        100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.13);
-        }
-      }
-
-      /* 분석 중 */
-      .coco-processing .pulse-circle {
-        background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
-        animation: pulseProcessing 2.5s ease-in-out infinite;
-        box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
-      }
-      @keyframes pulseProcessing {
-        0%,
-        100% {
-          transform: scale(1);
-          opacity: 0.6;
-        }
-        50% {
-          transform: scale(1.05);
-          opacity: 1;
         }
       }
 
@@ -470,44 +472,26 @@
       }
 
       function setVoiceState(state) {
-        $page.classList.remove("user-listening", "coco-processing");
+        $page.classList.remove(
+          "user-listening",
+          "coco-processing",
+          "correction-window",
+        );
         if (state === "listening") $page.classList.add("user-listening");
         if (state === "processing") $page.classList.add("coco-processing");
+        if (state === "correction") $page.classList.add("correction-window");
       }
 
       function initLiveTranscription() {
-        if (!SpeechRecognition) return;
-        recognizer = new SpeechRecognition();
-        recognizer.continuous = true;
-        recognizer.interimResults = true;
-        recognizer.lang = SPEECH_LANG;
-        recognizer.onresult = (e) => {
-          let interim = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (e.results[i].isFinal) liveFinal += e.results[i][0].transcript;
-            else interim = e.results[i][0].transcript;
-          }
-          if (interim || liveFinal)
-            $heard.textContent = (liveFinal + interim).trim();
-        };
-        recognizer.onerror = () => {};
+        /* disabled */
       }
 
       function startLiveTranscription() {
-        if (!recognizer) return;
-        liveFinal = "";
-        try {
-          recognizer.start();
-        } catch {}
-        recognitionActive = true;
+        /* disabled */
       }
 
       function stopLiveTranscription() {
-        if (!recognizer || !recognitionActive) return;
-        try {
-          recognizer.stop();
-        } catch {}
-        recognitionActive = false;
+        /* disabled */
       }
 
       function micErrorMessage(err) {
@@ -921,6 +905,7 @@
         await playAudio(data.audio);
 
         // ✅ 에코 후 correction window 진입 (3초 대기)
+        setVoiceState("correction");
         $heard.textContent = "";
         currentQ = { ...q, t: "correction_window", originalT: q.t };
 
@@ -938,6 +923,7 @@
         const q = FLOW[step];
         if (!q) return;
 
+        setVoiceState("");
         currentQ = null;
 
         if (q.t === "bot") {
