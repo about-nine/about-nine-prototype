@@ -45,61 +45,70 @@
         animation: pulseIdle 2s ease-in-out infinite;
         box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
         transition:
-          background 0.4s ease,
-          box-shadow 0.4s ease;
+          background 0.7s ease,
+          box-shadow 0.7s ease,
+          opacity 0.4s ease;
       }
 
-      @keyframes pulseIdle {
-        0%,
-        100% {
-          transform: scale(1);
-          opacity: 1;
-        }
-        50% {
-          transform: scale(1.1);
-          opacity: 0.8;
-        }
-      }
-
-      /* 듣는 중 — 같은 색, pulse 없음 */
+      /* 듣는 중 — animation: none 대신 아주 느린 미세 pulse */
       .user-listening .pulse-circle {
         background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
-        animation: none;
+        animation: pulseStill 4s ease-in-out infinite;
         box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
       }
 
-      /* 분석 중 — grey (user-listening 다음에 선언) */
+      /* 분석 중 */
       .coco-processing .pulse-circle {
         background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
         animation: pulseProcessing 2.5s ease-in-out infinite;
         box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
       }
 
-      @keyframes pulseProcessing {
-        0%,
-        100% {
-          transform: scale(1);
-          opacity: 0.6;
-        }
-        50% {
-          transform: scale(1.05);
-          opacity: 1;
-        }
-      }
-
-      /* correction window — 흐릿한 idle, 선택적 느낌 */
+      /* correction — 완전 정지 대신 아주 느린 미세 pulse */
       .correction-window .pulse-circle {
         background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
-        animation: pulseIdle 3s ease-in-out infinite;
+        animation: pulseStill 4s ease-in-out infinite;
         box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
-        opacity: 1;
       }
 
-      /* Coco 말하는 중 — 마지막에 선언해서 항상 이김 */
+      /* Coco 말하는 중 */
       .coco-speaking .pulse-circle {
         background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
         animation: pulseSpeaking 0.6s ease-in-out infinite;
         box-shadow: 0 0 60px rgba(255, 110, 196, 0.85);
+      }
+
+      @keyframes pulseIdle {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.08);
+        }
+      }
+
+      /* snap 방지용 — 거의 안 움직임 */
+      @keyframes pulseStill {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
+
+      @keyframes pulseProcessing {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.7;
+        }
+        50% {
+          transform: scale(1.04);
+          opacity: 1;
+        }
       }
 
       @keyframes pulseSpeaking {
