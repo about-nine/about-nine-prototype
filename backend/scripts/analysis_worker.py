@@ -51,7 +51,10 @@ def _complete_job(job_ref, status: str, error: str | None = None, trace: str | N
         payload["last_error"] = error
     if trace:
         payload["last_trace"] = trace
-    job_ref.update(payload)
+    try:
+        job_ref.update(payload)
+    except Exception as e:
+        print(f"⚠️ _complete_job failed (doc may not exist): {e}")
 
 
 MAX_ATTEMPTS = 3
@@ -131,12 +134,15 @@ def run_worker():
 
         for snap in snaps:
             job_ref = snap.reference
-            if not _claim_job(db, job_ref):
+            try:
+                if not _claim_job(db, job_ref):
+                    continue
+                updated_snap = job_ref.get()
+                job = updated_snap.to_dict() or {}
+                _process_job(db, job_ref, job)
+            except Exception as e:
+                print(f"⚠️ job loop error (skipping): {e}")
                 continue
-            # claim이 attempts를 증가시켰으니 최신 값 읽어야 함
-            updated_snap = job_ref.get()
-            job = updated_snap.to_dict() or {}
-            _process_job(db, job_ref, job)
 
         if run_once:
             return
