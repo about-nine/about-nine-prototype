@@ -93,6 +93,38 @@ def _make_regressor() -> "XGBRegressor":
         eval_metric="rmse",
     )
 
+def _embedding_interaction(vec_a: List[float], vec_b: List[float]) -> Dict[str, float]:
+    if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+        return {"cosine": 0.0, "l2": 0.0, "mean_abs_diff": 0.0, "std_abs_diff": 0.0}
+    a = np.array(vec_a, dtype=float)
+    b = np.array(vec_b, dtype=float)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+
+    if norm_a > 0 and norm_b > 0:
+        cosine = float(np.dot(a, b) / (norm_a * norm_b))
+    else:
+        cosine = 0.0
+
+    diff = a - b
+    return {
+        "cosine":        cosine,
+        "l2":            float(np.linalg.norm(diff)),
+        "mean_abs_diff": float(np.mean(np.abs(diff))),
+        "std_abs_diff":  float(np.std(np.abs(diff))),
+    }
+
+
+def _talk_profile_features(
+    profile_a: Dict[str, float],
+    profile_b: Dict[str, float],
+) -> Dict[str, float]:
+    """A/B talk_profile을 a_/b_ prefix 붙여서 8개 피처로 변환."""
+    result = {}
+    for f in PROFILE_FIELDS:
+        result[f"a_{f}"] = float(profile_a.get(f, 0.0))
+        result[f"b_{f}"] = float(profile_b.get(f, 0.0))
+    return result
 
 # ── Fallback 휴리스틱 ─────────────────────────────────────────────
 #

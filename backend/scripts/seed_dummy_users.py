@@ -161,7 +161,7 @@ def build_seed_playlist():
 
 PLAYLIST = build_seed_playlist()
 
-EMBEDDING_DIM = 128
+EMBEDDING_DIM = 1536
 
 
 def random_loc():
@@ -248,10 +248,19 @@ def create_user():
             "dim": EMBEDDING_DIM,
             "updated_at": int(datetime.utcnow().timestamp() * 1000),
         },
+        
+        "talk_profile": {
+            "avg_turn_length": round(random.uniform(20, 80), 2),
+            "speech_pace": round(random.uniform(3, 8), 2),
+            "emotional_expression": round(random.uniform(10, 60), 2),
+            "vocabulary_diversity": round(random.uniform(0.3, 0.8), 2),
+            "talk_count": 0,
+        },
 
         # 간단 통계
         "stats": {
             "talk_count": 0,
+            "go_count": 0,
             "go_rate": 0.0,
         },
     }

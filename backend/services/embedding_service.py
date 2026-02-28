@@ -38,11 +38,7 @@ class EmbeddingService:
         if not HAS_OPENAI or not os.getenv("OPENAI_API_KEY"):
             return None
         try:
-            client = OpenAI(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                timeout=self._openai_timeout(),
-                max_retries=1,
-            )
+            client = self._get_client()
             resp = client.embeddings.create(
                 model=self._model_name,
                 input=text[:8000],  # API 토큰 제한 대비

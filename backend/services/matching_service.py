@@ -120,88 +120,16 @@ def partners_completed_three_rounds(db, user_id: str):
         if required.issubset(rounds)
     }
 
+_models_initialized = False
 
-def _cosine(a: List[float], b: List[float]) -> float:
-    if not a or not b:
-        return 0.0
-    va = np.array(a, dtype=float)
-    vb = np.array(b, dtype=float)
-    if va.size == 0 or vb.size == 0 or va.size != vb.size:
-        return 0.0
-    denom = (np.linalg.norm(va) * np.linalg.norm(vb))
-    if denom == 0:
-        return 0.0
-    return float(np.dot(va, vb) / denom)
-
-def _embedding_interaction(a: List[float], b: List[float]) -> Dict[str, float]:
-    """
-    두 embedding 벡터의 interaction features (4개).
-    Model 1 입력의 embedding 파트.
-    """
-    if not a or not b or len(a) != len(b):
-        return {"cosine": 0.0, "l2": 0.0, "mean_abs_diff": 0.0, "std_abs_diff": 0.0}
-
-    va = np.array(a, dtype=float)
-    vb = np.array(b, dtype=float)
-
-    cosine = _cosine(a, b)
-    l2 = float(np.linalg.norm(va - vb))
-    abs_diff = np.abs(va - vb)
-    mean_abs_diff = float(np.mean(abs_diff))
-    std_abs_diff = float(np.std(abs_diff))
-
-    return {
-        "cosine": cosine,
-        "l2": l2,
-        "mean_abs_diff": mean_abs_diff,
-        "std_abs_diff": std_abs_diff,
-    }
-
-
-def _talk_profile_features(profile_a: Dict, profile_b: Dict) -> Dict[str, float]:
-    """
-    A/B talk_profile 8개 피처.
-    Model 1 입력의 talk_profile 파트.
-    """
-    fields = ["avg_turn_length", "speech_pace", "emotional_expression", "vocabulary_diversity"]
-    result = {}
-    for f in fields:
-        result[f"a_{f}"] = float(profile_a.get(f) or 0.0)
-        result[f"b_{f}"] = float(profile_b.get(f) or 0.0)
-    return result
-
-
-def _heuristic_chemistry_score(
-    emb_interaction: Dict[str, float],
-    talk_features: Dict[str, float],
-) -> float:
-    """
-    Model 1이 없을 때의 fallback 스코어링.
-
-    embedding cosine이 높고 (취향/가치관 유사),
-    talk_profile 차이가 작을수록 (스타일 유사) 높은 점수.
-
-    Model 1 학습 데이터가 쌓이면 이 함수 대신 model_1.predict() 호출로 교체.
-    """
-    cosine = emb_interaction.get("cosine", 0.0)
-
-    # talk_profile 스타일 유사도: A/B 차이가 작을수록 높음
-    style_diffs = []
-    for f in ["avg_turn_length", "speech_pace", "emotional_expression", "vocabulary_diversity"]:
-        a_val = talk_features.get(f"a_{f}", 0.0)
-        b_val = talk_features.get(f"b_{f}", 0.0)
-        if a_val > 0 and b_val > 0:
-            max_val = max(a_val, b_val)
-            style_diffs.append(abs(a_val - b_val) / max_val)
-
-    style_sim = 1.0 - (sum(style_diffs) / len(style_diffs)) if style_diffs else 0.5
-
-    # 가중 합산: embedding cosine 70% + style similarity 30%
-    # embedding이 더 강한 신호 (무엇을 말하는가가 스타일보다 중요)
-    score = 0.7 * cosine + 0.3 * style_sim
-    return float(np.clip(score, 0.0, 1.0))
+def _ensure_models():
+    global _models_initialized
+    if not _models_initialized:
+        _init_models()
+        _models_initialized = True
 
 def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
+    _ensure_models()
     if not uid:
         return []
 
