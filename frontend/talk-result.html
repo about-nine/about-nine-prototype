@@ -16,7 +16,8 @@
 
       .coco-avatar-spacer {
         width: 36px;
-        height: 36px;
+        height: 0;
+        min-height: 0;
         flex-shrink: 0;
       }
 
@@ -522,7 +523,6 @@
 
       function getRoundIntroSteps(round) {
         const partnerName = getPartnerName();
-        const scoreSummary = getScoreSummaryLine();
 
         if (round === 2) {
           return [
@@ -532,7 +532,6 @@
               text: `here's your second chemistry score with ${partnerName}`,
               delay: 900,
             },
-            { type: "message", text: scoreSummary, delay: 900 },
             { type: "score", delay: 900 },
             { type: "message", text: "go or no?", delay: 900 },
           ];
@@ -546,7 +545,6 @@
               text: `it was your last change to talk with ${partnerName} on this app`,
               delay: 900,
             },
-            { type: "message", text: scoreSummary, delay: 900 },
             { type: "score", delay: 900 },
             {
               type: "message",
@@ -569,15 +567,9 @@
             text: `here's what the conversation with ${partnerName} tells us`,
             delay: 900,
           },
-          { type: "message", text: scoreSummary, delay: 900 },
           { type: "score", delay: 900 },
           { type: "message", text: "go or no?", delay: 900 },
         ];
-      }
-
-      function getScoreSummaryLine() {
-        const scoreText = analysisScore === null ? "--" : analysisScore;
-        return `chemistry score: ${scoreText} (view details)`;
       }
 
       function getPartnerName() {

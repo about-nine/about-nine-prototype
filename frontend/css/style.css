@@ -530,6 +530,7 @@ a:hover {
   padding: 0 20px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
 .chat-container .chat-input-area {
@@ -545,7 +546,7 @@ a:hover {
 .chat-row {
   display: flex;
   gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   align-items: flex-start;
   opacity: 0;
   animation: fadeIn 0.3s forwards;
@@ -572,8 +573,8 @@ a:hover {
   border-radius: 22px;
   max-width: 70%;
   line-height: 1.5;
-  white-space: pre-line;
-  font-size: 14px;
+  white-space: normal;
+  font-size: 13px;
 }
 
 .chat-bubble.mine {
