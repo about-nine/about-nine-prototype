@@ -26,7 +26,7 @@ import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from analyzers.language_utils import detect_conversation_language, detect_utterance_languages
+from backend.services.analysis.analyzers.language_utils import detect_conversation_language, detect_utterance_languages
 
 
 BASE_LEXICON: Dict[str, Set[str]] = {

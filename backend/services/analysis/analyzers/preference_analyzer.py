@@ -28,8 +28,8 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from analyzers.language_utils import detect_conversation_language, detect_utterance_languages
-from analyzers.analyzer_core import (
+from backend.services.analysis.analyzers.language_utils import detect_conversation_language, detect_utterance_languages
+from backend.services.analysis.analyzers.analyzer_core import (
     BaseSyncModule,
     ConversationSyncCore,
     SyncItem,

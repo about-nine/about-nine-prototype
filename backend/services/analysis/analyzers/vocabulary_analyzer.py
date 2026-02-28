@@ -32,7 +32,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-from analyzers.language_utils import detect_conversation_language
+from backend.services.analysis.analyzers.language_utils import detect_conversation_language
 
 # MATTR 윈도우 크기
 MATTR_WINDOW = 50

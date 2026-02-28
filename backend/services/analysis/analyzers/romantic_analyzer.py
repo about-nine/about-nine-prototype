@@ -48,7 +48,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from analyzers.language_utils import detect_conversation_language, detect_utterance_languages
+from backend.services.analysis.analyzers.language_utils import detect_conversation_language, detect_utterance_languages
 
 try:
     from openai import OpenAI
