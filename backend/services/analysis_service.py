@@ -29,6 +29,8 @@ from backend.services.analysis.analyzers.lsm_analyzer import LSMAnalyzer
 from backend.services.analysis.analyzers.preference_analyzer import PreferenceAnalyzer
 from backend.services.analysis.analyzers.vocabulary_analyzer import VocabularyAnalyzer
 
+from backend.services.training_trigger import check_and_trigger_training
+
 
 def _get_db():
     return get_firestore()
@@ -402,7 +404,7 @@ class AnalysisService:
             return
         try:
             shutil.rmtree(target_dir, ignore_errors=True)
-            print(f"🗑️ [{talk_id}] Cleaned up temp recordings")  # ✅ 로그 추가
+            print(f"🗑️ [{talk_id}] Cleaned up temp recordings") 
         except Exception:
             pass
 
@@ -436,6 +438,19 @@ class AnalysisService:
             except Exception:
                 pass
             participants = _participants_from_talk(talk)
+            
+            # 분석 시점 embedding 스냅샷 수집
+            embedding_snapshots = {}
+            for uid in participants:
+                try:
+                    user_snap = db.collection("users").document(uid).get()
+                    if user_snap.exists:
+                        user_data = user_snap.to_dict() or {}
+                        vec = (user_data.get("embedding") or {}).get("vector")
+                        if vec:
+                            embedding_snapshots[uid] = vec
+                except Exception:
+                    pass
 
             # 1) Ensure conversation exists (build if missing)
             conversation_obj = _conversation_from_talk(talk)
@@ -725,15 +740,22 @@ class AnalysisService:
             and all(v is True for v in go_no_go.values())
         )
 
-        talk_ref.update(
-            {
-                "analysis": analysis_sanitized,
-                "analysis_status": "complete",
-                "analysis_completed_at": _now_ms(),
-                "label": 1 if mutual_go else 0,        # Model 2 정답
-                "go_no_detail": go_no_go,
-            }
-        )
+        update_payload = {
+            "analysis": analysis_sanitized,
+            "analysis_status": "complete",
+            "analysis_completed_at": _now_ms(),
+            "label": 1 if mutual_go else 0,
+            "go_no_detail": go_no_go,
+        }
+        if embedding_snapshots:
+            update_payload["embedding_snapshots"] = embedding_snapshots
+
+        talk_ref.update(update_payload)
+        
+        try:
+            check_and_trigger_training(db)
+        except Exception as e:
+            print(f"⚠️ [{talk_id}] Training trigger failed: {e}")
 
         # 5) Update user embeddings (for recommendation)
         # Only update for users with explicit go/no labels.
@@ -756,8 +778,10 @@ class AnalysisService:
 
 
 # Convenience function to match your existing import style
-_service = AnalysisService()
-
+_service = None
 
 def analyze_talk_pipeline(talk_id: str, force: bool = False) -> Dict[str, Any]:
+    global _service
+    if _service is None:
+        _service = AnalysisService()
     return _service.analyze_talk_pipeline(talk_id, force=force)

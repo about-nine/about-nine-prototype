@@ -33,9 +33,11 @@ from backend.services.pair_feature_model import (
     PAIR_FEATURES,
     EMB_FEATURES,
     PROFILE_FIELDS,
+    PROFILE_FEATURES,
     _embedding_interaction,
     _talk_profile_features,
 )
+from backend.services.training_trigger import PAIR_FIRST_TRAIN_THRESHOLD
 
 
 def now_ms() -> int:
@@ -138,27 +140,28 @@ def build_dataset(talks: List[Dict], db) -> List[Dict[str, Any]]:
         vec_a = None
         vec_b = None
 
-        # talk_history.analysis에 embedding 스냅샷이 있으면 사용
-        # (없으면 현재 users에서 가져옴 — 약간의 노이즈 있지만 허용)
-        user_a_data = _get_user_snapshot(db, uid_a)
-        user_b_data = _get_user_snapshot(db, uid_b)
+        embedding_snapshots = analysis.get("embedding_snapshots") or {}
+        vec_a = embedding_snapshots.get(uid_a)
+        vec_b = embedding_snapshots.get(uid_b)
 
-        vec_a = _extract_embedding_vec(user_a_data)
-        vec_b = _extract_embedding_vec(user_b_data)
+        user_a_data = _get_user_snapshot(db, uid_a) if not vec_a or not profile_a_stored else {}
+        user_b_data = _get_user_snapshot(db, uid_b) if not vec_b or not profile_b_stored else {}
+
+        if not vec_a:
+            vec_a = _extract_embedding_vec(user_a_data)
+        if not vec_b:
+            vec_b = _extract_embedding_vec(user_b_data)
 
         if not vec_a or not vec_b:
             skipped["no_embedding"] += 1
             continue
 
-        # talk_profile: analysis.personal 우선, 없으면 users 컬렉션
         profile_a = {
-            f: float(profile_a_stored.get(f) or
-                     _extract_talk_profile(user_a_data).get(f) or 0.0)
-            for f in PROFILE_FIELDS
+            f: float(profile_a_stored.get(f) or _extract_talk_profile(user_a_data).get(f) or 0.0)
+            for f in PROFILE_FIELDS  # unprefixed 키로 조회
         }
         profile_b = {
-            f: float(profile_b_stored.get(f) or
-                     _extract_talk_profile(user_b_data).get(f) or 0.0)
+            f: float(profile_b_stored.get(f) or _extract_talk_profile(user_b_data).get(f) or 0.0)
             for f in PROFILE_FIELDS
         }
 
@@ -191,10 +194,7 @@ def evaluate(model: PairFeatureModel, rows: List[Dict]) -> Dict[str, Any]:
         y_pred = [
             model.predict(
                 {k: row[k] for k in EMB_FEATURES},
-                {k: row[k] for k in (
-                    [f"a_{f}" for f in PROFILE_FIELDS] +
-                    [f"b_{f}" for f in PROFILE_FIELDS]
-                )},
+                {k: row[k] for k in PROFILE_FEATURES},  # EMB_FEATURES가 아닌 PROFILE_FEATURES
             )[target]
             for row in rows
         ]
@@ -206,7 +206,7 @@ def evaluate(model: PairFeatureModel, rows: List[Dict]) -> Dict[str, Any]:
 
 # ── 메인 ─────────────────────────────────────────────────────────
 
-MIN_SAMPLES = 50
+MIN_SAMPLES = PAIR_FIRST_TRAIN_THRESHOLD
 
 
 def main():
@@ -224,8 +224,9 @@ def main():
     rows = build_dataset(talks, db)
     print(f"  유효 샘플: {len(rows)}행 (augmentation 포함)")
 
-    if len(rows) < MIN_SAMPLES:
-        print(f"❌ 샘플 부족: {len(rows)} < {MIN_SAMPLES}. 학습 중단.")
+    raw_talk_count = len(rows) // 2 
+    if raw_talk_count < MIN_SAMPLES:
+        print(f"❌ 샘플 부족: {raw_talk_count} < {MIN_SAMPLES}. 학습 중단.")
         return
 
     # pair feature 분포 확인

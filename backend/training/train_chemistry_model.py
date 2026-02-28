@@ -11,7 +11,7 @@ from sklearn.metrics import (
 
 from backend.services.chemistry_model import ChemistryModel, FEATURES
 from backend.services.firestore import get_firestore
-
+from backend.services.training_trigger import CHEMISTRY_FIRST_TRAIN_THRESHOLD
 
 def now_ms() -> int:
     return int(time.time() * 1000)
@@ -64,7 +64,7 @@ def main():
         print("No labeled data found.")
         return
     
-    MIN_SAMPLES = 30
+    MIN_SAMPLES = CHEMISTRY_FIRST_TRAIN_THRESHOLD
     if len(rows) < MIN_SAMPLES:
         print(f"❌ 샘플 부족: {len(rows)} < {MIN_SAMPLES}. 학습 중단.")
         return

@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps (light)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libsndfile1 \
@@ -15,4 +14,9 @@ COPY backend /app/backend
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "backend/training/train_chemistry_model.py"]
+# 학습 스크립트는 빌드 시 --build-arg로 주입
+# 예: --build-arg TRAIN_SCRIPT=backend/training/train_chemistry_model.py
+ARG TRAIN_SCRIPT
+RUN test -n "${TRAIN_SCRIPT}" || (echo "❌ TRAIN_SCRIPT build arg is required" && exit 1)
+ENV TRAIN_SCRIPT=${TRAIN_SCRIPT}
+CMD python ${TRAIN_SCRIPT}
