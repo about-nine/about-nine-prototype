@@ -9,6 +9,8 @@ import re
 
 _UID_RE = re.compile(r"__uid_s_(\d+)__uid_e_")
 
+DOWNLOAD_TIMEOUT = int(os.getenv("STORAGE_DOWNLOAD_TIMEOUT", "60"))
+
 def _extract_uid_from_filename(storage_path: str):
     """파일명에서 Agora uid 추출."""
     m = _UID_RE.search(storage_path)
@@ -26,7 +28,6 @@ def get_bucket():
             "Set it to your Firebase Storage bucket name "
             "(e.g. 'your-project-id.appspot.com')."
         )
-    # Ensure Firebase app is initialized before accessing storage
     get_firestore()
     _bucket = storage.bucket()
     return _bucket
@@ -42,7 +43,7 @@ def download_prefix(prefix: str, local_dir: str):
     for blob in blobs:
         filename = os.path.basename(blob.name)
         local_path = os.path.join(local_dir, filename)
-        blob.download_to_filename(local_path)
+        blob.download_to_filename(local_path, timeout=DOWNLOAD_TIMEOUT)
         local_files.append(local_path)
 
     return local_files
@@ -65,10 +66,11 @@ class StorageLoader:
         def _download_blob(storage_path: str) -> str:
             if storage_path in downloaded_paths:
                 return os.path.join(local_dir, os.path.basename(storage_path))
-            # flat 구조: basename만 사용 (디렉토리 중첩 방지)
             local_path = os.path.join(local_dir, os.path.basename(storage_path))
             blob = bucket.blob(storage_path)
-            blob.download_to_filename(local_path)
+            print(f"⬇️ [{talk_id}] Downloading: {os.path.basename(storage_path)}")
+            blob.download_to_filename(local_path, timeout=DOWNLOAD_TIMEOUT)
+            print(f"✅ [{talk_id}] Downloaded: {os.path.basename(storage_path)}")
             downloaded_paths.add(storage_path)
             return local_path
 
@@ -82,7 +84,6 @@ class StorageLoader:
             if not storage_path:
                 continue
 
-            # uid: item에 있으면 사용, 없으면 파일명에서 파싱
             uid = item.get("uid") or _extract_uid_from_filename(storage_path)
 
             local_path = _download_blob(storage_path)
@@ -92,11 +93,8 @@ class StorageLoader:
                 "local_path": local_path,
             })
 
-            # .m3u8면 같은 uid prefix의 .ts 파일만 다운로드
             if storage_path.endswith(".m3u8"):
-                # 이 m3u8의 prefix = 파일명에서 .m3u8 제거한 부분
-                # "recordings/1cc4dce9..._uid_s_1317776729__uid_e_audio"
-                ts_prefix = storage_path[:-5]  # .m3u8 제거
+                ts_prefix = storage_path[:-5]
                 for blob in bucket.list_blobs(prefix=ts_prefix):
                     if blob.name.endswith(".ts"):
                         _download_blob(blob.name)

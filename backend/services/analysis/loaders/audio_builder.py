@@ -19,16 +19,22 @@ def find_m3u8(directory: str):
     return files[0]
 
 
+def _get_ffmpeg_path() -> str:
+    # 시스템 ffmpeg 우선, 없으면 imageio-ffmpeg 사용
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        raise FileNotFoundError("ffmpeg not found. Install imageio-ffmpeg or system ffmpeg.")
+
 def m3u8_to_wav(m3u8_path: str, wav_path: str):
-    if not shutil.which("ffmpeg"):
-        raise FileNotFoundError("ffmpeg not found in PATH")
+    ffmpeg = _get_ffmpeg_path()
     subprocess.run([
-        "ffmpeg",
-        "-y",
-        "-i", m3u8_path,
-        "-ac", "1",
-        "-ar", "16000",
-        wav_path
+        ffmpeg, "-y", "-i", m3u8_path,
+        "-ac", "1", "-ar", "16000", wav_path
     ], check=True)
 
 
