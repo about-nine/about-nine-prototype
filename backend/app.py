@@ -110,6 +110,19 @@ if DEBUG:
 get_firestore()
 
 # =========================
+# ✅ Analysis Worker (백그라운드 스레드)
+# =========================
+import threading
+from backend.services.analysis_worker import run_worker
+
+def _start_worker():
+    t = threading.Thread(target=run_worker, daemon=True, name="analysis-worker")
+    t.start()
+    print("✅ Analysis worker started")
+
+_start_worker()
+
+# =========================
 # Health
 # =========================
 
