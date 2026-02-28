@@ -90,7 +90,7 @@ def start_recording(channel: str, resource_id: str):
             "recordingConfig": {
                 "channelType": 0,
                 "streamTypes": 0,
-                "maxIdleTime": 120,
+                "maxIdleTime": 600, # 10분 무음까지 허용
                 "streamMode": "original",
                 "subscribeAudioUids": ["#allstream#"],
                 "subscribeUidGroup": 0,

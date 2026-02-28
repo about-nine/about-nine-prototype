@@ -20,6 +20,8 @@ import tempfile
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 try:
     from openai import OpenAI
     HAS_OPENAI = True
@@ -407,46 +409,59 @@ def _parse_whisper_segments(result, speaker_id: str, time_offset: float = 0.0) -
     return parsed
 
 
-def _transcribe_with_chunking(wav_path: str, speaker_id: str) -> Tuple[List[Dict], Optional[str]]:
-    """Split long audio into manageable pieces (<25MB) for Whisper."""
+def _transcribe_with_chunking(wav_path: str, speaker_id: str):
     try:
         data, sr = _read_wav_np(wav_path)
-    except Exception as exc:  # noqa: BLE001
-        print(f"⚠️ STT chunk read failed ({wav_path}): {exc}")
+    except Exception as exc:
         return [], "chunk_read_failed"
 
     if len(data) == 0:
         return [], "empty_audio"
 
     chunk_samples = max(int(sr * WHISPER_CHUNK_SECONDS), sr * 60)
-    segments: List[Dict] = []
-    offset = 0.0
 
-    for start in range(0, len(data), chunk_samples):
+    # 청크 목록 준비
+    chunk_jobs = []
+    for i, start in enumerate(range(0, len(data), chunk_samples)):
         chunk = data[start:start + chunk_samples]
         if len(chunk) == 0:
             continue
+        offset = start / sr
+        chunk_jobs.append((i, chunk, sr, offset))
 
+    def _process_chunk(args):
+        idx, chunk, sr, offset = args
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         tmp.close()
         try:
             _write_wav_np(chunk, sr, tmp.name)
             result = _call_whisper_api(tmp.name)
-            segments.extend(_parse_whisper_segments(result, speaker_id, offset))
-        except Exception as exc:  # noqa: BLE001
-            print(f"⚠️ Whisper chunk failed ({wav_path}, offset={offset:.2f}s): {exc}")
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
-            return segments, "chunk_transcription_failed"
+            segs = _parse_whisper_segments(result, speaker_id, offset)
+            return idx, segs, None
+        except Exception as exc:
+            return idx, [], str(exc)
         finally:
             try:
                 os.unlink(tmp.name)
             except OSError:
                 pass
 
-        offset += len(chunk) / sr
+    # 최대 3개 동시 (OpenAI rate limit 고려)
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(_process_chunk, job): job[0] for job in chunk_jobs}
+        for future in as_completed(futures):
+            idx, segs, error = future.result()
+            results[idx] = (segs, error)
+
+    # 순서대로 재조립
+    segments = []
+    for idx in sorted(results.keys()):
+        segs, error = results[idx]
+        if error:
+            print(f"⚠️ Whisper chunk {idx} failed ({wav_path}): {error}")
+            return segments, "chunk_transcription_failed"
+        segments.extend(segs)
 
     return segments, None
 
@@ -518,27 +533,31 @@ def _transcribe_wav(wav_path: str, speaker_id: str) -> Tuple[List[Dict], Optiona
 # ============================================================================
 
 
-def build_conversation(
-    call_id: str,
-    speaker_audio_map: Dict[str, str],
-) -> Dict:
-    """여러 화자의 WAV → 시간순 정렬된 conversation"""
-    all_segments: List[Dict] = []
-    warnings: Dict[str, Dict[str, str]] = {}
+def build_conversation(call_id, speaker_audio_map):
+    all_segments = []
+    warnings = {}
 
-    for speaker_id, wav_path in speaker_audio_map.items():
-        segments, error = _transcribe_wav(wav_path, speaker_id)
-        if error:
-            warnings.setdefault("transcription", {})[speaker_id] = error
-        all_segments.extend(segments)
+    def _transcribe(args):
+        speaker_id, wav_path = args
+        return speaker_id, *_transcribe_wav(wav_path, speaker_id)
 
-    # 시간순 정렬
+    with ThreadPoolExecutor(max_workers=min(len(speaker_audio_map), 4)) as executor:
+        futures = {
+            executor.submit(_transcribe_wav, wav_path, speaker_id): speaker_id
+            for speaker_id, wav_path in speaker_audio_map.items()
+        }
+        for future in as_completed(futures):
+            speaker_id = futures[future]
+            try:
+                segments, error = future.result()
+            except Exception as e:
+                segments, error = [], str(e)
+            if error:
+                warnings.setdefault("transcription", {})[speaker_id] = error
+            all_segments.extend(segments)
+
     all_segments.sort(key=lambda x: x["start"])
-
-    result = {
-        "call_id": call_id,
-        "conversation": all_segments,
-    }
+    result = {"call_id": call_id, "conversation": all_segments}
     if warnings:
         result["warnings"] = warnings
     return result

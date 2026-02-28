@@ -7,6 +7,9 @@ from firebase_admin import firestore
 from backend.services.firestore import get_firestore
 from backend.services.analysis_service import analyze_talk_pipeline
 
+import threading
+
+JOB_TIMEOUT_SEC = int(os.getenv("ANALYSIS_JOB_TIMEOUT", "1800"))  # 기본 30분
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
@@ -57,43 +60,52 @@ def _process_job(db, job_ref, job):
     talk_id = job.get("talk_id") or job_ref.id
     attempts = int(job.get("attempts") or 1)
 
-    # 녹음 업로드 완료 여부 확인
+    # 업로드 완료 여부 확인
     talk_snap = db.collection("talk_history").document(talk_id).get()
     if talk_snap.exists:
-        talk_data = talk_snap.to_dict() or {}
-        upload_status = talk_data.get("recording_uploading_status")
+        upload_status = (talk_snap.to_dict() or {}).get("recording_uploading_status")
         if upload_status and upload_status != "uploaded":
-            print(f"⏳ [{talk_id}] Recording not uploaded yet ({upload_status}), requeueing")
+            print(f"⏳ [{talk_id}] Not uploaded yet ({upload_status}), requeueing")
             job_ref.update({"status": "queued", "updated_at": _now_ms()})
             return
 
-    try:
-        result = analyze_talk_pipeline(talk_id, force=True)
-        if result.get("success"):
-            _complete_job(job_ref, "complete")
-        else:
-            msg = result.get("message") or "analysis_failed"
-            if attempts < MAX_ATTEMPTS:
-                # 재시도 가능: queued로 되돌림
-                job_ref.update({
-                    "status": "queued",
-                    "updated_at": _now_ms(),
-                    "last_error": msg,
-                })
-            else:
-                _complete_job(job_ref, "failed", error=msg)
-    except Exception as exc:
-        err = str(exc)
-        trace = traceback.format_exc()
+    result_box = {}
+
+    def _run():
+        try:
+            result_box["result"] = analyze_talk_pipeline(talk_id, force=True)
+        except Exception as exc:
+            result_box["error"] = (str(exc), traceback.format_exc())
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=JOB_TIMEOUT_SEC)
+
+    if t.is_alive():
+        print(f"❌ [{talk_id}] Job timed out after {JOB_TIMEOUT_SEC}s")
         if attempts < MAX_ATTEMPTS:
-            job_ref.update({
-                "status": "queued",
-                "updated_at": _now_ms(),
-                "last_error": err,
-                "last_trace": trace,
-            })
+            job_ref.update({"status": "queued", "updated_at": _now_ms(), "last_error": "job_timeout"})
+        else:
+            _complete_job(job_ref, "failed", error="job_timeout")
+        return
+
+    if "error" in result_box:
+        err, trace = result_box["error"]
+        if attempts < MAX_ATTEMPTS:
+            job_ref.update({"status": "queued", "updated_at": _now_ms(), "last_error": err, "last_trace": trace})
         else:
             _complete_job(job_ref, "failed", error=err, trace=trace)
+        return
+
+    result = result_box.get("result", {})
+    if result.get("success"):
+        _complete_job(job_ref, "complete")
+    else:
+        msg = result.get("message") or "analysis_failed"
+        if attempts < MAX_ATTEMPTS:
+            job_ref.update({"status": "queued", "updated_at": _now_ms(), "last_error": msg})
+        else:
+            _complete_job(job_ref, "failed", error=msg)
 
 
 def run_worker():
