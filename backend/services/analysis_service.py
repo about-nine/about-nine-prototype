@@ -27,6 +27,7 @@ from backend.services.analysis.analyzers.discourse_analyzer import DiscourseAnal
 from backend.services.analysis.analyzers.romantic_analyzer import RomanticAnalyzer
 from backend.services.analysis.analyzers.lsm_analyzer import LSMAnalyzer
 from backend.services.analysis.analyzers.preference_analyzer import PreferenceAnalyzer
+from backend.services.analysis.analyzers.vocabulary_analyzer import VocabularyAnalyzer
 
 
 def _get_db():
@@ -283,7 +284,72 @@ def _go_no_go_from_talk(talk: Dict[str, Any]) -> Dict[str, Optional[bool]]:
         result[receiver] = True if b == "go" else False if b == "no" else None
     return result
 
+def _resolve_speaker_key(uid: str, personal_dict: Dict[str, Any], participants: List[str] = None) -> Optional[str]:
+    if not personal_dict:
+        return None
+    # 정확한 uid 매칭
+    if uid in personal_dict:
+        return uid
+    # 부분 매칭
+    for k in personal_dict:
+        if uid in str(k):
+            return k
+    # 인덱스 순서 fallback
+    # participants 순서와 personal_dict 키 순서를 맞춤
+    if participants and uid in participants:
+        idx = participants.index(uid)
+        keys = list(personal_dict.keys())
+        if idx < len(keys):
+            return keys[idx]
+    return None
 
+
+EMA_FIELDS = ["avg_turn_length", "speech_pace", "emotional_expression", "vocabulary_diversity"]
+
+
+def _update_talk_profile_ema(db, uid: str, new_vals: Dict[str, Any]) -> None:
+    """
+    talk_profile을 EMA로 업데이트.
+
+    alpha:
+      talk_count < 5  → 0.4  (초기: 새 데이터 비중 높게)
+      talk_count >= 5 → 0.1  (안정화: 천천히 수렴)
+
+    None 값은 해당 필드 업데이트 스킵.
+    """
+    user_ref = db.collection("users").document(uid)
+    snap = user_ref.get()
+    if not snap.exists:
+        return
+
+    user_data = snap.to_dict() or {}
+    current_profile = user_data.get("talk_profile") or {}
+    talk_count = int(current_profile.get("talk_count", 0))
+
+    alpha = 0.4 if talk_count < 5 else 0.1
+
+    updated: Dict[str, Any] = {}
+    for field in EMA_FIELDS:
+        new_val = new_vals.get(field)
+        if new_val is None:
+            # None이면 이번 통화에서 측정 불가 → 스킵
+            continue
+        current_val = current_profile.get(field)
+        if current_val is None or current_val == 0.0:
+            # 초기값이 없으면 그냥 새 값으로 설정
+            updated[field] = round(float(new_val), 4)
+        else:
+            # EMA: new = alpha × new + (1 - alpha) × old
+            ema = alpha * float(new_val) + (1 - alpha) * float(current_val)
+            updated[field] = round(ema, 4)
+
+    if not updated:
+        return
+
+    updated["talk_count"] = talk_count + 1
+
+    user_ref.update({f"talk_profile.{k}": v for k, v in updated.items()})
+    
 # -----------------------------
 # Main pipeline
 # -----------------------------
@@ -321,6 +387,7 @@ class AnalysisService:
         self.romantic = RomanticAnalyzer()
         self.lsm = LSMAnalyzer()
         self.preference = PreferenceAnalyzer()
+        self.vocabulary = VocabularyAnalyzer()
 
     def _cleanup_local_recordings(self, talk_id: str) -> None:
         if not talk_id:
@@ -508,6 +575,10 @@ class AnalysisService:
             print(f"  → preference_analyzer...")
             pref_out = self.preference.score(conversation_obj)
             print(f"  ✓ preference done")
+            
+            print(f"  → vocabulary_analyzer...")
+            vocab_out = self.vocabulary.score(conversation_obj)
+            print(f"  ✓ vocabulary done")
 
             print(f"✅ [{talk_id}] All analyzers complete")
             
@@ -531,18 +602,17 @@ class AnalysisService:
                 {"success": False, "message": "analyzer failed", "error": str(e), "talk_id": talk_id}
             )
 
-        feats: Dict[str, float] = {
-            # keep keys stable (your earlier convention)
-            "turn_taking": float(rhythm_out["scores"].get("rhythm_synchrony", 0)),
-            "flow_continuity": float(discourse_out["scores"].get("topic_continuity", 0)),
-            "romantic_intent": float(romantic_out["scores"].get("romantic_intent", 0)),
-            "language_style_ma": float(lsm_out["scores"].get("lsm", 0)),
-            "preference_sync": float(pref_out["scores"].get("preference_sync", 0)),
+        pair_features: Dict[str, float] = {
+            "lsm":              float(lsm_out["scores"].get("lsm", 0)),
+            "flow_continuity":  float(discourse_out["scores"].get("topic_continuity", 0)),
+            "turn_balance":     float(rhythm_out["scores"].get("turn_balance", 0)),
+            "preference_sync":  float(pref_out["scores"].get("preference_sync", 0)),
+            "romantic_sync":    float(romantic_out["scores"].get("romantic_sync", 0)),
         }
 
         # 3) Chemistry score (model can combine + optionally update weights elsewhere)
         try:
-            chemistry_score = float(self.model.predict(feats))
+            chemistry_score = float(self.model.predict(pair_features))
         except Exception as e:
             try:
                 talk_ref.update(
@@ -557,16 +627,54 @@ class AnalysisService:
             return _finish(
                 {"success": False, "message": "chemistry model failed", "error": str(e), "talk_id": talk_id}
             )
+            
+        # ── personal 피처 수집 ──────────────────────────────────────────
+        personal_raw: Dict[str, Any] = {}
+        for uid in participants:
+            personal_raw[uid] = {}
+
+        # RhythmAnalyzer personal (avg_turn_length, speech_pace)
+        rhythm_personal = rhythm_out.get("personal", {})
+        for uid in participants:
+            sp_key = _resolve_speaker_key(uid, rhythm_personal, participants)
+            if sp_key:
+                personal_raw[uid].update(rhythm_personal[sp_key])
+
+        # RomanticAnalyzer personal (emotional_expression)
+        romantic_personal = romantic_out.get("personal", {})
+        for uid in participants:
+            sp_key = _resolve_speaker_key(uid, romantic_personal, participants)
+            if sp_key:
+                personal_raw[uid].update(romantic_personal[sp_key])
+
+        # VocabularyAnalyzer personal (vocabulary_diversity)
+        vocab_personal = vocab_out.get("personal", {})
+        for uid in participants:
+            sp_key = _resolve_speaker_key(uid, vocab_personal, participants)
+            if sp_key:
+                personal_raw[uid].update(vocab_personal[sp_key])
+
+        # ── talk_profile EMA 업데이트 ────────────────────────────────────
+        for uid in participants:
+            new_vals = personal_raw.get(uid, {})
+            if not new_vals:
+                continue
+            try:
+                _update_talk_profile_ema(db, uid, new_vals)
+            except Exception as e:
+                print(f"⚠️ [{talk_id}] talk_profile EMA failed for {uid}: {e}")
 
         analysis: Dict[str, Any] = {
-            "features": feats,
+            "pair_features": pair_features,       # 5개 pair feature (실측값)
             "chemistry_score": chemistry_score,
+            "personal": personal_raw,             # speaker별 개인 피처
             "details": {
-                "turn_taking": rhythm_out,
+                "lsm":             lsm_out,
                 "flow_continuity": discourse_out,
-                "romantic_intent": romantic_out,
-                "language_style_ma": lsm_out,
+                "turn_balance":    rhythm_out,
                 "preference_sync": pref_out,
+                "romantic_sync":   romantic_out,
+                "vocabulary":      vocab_out,
             },
             "model_version": self.model.version(),
             "version": self.model.version(),
@@ -612,11 +720,18 @@ class AnalysisService:
         analysis_sanitized = _sanitize_for_firestore(analysis)
 
         # 4) Persist analysis
+        mutual_go = (
+            len(go_no_go) == 2
+            and all(v is True for v in go_no_go.values())
+        )
+
         talk_ref.update(
             {
                 "analysis": analysis_sanitized,
                 "analysis_status": "complete",
                 "analysis_completed_at": _now_ms(),
+                "label": 1 if mutual_go else 0,        # Model 2 정답
+                "go_no_detail": go_no_go,
             }
         )
 

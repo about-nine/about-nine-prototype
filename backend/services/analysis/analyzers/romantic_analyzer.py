@@ -1037,6 +1037,116 @@ def _keyword_classify(text: str, lang: str) -> Tuple[str, float]:
                     return cat, 0.55
     return "Neutral", 0.0
 
+def _calc_personal_expression(
+    rows: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Speaker별 emotional_expression 계산.
+    = 해당 화자 전체 발화의 intensity 평균 (비낭만 발화는 0으로 포함)
+
+    비낭만 발화를 0으로 포함하는 이유:
+    낭만 발화만 평균내면 "가끔 강하게 표현하는 사람"과
+    "자주 표현하는 사람"을 구분 못함.
+    """
+    speaker_data: Dict[str, List[float]] = {}
+
+    for row in rows:
+        sp = row["speaker"]
+        intensity = row["intensity"]  # 비낭만이면 이미 0.0
+        speaker_data.setdefault(sp, []).append(intensity)
+
+    result: Dict[str, Any] = {}
+    for sp, intensities in speaker_data.items():
+        if not intensities:
+            result[sp] = {"emotional_expression": 0.0}
+            continue
+        avg = float(sum(intensities) / len(intensities))
+        # 0~100 스케일 (intensity는 0~1)
+        result[sp] = {
+            "emotional_expression": round(avg * 100, 2)
+        }
+    return result
+
+# 반응 측정 기준: 이 강도 이상일 때 "고강도 발화"로 간주
+_SYNC_INTENSITY_THRESHOLD = 0.4
+
+
+def _calc_romantic_sync(
+    rows: List[Dict[str, Any]],
+    speaker_a: str,
+    speaker_b: str,
+) -> Dict[str, Any]:
+    """
+    Romantic Sync: 쌍방향 감정 반응 패턴 측정.
+
+    알고리즘:
+      1. A가 고강도(> threshold) 발화를 했을 때
+         → 다음 B 발화의 intensity 기록
+      2. B가 고강도 발화를 했을 때
+         → 다음 A 발화의 intensity 기록
+      3. a_triggers_b = A 고강도 후 B 반응 평균
+         b_triggers_a = B 고강도 후 A 반응 평균
+      4. romantic_sync = mean(a_triggers_b, b_triggers_a) × 100
+
+    단방향 romantic_intent와의 차이:
+      romantic_intent = 각자 얼마나 표현하는가
+      romantic_sync   = 상대 표현에 얼마나 반응하는가
+    """
+    if not rows:
+        return {"score": 0.0, "note": "empty"}
+
+    # 발화 순서 기준으로 처리 (rows는 대화 순서 보장)
+    a_triggers_b: List[float] = []  # A 고강도 후 B의 반응 intensity
+    b_triggers_a: List[float] = []  # B 고강도 후 A의 반응 intensity
+
+    for i, row in enumerate(rows):
+        if not row["is_romantic"]:
+            continue
+        if row["intensity"] < _SYNC_INTENSITY_THRESHOLD:
+            continue
+
+        trigger_speaker = row["speaker"]
+
+        # 다음 발화 중 상대방 발화 찾기 (최대 2턴 이내)
+        for j in range(i + 1, min(i + 3, len(rows))):
+            next_row = rows[j]
+            if next_row["speaker"] == trigger_speaker:
+                continue  # 같은 화자면 스킵
+
+            response_intensity = next_row["intensity"]
+
+            if trigger_speaker == speaker_a:
+                a_triggers_b.append(response_intensity)
+            else:
+                b_triggers_a.append(response_intensity)
+            break  # 첫 번째 상대방 발화만
+
+    # 방향별 평균
+    atb = float(sum(a_triggers_b) / len(a_triggers_b)) if a_triggers_b else 0.0
+    bta = float(sum(b_triggers_a) / len(b_triggers_a)) if b_triggers_a else 0.0
+
+    # 양방향 모두 없으면 0
+    if not a_triggers_b and not b_triggers_a:
+        return {
+            "score": 0.0,
+            "a_triggers_b": 0.0,
+            "b_triggers_a": 0.0,
+            "note": "no_high_intensity_triggers",
+        }
+
+    # 양방향 평균 → 0~100
+    sync_raw = (atb + bta) / 2.0
+    score = round(sync_raw * 100, 2)
+
+    return {
+        "score": score,
+        "a_triggers_b": round(atb * 100, 2),
+        "b_triggers_a": round(bta * 100, 2),
+        "trigger_count": {
+            "a_as_trigger": len(a_triggers_b),
+            "b_as_trigger": len(b_triggers_a),
+        },
+    }
 
 def _aggregate(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     romantic = [r for r in rows if r["is_romantic"]]
@@ -1165,6 +1275,18 @@ def analyze_global(data: Dict[str, Any]) -> Dict[str, Any]:
     result = _aggregate(rows)
     result["method"] = "hybrid_adapter_embedding"
     result["embedding_status"] = emb_method
+    
+    # unique_speakers 추출 (rows에서)
+    seen = []
+    for r in rows:
+        if r["speaker"] not in seen:
+            seen.append(r["speaker"])
+    sp_a = seen[0] if len(seen) > 0 else "A"
+    sp_b = seen[1] if len(seen) > 1 else "B"
+
+    result["personal"] = _calc_personal_expression(rows)
+    result["romantic_sync"] = _calc_romantic_sync(rows, sp_a, sp_b)
+    
     return result
 
 
@@ -1181,7 +1303,14 @@ class RomanticAnalyzer:
             "conversation": lang_stats,
             "utterance_level": utterance_stats,
         }
+
+        sync = raw.get("romantic_sync", {})
+
         return {
-            "scores": {"romantic_intent": float(raw.get("score", 0))},
+            "scores": {
+                "romantic_intent": float(raw.get("score", 0)),
+                "romantic_sync": float(sync.get("score", 0.0)),
+            },
+            "personal": raw.get("personal", {}),
             "raw": raw,
         }

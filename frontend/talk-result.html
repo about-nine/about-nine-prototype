@@ -193,8 +193,14 @@
         text-align: center;
       }
 
-      .score-rating { font-size: 45px; color: white; }
-      .score-number { font-size: 38px; color: white; }
+      .score-rating {
+        font-size: 45px;
+        color: white;
+      }
+      .score-number {
+        font-size: 38px;
+        color: white;
+      }
 
       .keywords-area {
         width: 100%;
@@ -301,40 +307,79 @@
       /* ── Responsive ─────────────────────────────────── */
 
       @supports (height: 100svh) {
-        .result-chat-container { height: 100svh; }
+        .result-chat-container {
+          height: 100svh;
+        }
         .analysis-bottom-sheet,
-        .profile-bottom-sheet   { height: 90svh; }
+        .profile-bottom-sheet {
+          height: 90svh;
+        }
       }
 
       @media (max-width: 420px) {
-        .result-header        { padding: 20px 16px 12px; }
-        .result-messages      { padding: 0 16px 16px; gap: 10px; }
-        .result-input-area    { padding: 12px 16px calc(20px + var(--safe-bottom)); }
-        .lounge-button-container { padding: 12px 16px calc(20px + var(--safe-bottom)); }
+        .result-header {
+          padding: 20px 16px 12px;
+        }
+        .result-messages {
+          padding: 0 16px 16px;
+          gap: 10px;
+        }
+        .result-input-area {
+          padding: 12px 16px calc(20px + var(--safe-bottom));
+        }
+        .lounge-button-container {
+          padding: 12px 16px calc(20px + var(--safe-bottom));
+        }
 
         .coco-bubble,
-        .user-bubble          { max-width: 78%; font-size: 13px; }
+        .user-bubble {
+          max-width: 78%;
+          font-size: 13px;
+        }
 
         .chemistry-card,
-        .profile-card         { padding: 16px; }
+        .profile-card {
+          padding: 16px;
+        }
 
         .analysis-bottom-sheet {
-          padding: calc(20px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+          padding: calc(20px + var(--safe-top)) 16px
+            calc(24px + var(--safe-bottom));
         }
         .profile-bottom-sheet {
-          padding: calc(32px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+          padding: calc(32px + var(--safe-top)) 16px
+            calc(24px + var(--safe-bottom));
         }
 
-        .score-circle-container { width: 220px; height: 220px; margin-bottom: 28px; }
-        .score-rating  { font-size: 36px; }
-        .score-number  { font-size: 30px; }
-        .keywords-area { font-size: 13px; word-spacing: 0.4em; }
-        .profile-info-card { padding: 14px 16px; }
+        .score-circle-container {
+          width: 220px;
+          height: 220px;
+          margin-bottom: 28px;
+        }
+        .score-rating {
+          font-size: 36px;
+        }
+        .score-number {
+          font-size: 30px;
+        }
+        .keywords-area {
+          font-size: 13px;
+          word-spacing: 0.4em;
+        }
+        .profile-info-card {
+          padding: 14px 16px;
+        }
       }
 
       @media (max-height: 700px) {
-        .score-circle-container { width: 210px; height: 210px; margin-bottom: 24px; }
-        .result-header          { padding-top: 18px; }
+        .score-circle-container {
+          width: 210px;
+          height: 210px;
+          margin-bottom: 24px;
+        }
+        .result-header {
+          padding-top: 18px;
+        }
       }
     </style>
   </head>
@@ -358,7 +403,11 @@
           <option value="go">go</option>
           <option value="no">no</option>
         </select>
-        <button class="chat-send" id="sendBtn" onclick="submitChoice()"></button>
+        <button
+          class="chat-send"
+          id="sendBtn"
+          onclick="submitChoice()"
+        ></button>
       </div>
 
       <!-- Go to Lounge 버튼 -->
@@ -548,9 +597,11 @@
         const div = document.createElement("div");
         div.className = "coco-message chat-row";
         div.innerHTML = `
-          ${showAvatar
-            ? '<div class="coco-avatar chat-avatar"></div>'
-            : '<div class="coco-avatar-spacer"></div>'}
+          ${
+            showAvatar
+              ? '<div class="coco-avatar chat-avatar"></div>'
+              : '<div class="coco-avatar-spacer"></div>'
+          }
           <div class="coco-bubble chat-bubble">${text}</div>
         `;
 
@@ -625,12 +676,18 @@
           const ensured = await ensureTalkId(true);
           if (!ensured) throw new Error("talk_id not ready");
 
-          const res = await apiCall("/talks/respond", "POST", { talk_id: talkId, choice });
-          if (!res.success) throw new Error(res.message || "failed to submit response");
+          const res = await apiCall("/talks/respond", "POST", {
+            talk_id: talkId,
+            choice,
+          });
+          if (!res.success)
+            throw new Error(res.message || "failed to submit response");
 
           try {
             const rtdbRes = await fetchGoNoGoStatus();
-            const latest = rtdbRes ? null : await apiCall(`/talks/history/${talkId}`);
+            const latest = rtdbRes
+              ? null
+              : await apiCall(`/talks/history/${talkId}`);
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(latest?.talk);
             const ids = Object.keys(goNoGo);
             if (ids.length === 1) effectiveUserId = ids[0];
@@ -651,8 +708,10 @@
       /* ================= 상대방 응답 대기 ================= */
 
       function extractGoNoGoMap(talk) {
-        const map = talk?.go_no_go && typeof talk.go_no_go === "object"
-          ? { ...talk.go_no_go } : {};
+        const map =
+          talk?.go_no_go && typeof talk.go_no_go === "object"
+            ? { ...talk.go_no_go }
+            : {};
         if (talk && typeof talk === "object") {
           Object.keys(talk).forEach((key) => {
             if (key.startsWith("go_no_go.")) {
@@ -664,7 +723,10 @@
       }
 
       function getApiBase() {
-        try { const s = localStorage.getItem("api_base"); if (s) return s; } catch {}
+        try {
+          const s = localStorage.getItem("api_base");
+          if (s) return s;
+        } catch {}
         return window.__API_BASE__ || `${window.location.origin}/api`;
       }
 
@@ -672,11 +734,15 @@
         const id = requestId || talkId;
         if (!id) return null;
         try {
-          const response = await fetch(`${getApiBase()}/talks/go-no-go/${id}`, { credentials: "include" });
+          const response = await fetch(`${getApiBase()}/talks/go-no-go/${id}`, {
+            credentials: "include",
+          });
           if (!response.ok) return null;
           const res = await response.json();
           return res?.success ? res : null;
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       }
 
       function listenForPartnerResponse() {
@@ -709,10 +775,17 @@
               updateScoreUI();
             }
 
-            const participants = rtdbRes?.participants || data?.participants || talkData?.participants || {};
-            const expectedCount = Object.values(participants).filter(Boolean).length || 2;
+            const participants =
+              rtdbRes?.participants ||
+              data?.participants ||
+              talkData?.participants ||
+              {};
+            const expectedCount =
+              Object.values(participants).filter(Boolean).length || 2;
             const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(data);
-            const goNoGoValues = Object.values(goNoGo).filter((v) => v === true || v === false);
+            const goNoGoValues = Object.values(goNoGo).filter(
+              (v) => v === true || v === false,
+            );
 
             if (goNoGoValues.length >= expectedCount) {
               clearInterval(partnerPollTimer);
@@ -727,16 +800,26 @@
               return;
             }
 
-            let partnerId = participants.user_a === effectiveUserId
-              ? participants.user_b : participants.user_a;
+            let partnerId =
+              participants.user_a === effectiveUserId
+                ? participants.user_b
+                : participants.user_a;
             if (!partnerId) {
               const ids = Object.keys(goNoGo);
               partnerId = ids.find((id) => id !== effectiveUserId);
             }
 
-            const partnerValue = partnerId && Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
-              ? goNoGo[partnerId] : null;
-            const partnerResponse = partnerValue === true ? "go" : partnerValue === false ? "no" : null;
+            const partnerValue =
+              partnerId &&
+              Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
+                ? goNoGo[partnerId]
+                : null;
+            const partnerResponse =
+              partnerValue === true
+                ? "go"
+                : partnerValue === false
+                  ? "no"
+                  : null;
 
             if (partnerResponse) {
               clearInterval(partnerPollTimer);
@@ -750,7 +833,9 @@
                 : await handleSomeoneNo(partnerResponse);
             }
           } catch (error) {
-            if (String(error?.message || "").includes("talk_history not found")) {
+            if (
+              String(error?.message || "").includes("talk_history not found")
+            ) {
               clearInterval(partnerPollTimer);
               partnerPollTimer = null;
               if (partnerTimeoutTimer) {
@@ -827,7 +912,10 @@
       /* ================= 한 명이라도 NO ================= */
 
       async function handleSomeoneNo() {
-        await addCocoMessage("well, well, it looks like this one wasn't your one and only", 500);
+        await addCocoMessage(
+          "well, well, it looks like this one wasn't your one and only",
+          500,
+        );
         await addCocoMessage("the match ends here", 900);
         await addCocoMessage("we'll recommend someone new for you", 1300);
         await addCocoMessage("see u later", 1700);
@@ -845,50 +933,78 @@
 
       function formatFeatureLabel(key) {
         const mapping = {
-          turn_taking: "Turn Taking",
+          lsm: "Language Style Match",
           flow_continuity: "Flow Continuity",
-          romantic_intent: "Romantic Intent",
-          language_style_ma: "Language Style MA",
+          turn_balance: "Turn Balance",
           preference_sync: "Preference Sync",
+          romantic_sync: "Romantic Sync",
         };
-        return mapping[key] || key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+        return (
+          mapping[key] ||
+          key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())
+        );
       }
 
       function renderAnalysisFeatures() {
         const analysis = talkData?.analysis || {};
-        const baseFeatures = analysis?.features || analysis?.details?.features || {};
-        const keys = ["turn_taking", "flow_continuity", "romantic_intent", "language_style_ma", "preference_sync"];
+        const baseFeatures = analysis?.pair_features || {};
+        const keys = [
+          "lsm",
+          "flow_continuity",
+          "turn_balance",
+          "preference_sync",
+          "romantic_sync",
+        ];
 
         const entries = keys
-          .filter((key) => typeof baseFeatures[key] === "number" && !Number.isNaN(baseFeatures[key]))
+          .filter(
+            (key) =>
+              typeof baseFeatures[key] === "number" &&
+              !Number.isNaN(baseFeatures[key]),
+          )
           .map((key) => [key, baseFeatures[key]]);
 
-        if (!entries.length) return "<div class='waiting-message'>analysis details not ready</div>";
+        if (!entries.length)
+          return "<div class='waiting-message'>analysis details not ready</div>";
 
         const warning = analysis?.analysis_warning;
-        const warningHtml = warning ? `<div class='waiting-message'>analysis warning: ${warning}</div>` : "";
+        const warningHtml = warning
+          ? `<div class='waiting-message'>analysis warning: ${warning}</div>`
+          : "";
 
-        return warningHtml + entries
-          .sort((a, b) => b[1] - a[1])
-          .map(([key, value]) => `<div>${formatFeatureLabel(key)} <strong>${Math.round(value)}</strong></div>`)
-          .join("");
+        return (
+          warningHtml +
+          entries
+            .sort((a, b) => b[1] - a[1])
+            .map(
+              ([key, value]) =>
+                `<div>${formatFeatureLabel(key)} <strong>${Math.round(value)}</strong></div>`,
+            )
+            .join("")
+        );
       }
 
       window.openAnalysisSheet = () => {
         const score = calculateScore();
-        document.getElementById("sheetScore").textContent = score === null ? "--" : score;
-        document.getElementById("sheetRating").textContent = getScoreRating(score);
-        document.getElementById("sheetKeywords").innerHTML = renderAnalysisFeatures();
+        document.getElementById("sheetScore").textContent =
+          score === null ? "--" : score;
+        document.getElementById("sheetRating").textContent =
+          getScoreRating(score);
+        document.getElementById("sheetKeywords").innerHTML =
+          renderAnalysisFeatures();
         openSheet("analysisSheet");
       };
 
       async function fetchProfileRounds() {
-        const partnerId = partner?.id || partner?.user_id || partner?.uid || partner?.userId;
+        const partnerId =
+          partner?.id || partner?.user_id || partner?.uid || partner?.userId;
         if (!partnerId) return null;
         try {
           const res = await apiCall(`/talks/history-detail/${partnerId}`);
           return res?.success ? res.rounds || null : null;
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       }
 
       function renderProfileTrials(rounds) {
@@ -896,7 +1012,10 @@
         return Object.entries(rounds)
           .map(([roundKey, info]) => {
             const label = roundLabel(info?.topic);
-            const scoreText = info?.score === null || info?.score === undefined ? "--" : info.score;
+            const scoreText =
+              info?.score === null || info?.score === undefined
+                ? "--"
+                : info.score;
             return `
               <div class="profile-trial-item">
                 <div class="profile-trial-title">${getOrdinal(Number(roundKey))} trial (${label})</div>
@@ -921,7 +1040,8 @@
             : `${getOrdinal(currentRound)} trial · chemistry score ${score === null ? "--" : score}`;
         }
 
-        document.getElementById("profileCards").innerHTML = generateProfileCards();
+        document.getElementById("profileCards").innerHTML =
+          generateProfileCards();
         document.getElementById("unlockText").innerHTML = generateUnlockText();
         openSheet("profileSheet");
       };
@@ -936,7 +1056,9 @@
         const bio = partner?.bio || "Not provided";
         const moreInfo = partner?.more_info || "Not provided";
         const phone = partner?.phone || "--";
-        const playlist = Array.isArray(partner?.playlist) ? partner.playlist : [];
+        const playlist = Array.isArray(partner?.playlist)
+          ? partner.playlist
+          : [];
 
         const lock1 = unlocked < 2 ? "locked" : "";
         const lock2 = unlocked < 3 ? "locked" : "";
@@ -951,9 +1073,17 @@
           <div class="profile-info-card stacked">
             <div class="profile-label">${getPartnerName()}'s playlist</div>
             <div class="playlist-chips">
-              ${playlist.length
-                ? playlist.slice(0, 6).map((t) => `<div class="playlist-chip">${t.name || "track"} - ${t.artist || "artist"}</div>`).join("")
-                : `<div class="playlist-chip">no playlist</div>`}
+              ${
+                playlist.length
+                  ? playlist
+                      .slice(0, 6)
+                      .map(
+                        (t) =>
+                          `<div class="playlist-chip">${t.name || "track"} - ${t.artist || "artist"}</div>`,
+                      )
+                      .join("")
+                  : `<div class="playlist-chip">no playlist</div>`
+              }
             </div>
           </div>
           <div class="profile-info-card stacked ${lock1}">
@@ -975,7 +1105,8 @@
       }
 
       function generateUnlockText() {
-        if (currentRound === 1) return "extra information unlocks after the 2nd chat";
+        if (currentRound === 1)
+          return "extra information unlocks after the 2nd chat";
         if (currentRound === 2) return "one last chat left to reach your match";
         return "";
       }
@@ -994,7 +1125,9 @@
       /* ================= Bottom Sheet Drag ================= */
 
       function attachSheetDragClose(sheetEl, { topOnly = true } = {}) {
-        let startY = null, lastDy = 0, dragging = false;
+        let startY = null,
+          lastDy = 0,
+          dragging = false;
 
         sheetEl.addEventListener("touchstart", (e) => {
           if (!sheetEl.classList.contains("active")) return;
@@ -1005,14 +1138,18 @@
           sheetEl.style.transition = "none";
         });
 
-        sheetEl.addEventListener("touchmove", (e) => {
-          if (!dragging) return;
-          const dy = e.touches[0].clientY - startY;
-          if (dy <= 0) return;
-          lastDy = dy;
-          if (e.cancelable) e.preventDefault();
-          sheetEl.style.transform = `translateX(-50%) translateY(${dy}px)`;
-        }, { passive: false });
+        sheetEl.addEventListener(
+          "touchmove",
+          (e) => {
+            if (!dragging) return;
+            const dy = e.touches[0].clientY - startY;
+            if (dy <= 0) return;
+            lastDy = dy;
+            if (e.cancelable) e.preventDefault();
+            sheetEl.style.transform = `translateX(-50%) translateY(${dy}px)`;
+          },
+          { passive: false },
+        );
 
         const finishDrag = () => {
           if (!dragging) return;
@@ -1025,12 +1162,18 @@
         sheetEl.addEventListener("touchcancel", finishDrag);
       }
 
-      attachSheetDragClose(document.getElementById("profileSheet"), { topOnly: false });
-      attachSheetDragClose(document.getElementById("analysisSheet"), { topOnly: true });
+      attachSheetDragClose(document.getElementById("profileSheet"), {
+        topOnly: false,
+      });
+      attachSheetDragClose(document.getElementById("analysisSheet"), {
+        topOnly: true,
+      });
 
       /* ================= Score ================= */
 
-      function calculateScore() { return analysisScore; }
+      function calculateScore() {
+        return analysisScore;
+      }
 
       function getScoreRating(score) {
         if (score === null) return "analyzing";
@@ -1059,13 +1202,25 @@
             if (fresh.analysis_status === "running") {
               const elapsed = Date.now() - (fresh.analysis_started_at || 0);
               if (elapsed > 180000) {
-                try { await fetch("/api/analysis/talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
+                try {
+                  await fetch("/api/analysis/talk", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ talk_id: talkId }),
+                  });
+                } catch {}
               }
               continue;
             }
 
             if (fresh.analysis_status === "failed" && i < 40) {
-              try { await fetch("/api/analysis/talk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ talk_id: talkId }) }); } catch {}
+              try {
+                await fetch("/api/analysis/talk", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ talk_id: talkId }),
+                });
+              } catch {}
               await sleep(5000);
               continue;
             }
@@ -1078,7 +1233,9 @@
               return;
             }
           } catch (error) {
-            if (String(error?.message || "").includes("talk_history not found")) {
+            if (
+              String(error?.message || "").includes("talk_history not found")
+            ) {
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");
@@ -1092,10 +1249,13 @@
         const scoreText = analysisScore === null ? "--" : analysisScore;
         const ratingText = getScoreRating(analysisScore);
 
-        document.getElementById("chemistryScoreValue")?.textContent !== undefined &&
-          (document.getElementById("chemistryScoreValue").textContent = scoreText);
+        document.getElementById("chemistryScoreValue")?.textContent !==
+          undefined &&
+          (document.getElementById("chemistryScoreValue").textContent =
+            scoreText);
         document.getElementById("chemistryScoreRating") &&
-          (document.getElementById("chemistryScoreRating").textContent = ratingText);
+          (document.getElementById("chemistryScoreRating").textContent =
+            ratingText);
         document.getElementById("sheetScore") &&
           (document.getElementById("sheetScore").textContent = scoreText);
         document.getElementById("sheetRating") &&
@@ -1113,7 +1273,10 @@
       }
 
       async function loadTalkHistory() {
-        if (!requestId && !talkId) { removeFromLocal("current_talk_id"); return null; }
+        if (!requestId && !talkId) {
+          removeFromLocal("current_talk_id");
+          return null;
+        }
         if (!talkId || (requestId && talkId !== requestId)) {
           const newTalkId = await ensureTalkId(true);
           if (!newTalkId) return null;
@@ -1136,12 +1299,16 @@
         if (talkId && talkId === requestId) return talkId;
         if (talkId && !force) return talkId;
         try {
-          const res = await apiCall("/talks/save-history", "POST", { request_id: requestId });
+          const res = await apiCall("/talks/save-history", "POST", {
+            request_id: requestId,
+          });
           if (!res?.success || !res.talk_id) return null;
           talkId = res.talk_id;
           saveToLocal("current_talk_id", talkId);
           return talkId;
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       }
     </script>
   </body>

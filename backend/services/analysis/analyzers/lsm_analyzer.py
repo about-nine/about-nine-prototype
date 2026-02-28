@@ -198,7 +198,6 @@ KO_V2_FORMALITY_ORDERED = sorted(
     key=lambda item: len(item[0]),
     reverse=True,
 )
-KO_V2_END_PUNCT = set(".!?…？！")
 KO_V2_NEGATE_REGEX = [re.compile(pat) for pat in KO_V2_NEGATE_PATTERNS]
 
 
@@ -355,7 +354,7 @@ def _ko_v2_counts(texts: List[str]) -> Tuple[Dict[str, int], int, Dict[str, int]
                 continue
             token_count += 1
 
-            is_sentence_end = idx == len(raw_tokens) - 1 or (raw and raw[-1] in KO_V2_END_PUNCT)
+            is_sentence_end = idx == len(raw_tokens) - 1
 
             if eojeol in KO_V2_PPRON:
                 counts["ppron"] += 1

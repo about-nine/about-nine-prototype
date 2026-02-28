@@ -329,6 +329,7 @@
       const AGORA_APP_ID = "ebc1a1bf4b4347cd896087d76d9e32db";
 
       let agoraClient;
+      let isInitiator = false;
       let localAudioTrack;
       let isMuted = false;
       let timer;
@@ -385,8 +386,8 @@
         const options = data.options;
         if (!options || !Array.isArray(options)) return;
 
-        const isInitiator = data.initiator === userId;
-        const partnerSel = isInitiator
+        const amInitiator = data.initiator === userId; // ← 이름 변경
+        const partnerSel = amInitiator
           ? data.receiver_selection
           : data.initiator_selection;
 
@@ -395,7 +396,6 @@
 
         if (myOpt)
           myImage.src = `/images/${topic}/${myOpt.category}/${myOpt.fileName}`;
-
         if (partnerOpt)
           partnerImage.src = `/images/${topic}/${partnerOpt.category}/${partnerOpt.fileName}`;
       }
@@ -532,7 +532,7 @@
               if (mediaType === "audio") {
                 const remoteTrack = user.audioTrack;
                 if (remoteTrack) {
-                  remoteTrack.setVolume(70);  // 기본 100 → 70으로 낮춤
+                  remoteTrack.setVolume(70); // 기본 100 → 70으로 낮춤
                   remoteTrack.play();
                   console.log(`✅ 상대방 오디오 재생 시작: uid=${user.uid}`);
                 } else {
@@ -586,7 +586,9 @@
             console.log("✅ 마이크 트랙 생성 완료");
           } catch (micErr) {
             console.error("❌ 마이크 접근 실패:", micErr);
-            showTapError("microphone permission is required. please allow access and retry.");
+            showTapError(
+              "microphone permission is required. please allow access and retry.",
+            );
             return false;
           }
 
@@ -595,7 +597,9 @@
           return true;
         } catch (err) {
           console.error("❌ Agora 초기화 실패:", err);
-          showTapError("failed to connect voice call. please check permissions and retry.");
+          showTapError(
+            "failed to connect voice call. please check permissions and retry.",
+          );
           return false;
         }
       }
@@ -612,56 +616,36 @@
 
       window.endCall = async (options = {}) => {
         const isRemote = options?.remote === true;
-        console.log("=".repeat(50));
-        console.log(">>> endCall 호출됨");
-        console.log("=".repeat(50));
 
         if (timer) clearInterval(timer);
-
         const endedAt = Date.now();
         saveToLocal("call_end_ms", endedAt);
 
-        if (!isRemote) {
-          // 🔥 서버에 녹화 종료 요청 (내가 끊었을 때만)
+        // initiator면 누가 끊든 항상 녹화 중단
+        if (isInitiator) {
           try {
-            console.log("📤 서버에 녹화 종료 요청...");
-
             const response = await fetch("/api/agora/auto-stop-recording", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ request_id: requestId }),
             });
-
             const result = await response.json();
             console.log("📥 녹화 종료 응답:", result);
-
-            if (result.success) {
-              console.log("✅ 녹화 종료 완료");
-              console.log(`   총 ${result.totalFiles}개 파일 생성됨`);
-            } else {
-              console.log("⚠️ 녹화 종료 실패 또는 녹화 없음:", result.message);
-            }
           } catch (e) {
             console.error("❌ 녹화 종료 요청 실패:", e);
           }
+        }
 
-          console.log("📝 Firebase 업데이트 중...");
-
+        if (!isRemote) {
           await update(ref(rtdb, `match_requests/${requestId}`), {
             call_ended: true,
             ended_by: userId,
             ended_at: endedAt,
           });
-
-          console.log("✅ Firebase 업데이트 완료");
         }
 
         localAudioTrack?.close();
         if (agoraClient) await agoraClient.leave();
-
-        console.log("🚀 talk-end.html로 이동");
-        console.log("=".repeat(50));
-
         navigateTo(`talk-end.html?requestId=${encodeURIComponent(requestId)}`);
       };
 
@@ -734,7 +718,8 @@
             // 🔥 initiator만 녹화 시작
             const snap = await get(ref(rtdb, `match_requests/${requestId}`));
             const data = snap.val();
-            if (data && data.initiator === userId) {
+            isInitiator = data && data.initiator === userId;
+            if (isInitiator) {
               try {
                 const recRes = await fetch("/api/agora/auto-start-recording", {
                   method: "POST",

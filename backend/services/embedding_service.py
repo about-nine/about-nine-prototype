@@ -12,10 +12,18 @@ except ImportError:
 
 
 class EmbeddingService:
-    def __init__(self, model_name: Optional[str] = None):
-        self._model_name = model_name or os.getenv(
-            "EMBEDDING_MODEL", "text-embedding-3-small"
-        )
+    def __init__(self, model_name= None):
+        self._model_name = model_name or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        self._client: Optional[OpenAI] = None
+        
+    def _get_client(self) -> OpenAI:
+        if self._client is None:
+            self._client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                timeout=self._openai_timeout(),
+                max_retries=1,
+            )
+        return self._client
 
     def _openai_timeout(self) -> float:
         raw = os.getenv("OPENAI_TIMEOUT", "30")

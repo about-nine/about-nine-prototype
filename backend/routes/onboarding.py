@@ -14,7 +14,6 @@ onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
 
 @onboarding_bp.route("/save", methods=["POST"])
 def save_onboarding():
-
     user_id = session.get("user_id")
     if not user_id:
         return jsonify(success=False, message="not logged in"), 401
@@ -80,6 +79,8 @@ def save_onboarding():
         
     if bio and bio.strip():
         update_data["bio"] = bio.strip()
+        
+    speech_pace = data.get("speech_pace")
 
     # Embedding: voice onboarding uses transcripts; chat onboarding gets default embedding.
     embedding_payload = None
@@ -92,6 +93,14 @@ def save_onboarding():
         embedding_payload = default_embedding_payload("onboarding_chat")
 
     update_data["embedding"] = embedding_payload
+    
+    update_data["talk_profile"] = {
+        "avg_turn_length": 0.0,
+        "speech_pace": round(float(speech_pace), 4) if speech_pace is not None else 0.0,
+        "emotional_expression": 0.0,
+        "vocabulary_diversity": 0.0,
+        "talk_count": 0,
+    }
 
     db.collection("users").document(user_id).set(update_data, merge=True)
 

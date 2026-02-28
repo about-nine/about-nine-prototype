@@ -5,8 +5,16 @@ from firebase_admin import storage
 from backend.config import FIREBASE_STORAGE_BUCKET
 from backend.services.firestore import get_firestore
 
-_bucket = None
+import re
 
+_UID_RE = re.compile(r"__uid_s_(\d+)__uid_e_")
+
+def _extract_uid_from_filename(storage_path: str):
+    """파일명에서 Agora uid 추출."""
+    m = _UID_RE.search(storage_path)
+    return m.group(1) if m else None
+
+_bucket = None
 
 def get_bucket():
     global _bucket
@@ -41,11 +49,11 @@ def download_prefix(prefix: str, local_dir: str):
 
 
 class StorageLoader:
-    def __init__(self, local_root: str | None = None):
+    def __init__(self, local_root: str | None = None): 
         self.local_root = local_root or os.path.join(
             tempfile.gettempdir(), "about_nine_recordings"
         )
-
+        
     def download_recordings(self, recording_files, talk_id: str):
         bucket = get_bucket()
         local_dir = os.path.join(self.local_root, str(talk_id))
@@ -54,13 +62,11 @@ class StorageLoader:
         downloaded = []
         downloaded_paths = set()
 
-        def _download_blob(storage_path: str):
+        def _download_blob(storage_path: str) -> str:
             if storage_path in downloaded_paths:
-                # 이미 다운로드됐어도 로컬 경로는 반환
-                local_path = os.path.join(local_dir, storage_path)
-                return local_path
-            local_path = os.path.join(local_dir, storage_path)
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                return os.path.join(local_dir, os.path.basename(storage_path))
+            # flat 구조: basename만 사용 (디렉토리 중첩 방지)
+            local_path = os.path.join(local_dir, os.path.basename(storage_path))
             blob = bucket.blob(storage_path)
             blob.download_to_filename(local_path)
             downloaded_paths.add(storage_path)
@@ -70,32 +76,29 @@ class StorageLoader:
             if not isinstance(item, dict):
                 continue
             storage_path = (
-                item.get("fileName")
-                or item.get("storage_path")
-                or item.get("path")
-                or item.get("filename")
+                item.get("fileName") or item.get("storage_path")
+                or item.get("path") or item.get("filename")
             )
             if not storage_path:
                 continue
 
-            local_path = _download_blob(storage_path)
-            # 항상 downloaded 리스트에 추가 (중복 다운로드만 방지, 등록은 항상)
-            downloaded.append(
-                {
-                    "uid": item.get("uid"),
-                    "storage_path": storage_path,
-                    "local_path": local_path,
-                }
-            )
+            # uid: item에 있으면 사용, 없으면 파일명에서 파싱
+            uid = item.get("uid") or _extract_uid_from_filename(storage_path)
 
+            local_path = _download_blob(storage_path)
+            downloaded.append({
+                "uid": uid,
+                "storage_path": storage_path,
+                "local_path": local_path,
+            })
+
+            # .m3u8면 같은 uid prefix의 .ts 파일만 다운로드
             if storage_path.endswith(".m3u8"):
-                prefix = os.path.dirname(storage_path)
-                if prefix:
-                    for blob in bucket.list_blobs(prefix=prefix):
-                        _download_blob(blob.name)
-                else:
-                    base_prefix = storage_path[:-5]
-                    for blob in bucket.list_blobs(prefix=base_prefix):
+                # 이 m3u8의 prefix = 파일명에서 .m3u8 제거한 부분
+                # "recordings/1cc4dce9..._uid_s_1317776729__uid_e_audio"
+                ts_prefix = storage_path[:-5]  # .m3u8 제거
+                for blob in bucket.list_blobs(prefix=ts_prefix):
+                    if blob.name.endswith(".ts"):
                         _download_blob(blob.name)
 
         return downloaded

@@ -428,7 +428,7 @@ class GlobalPreferenceModule(BaseSyncModule):
 
     def _openai_embed(self, texts: List[str]) -> List[np.ndarray]:
         client = self._get_client()
-        resp = client.embeddings.create(model="text-embedding-3-large", input=texts)
+        resp = client.embeddings.create(model="text-embedding-3-small", input=texts)
         return [np.array(item.embedding) for item in resp.data]
 
     def _ensure_prototype_embeddings(self):

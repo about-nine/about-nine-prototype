@@ -2,15 +2,33 @@
 from typing import Dict, List, Tuple
 import math
 import random
+import os
 
 import numpy as np
 
 from backend.services.firestore import get_firestore
-
+from backend.services.pair_feature_model import (
+    PairFeatureModel,
+    _embedding_interaction,
+    _talk_profile_features,
+)
+from backend.services.chemistry_model import ChemistryModel
 
 DEFAULT_DISTANCE_KM = 10
 BYPASS_USER_FILTERS = False
 
+_pair_feature_model = PairFeatureModel()
+_chemistry_model = ChemistryModel()
+
+def _init_models():
+    bucket = os.getenv("FIREBASE_STORAGE_BUCKET")
+    if bucket:
+        _pair_feature_model.load(
+            f"gs://{bucket}/models/pair_feature/latest.pkl"
+        )
+        _chemistry_model.load(
+            f"gs://{bucket}/models/chemistry/latest.pkl"
+        )
 
 def distance_km(lat1, lng1, lat2, lng2) -> float:
     r = 6371.0
@@ -115,6 +133,73 @@ def _cosine(a: List[float], b: List[float]) -> float:
         return 0.0
     return float(np.dot(va, vb) / denom)
 
+def _embedding_interaction(a: List[float], b: List[float]) -> Dict[str, float]:
+    """
+    두 embedding 벡터의 interaction features (4개).
+    Model 1 입력의 embedding 파트.
+    """
+    if not a or not b or len(a) != len(b):
+        return {"cosine": 0.0, "l2": 0.0, "mean_abs_diff": 0.0, "std_abs_diff": 0.0}
+
+    va = np.array(a, dtype=float)
+    vb = np.array(b, dtype=float)
+
+    cosine = _cosine(a, b)
+    l2 = float(np.linalg.norm(va - vb))
+    abs_diff = np.abs(va - vb)
+    mean_abs_diff = float(np.mean(abs_diff))
+    std_abs_diff = float(np.std(abs_diff))
+
+    return {
+        "cosine": cosine,
+        "l2": l2,
+        "mean_abs_diff": mean_abs_diff,
+        "std_abs_diff": std_abs_diff,
+    }
+
+
+def _talk_profile_features(profile_a: Dict, profile_b: Dict) -> Dict[str, float]:
+    """
+    A/B talk_profile 8개 피처.
+    Model 1 입력의 talk_profile 파트.
+    """
+    fields = ["avg_turn_length", "speech_pace", "emotional_expression", "vocabulary_diversity"]
+    result = {}
+    for f in fields:
+        result[f"a_{f}"] = float(profile_a.get(f) or 0.0)
+        result[f"b_{f}"] = float(profile_b.get(f) or 0.0)
+    return result
+
+
+def _heuristic_chemistry_score(
+    emb_interaction: Dict[str, float],
+    talk_features: Dict[str, float],
+) -> float:
+    """
+    Model 1이 없을 때의 fallback 스코어링.
+
+    embedding cosine이 높고 (취향/가치관 유사),
+    talk_profile 차이가 작을수록 (스타일 유사) 높은 점수.
+
+    Model 1 학습 데이터가 쌓이면 이 함수 대신 model_1.predict() 호출로 교체.
+    """
+    cosine = emb_interaction.get("cosine", 0.0)
+
+    # talk_profile 스타일 유사도: A/B 차이가 작을수록 높음
+    style_diffs = []
+    for f in ["avg_turn_length", "speech_pace", "emotional_expression", "vocabulary_diversity"]:
+        a_val = talk_features.get(f"a_{f}", 0.0)
+        b_val = talk_features.get(f"b_{f}", 0.0)
+        if a_val > 0 and b_val > 0:
+            max_val = max(a_val, b_val)
+            style_diffs.append(abs(a_val - b_val) / max_val)
+
+    style_sim = 1.0 - (sum(style_diffs) / len(style_diffs)) if style_diffs else 0.5
+
+    # 가중 합산: embedding cosine 70% + style similarity 30%
+    # embedding이 더 강한 신호 (무엇을 말하는가가 스타일보다 중요)
+    score = 0.7 * cosine + 0.3 * style_sim
+    return float(np.clip(score, 0.0, 1.0))
 
 def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     if not uid:
@@ -202,7 +287,13 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
         if not other_vec:
             continue
 
-        s = _cosine(my_vec, other_vec)
+        emb_interaction  = _embedding_interaction(my_vec, other_vec)
+        talk_features    = _talk_profile_features(
+            me.get("talk_profile") or {},
+            user.get("talk_profile") or {},
+        )
+        predicted        = _pair_feature_model.predict(emb_interaction, talk_features)
+        s                = _chemistry_model.predict(predicted) / 100.0
         scores.append((other_id, s))
 
     def _random_fallback():

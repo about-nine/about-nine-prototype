@@ -18,13 +18,7 @@ def now_ms() -> int:
 
 
 def feature_row(feats: Dict[str, float]) -> Dict[str, float]:
-    return {
-        "turn":       feats.get("turn",       feats.get("turn_taking", 0)),
-        "flow":       feats.get("flow",       feats.get("flow_continuity", 0)),
-        "romantic":   feats.get("romantic",   feats.get("romantic_intent", 0)),
-        "lsm":        feats.get("lsm",        feats.get("language_style_ma", 0)),
-        "preference": feats.get("preference", feats.get("preference_sync", 0)),
-    }
+    return {k: float(feats.get(k, 0)) for k in FEATURES}
 
 
 def _label_from_go_no_go(go_no_go: Dict) -> int | None:
@@ -48,7 +42,7 @@ def build_dataset(talks: List[Dict]) -> List[Dict]:
             label = t.get("label")
         if label is None:
             continue
-        feats = ((t.get("analysis") or {}).get("features") or {})
+        feats = ((t.get("analysis") or {}).get("pair_features") or {})
         if not feats:
             continue
         row = feature_row(feats)
@@ -68,6 +62,11 @@ def main():
     rows = build_dataset(talks)
     if not rows:
         print("No labeled data found.")
+        return
+    
+    MIN_SAMPLES = 30
+    if len(rows) < MIN_SAMPLES:
+        print(f"❌ 샘플 부족: {len(rows)} < {MIN_SAMPLES}. 학습 중단.")
         return
 
     # 클래스 분포 확인
@@ -131,6 +130,7 @@ def main():
     latest_blob.upload_from_filename(model_path)
 
     db.collection("model_versions").add({
+        "model_type": "chemistry",
         "version":            version,
         "trained_at":         now_ms(),
         "sample_count":       len(rows),

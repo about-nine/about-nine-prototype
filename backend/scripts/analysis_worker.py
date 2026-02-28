@@ -51,17 +51,39 @@ def _complete_job(job_ref, status: str, error: str | None = None, trace: str | N
     job_ref.update(payload)
 
 
+MAX_ATTEMPTS = 3
+
 def _process_job(db, job_ref, job):
     talk_id = job.get("talk_id") or job_ref.id
+    attempts = int(job.get("attempts") or 1)
+
     try:
         result = analyze_talk_pipeline(talk_id, force=True)
         if result.get("success"):
             _complete_job(job_ref, "complete")
         else:
             msg = result.get("message") or "analysis_failed"
-            _complete_job(job_ref, "failed", error=msg)
-    except Exception as exc:  # noqa: BLE001
-        _complete_job(job_ref, "failed", error=str(exc), trace=traceback.format_exc())
+            if attempts < MAX_ATTEMPTS:
+                # 재시도 가능: queued로 되돌림
+                job_ref.update({
+                    "status": "queued",
+                    "updated_at": _now_ms(),
+                    "last_error": msg,
+                })
+            else:
+                _complete_job(job_ref, "failed", error=msg)
+    except Exception as exc:
+        err = str(exc)
+        trace = traceback.format_exc()
+        if attempts < MAX_ATTEMPTS:
+            job_ref.update({
+                "status": "queued",
+                "updated_at": _now_ms(),
+                "last_error": err,
+                "last_trace": trace,
+            })
+        else:
+            _complete_job(job_ref, "failed", error=err, trace=trace)
 
 
 def run_worker():
@@ -89,7 +111,9 @@ def run_worker():
             job_ref = snap.reference
             if not _claim_job(db, job_ref):
                 continue
-            job = snap.to_dict() or {}
+            # claim이 attempts를 증가시켰으니 최신 값 읽어야 함
+            updated_snap = job_ref.get()
+            job = updated_snap.to_dict() or {}
             _process_job(db, job_ref, job)
 
         if run_once:

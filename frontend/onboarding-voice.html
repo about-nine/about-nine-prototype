@@ -339,10 +339,12 @@
       let currentMimeType = "audio/webm";
       let isProcessing = false;
       let correctionTimer = null;
+      let speechStartTime = 0;
       let ambientLevel = 0.03;
       let voiceFrameCount = 0;
       let lastVoiceTime = 0;
       const SILENCE_MS = 1300;
+      const speechPaceSamples = [];
 
       /* ================= DOM ================= */
 
@@ -558,7 +560,7 @@
         return { codes, country_code: cc };
       }
 
-      async function processSpeechBlob(blob) {
+      async function processSpeechBlob(blob, speechDurationMs = 0) {
         if (!currentQ || !blob) return;
         if (isProcessing) return;
         if (blob.size < 500) return;
@@ -611,6 +613,12 @@
             form.append("is_correction", "true");
             form.append("prev_answer", prevAnswer);
           }
+          if (speechDurationMs > 0) {
+            form.append(
+              "speech_duration_ms",
+              String(Math.round(speechDurationMs)),
+            );
+          }
 
           const res = await fetch(`${VOICE_API_BASE}/turn`, {
             method: "POST",
@@ -636,6 +644,17 @@
           }
 
           if (data.transcript) $heard.textContent = data.transcript;
+
+          if (
+            data.transcript &&
+            speechDurationMs > 1500 &&
+            data.transcript.length > 5
+          ) {
+            const charsPerSec =
+              data.transcript.length / (speechDurationMs / 1000);
+            speechPaceSamples.push(charsPerSec);
+          }
+
           await handleUtteranceServer(data, activeQ);
         } catch (e) {
           console.error("turn error:", e);
@@ -651,11 +670,16 @@
       function finalizeSpeech() {
         if (!speechActive) return;
         speechActive = false;
+        const speechDurationMs = speechStartTime
+          ? Date.now() - speechStartTime
+          : 0;
+        speechStartTime = 0;
         stopLiveTranscription();
         $voiceIndicator.classList.remove("user-speaking");
         setVoiceState("processing");
 
         if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder._pendingDurationMs = speechDurationMs;
           try {
             mediaRecorder.stop();
           } catch (e) {}
@@ -737,8 +761,10 @@
           if (!speechChunks.length) return;
           const blobType = speechChunks[0]?.type || currentMimeType;
           const blob = new Blob(speechChunks, { type: blobType });
+          const durationMs = mediaRecorder._pendingDurationMs || 0;
+          mediaRecorder._pendingDurationMs = 0;
           speechChunks = [];
-          processSpeechBlob(blob);
+          processSpeechBlob(blob, durationMs);
         };
 
         let ctx;
@@ -804,6 +830,7 @@
               if (!speechActive) {
                 speechChunks = [];
                 speechActive = true;
+                speechStartTime = Date.now();
                 setVoiceState("listening");
                 startLiveTranscription();
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
@@ -1065,6 +1092,14 @@
         showLoading();
         try {
           const bio = await generateBio();
+
+          // 유효 샘플 2개 이상일 때만 전송
+          const speech_pace =
+            speechPaceSamples.length >= 2
+              ? speechPaceSamples.reduce((a, b) => a + b) /
+                speechPaceSamples.length
+              : null;
+
           await apiCall("/onboarding/save", "POST", {
             user_id: userId,
             profile: answers,
@@ -1075,6 +1110,7 @@
             phone,
             transcripts: voiceTranscripts,
             ...(bio ? { bio } : {}),
+            ...(speech_pace !== null ? { speech_pace } : {}), // 추가
           });
           saveToLocal("onboarding_completed", true);
           saveToLocal("just_completed_onboarding", true);

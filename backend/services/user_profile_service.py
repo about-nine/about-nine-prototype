@@ -74,7 +74,7 @@ def _as_vector(values: Iterable) -> Optional[List[float]]:
     return arr.tolist()
 
 
-def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: float = 0.2) -> bool:
+def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: float = 0.05) -> bool:
     if not uid:
         return False
 
@@ -97,12 +97,14 @@ def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: f
     else:
         old_arr = np.array(old_vec, dtype=float)
 
+    diff = pair_arr - old_arr  # 설계의 핵심: 현재와 pair 사이 방향
+    
     if go is None:
-        # EMA fallback when explicit go/no isn't available
-        new_arr = (1 - alpha) * old_arr + alpha * pair_arr
+        return True
+    elif go:
+        new_arr = old_arr + alpha * diff           # Go: 0.05 × (pair - old)
     else:
-        direction = 1.0 if go else -1.0
-        new_arr = old_arr + direction * alpha * pair_arr
+        new_arr = old_arr - alpha * diff            # No: -0.05 × (pair - old)
 
     new_vec = normalize_vector(new_arr.tolist())
 

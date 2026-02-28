@@ -398,6 +398,22 @@ def save_response():
 
     # Use update() so dotted field path is treated as nested map, not a literal key.
     talk_ref.update({f"go_no_go.{user_id}": choice == "go"})
+    
+    # 양쪽 모두 응답했는지 확인 후 label 갱신
+    try:
+        updated_go_no_go = {**go_no_go, user_id: (choice == "go")}
+        all_responded = (
+            len(updated_go_no_go) == 2
+            and all(isinstance(v, bool) for v in updated_go_no_go.values())
+        )
+        if all_responded:
+            mutual_go = all(v is True for v in updated_go_no_go.values())
+            talk_ref.update({
+                "label": 1 if mutual_go else 0,
+                "go_no_detail": updated_go_no_go,
+            })
+    except Exception:
+        pass
 
     # Store go/no in RTDB for realtime sync
     try:
@@ -412,12 +428,12 @@ def save_response():
             match_data = match_ref.get() or {}
             initiator = match_data.get("initiator")
             receiver = match_data.get("receiver")
-            go_no_go = match_data.get("go_no_go") or {}
+            rtdb_go_no_go = match_data.get("go_no_go") or {}  # ← 이름 분리
             if (
                 initiator
                 and receiver
-                and initiator in go_no_go
-                and receiver in go_no_go
+                and initiator in rtdb_go_no_go
+                and receiver in rtdb_go_no_go
             ):
                 match_ref.delete()
     except Exception:
@@ -445,11 +461,17 @@ def save_response():
     if choice == "no":
         partner_id = participants.get("user_b") if is_initiator else participants.get("user_a")
         if partner_id:
+            now = datetime.utcnow().isoformat()
+            # 내 blocked에 상대 추가
             db.collection("users").document(user_id).set(
-                {
-                    "blocked_users": firestore.ArrayUnion([partner_id]),
-                    "blocked_updated_at": datetime.utcnow().isoformat(),
-                },
+                {"blocked_users": firestore.ArrayUnion([partner_id]),
+                "blocked_updated_at": now},
+                merge=True,
+            )
+            # 상대 blocked에도 나 추가 (명시적 양방향)
+            db.collection("users").document(partner_id).set(
+                {"blocked_users": firestore.ArrayUnion([user_id]),
+                "blocked_updated_at": now},
                 merge=True,
             )
 

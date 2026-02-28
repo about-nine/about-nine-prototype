@@ -235,6 +235,63 @@ def _calc_engagement(conversation: List[Dict], speaker_a: str, speaker_b: str) -
         "count_ratio": round(count_ratio, 3),
     }
 
+def _calc_personal(
+    conversation: List[Dict], speaker_a: str, speaker_b: str
+) -> Dict[str, Any]:
+    """
+    Speaker별 개인 피처 추출.
+
+    avg_turn_length : 발화당 평균 글자 수
+    speech_pace     : 글자/초 (타임스탬프 있을 때만, 없으면 None)
+
+    speech_pace 유효 조건:
+      - duration > 1.5초
+      - 텍스트 길이 > 5글자
+      - 유효 샘플 2개 이상일 때만 평균, 아니면 None
+    """
+    data: Dict[str, Dict] = {
+        speaker_a: {"lengths": [], "paces": []},
+        speaker_b: {"lengths": [], "paces": []},
+    }
+
+    for u in conversation:
+        sp = u.get("speaker")
+        if sp not in data:
+            continue
+        text = (u.get("text") or "").strip()
+        if not text:
+            continue
+
+        length = len(text)
+        data[sp]["lengths"].append(length)
+
+        start = u.get("start")
+        end = u.get("end")
+        if start is not None and end is not None:
+            duration = end - start
+            if duration > 1.5 and length > 5:
+                data[sp]["paces"].append(length / duration)
+
+    def _summarize(sp: str) -> Dict[str, Any]:
+        lengths = data[sp]["lengths"]
+        paces = data[sp]["paces"]
+
+        avg_turn_length = round(float(np.mean(lengths)), 2) if lengths else 0.0
+
+        if len(paces) >= 2:
+            speech_pace = round(float(np.mean(paces)), 3)
+        else:
+            speech_pace = None  # 샘플 부족 → EMA 업데이트 시 스킵
+
+        return {
+            "avg_turn_length": avg_turn_length,
+            "speech_pace": speech_pace,
+        }
+
+    return {
+        speaker_a: _summarize(speaker_a),
+        speaker_b: _summarize(speaker_b),
+    }
 
 # ============================================================================
 # Main analyzer
@@ -280,12 +337,15 @@ def analyze(conversation_data: Dict) -> Dict[str, Any]:
         + W_ENGAGEMENT * engagement["score"]
     )
     score = max(0, min(100, round(score, 1)))
+    
+    personal = _calc_personal(conv, speaker_a, speaker_b)
 
     return {
         "score": score,
         "balance": balance,
         "silence": silence,
         "engagement": engagement,
+        "personal": personal,
         "weights": {
             "balance": W_BALANCE,
             "silence": W_SILENCE,
@@ -300,7 +360,8 @@ class RhythmAnalyzer:
         raw = analyze(data)
         return {
             "scores": {
-                "rhythm_synchrony": float(raw.get("score", 0)),
+                "turn_balance": float(raw.get("score", 0)),
             },
+            "personal": raw.get("personal", {}),
             "raw": raw,
         }

@@ -9,32 +9,28 @@ from backend.services.firestore import get_firestore
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
-FEATURES = [
-    "turn",
-    "flow",
-    "romantic",
-    "lsm",
-    "preference"
-]
+FEATURES = ["lsm", "flow_continuity", "turn_balance", "preference_sync", "romantic_sync"]
 
 # 데이터 없을 때 사용하는 수동 가중치
 # 직관적 중요도 기반 (romantic/preference가 가장 직접적인 신호)
 FALLBACK_WEIGHTS = {
-    "romantic":   0.3,
-    "preference": 0.3,
-    "lsm":        0.2,
-    "flow":       0.1,
-    "turn":       0.1,
+    "romantic_sync":   0.30,
+    "preference_sync": 0.25,
+    "lsm":             0.20,
+    "flow_continuity": 0.15,
+    "turn_balance":    0.10,
 }
 
 class ChemistryModel:
     def __init__(self):
         self.scaler = StandardScaler()
         self.model = XGBClassifier(
-            n_estimators=100,
-            max_depth=3,
-            learning_rate=0.1,
-            scale_pos_weight=4,      # 초기값, train에서 자동 계산해서 덮어씀
+            n_estimators=50,       # 100 → 50 (데이터 적을 때 과적합 방지)
+            max_depth=2,           # 3 → 2 (피처 5개에 depth 3은 과함)
+            learning_rate=0.05,    # 0.1 → 0.05
+            subsample=0.8,         # 추가: 행 샘플링
+            colsample_bytree=1.0,  # 피처가 5개라 전체 사용
+            scale_pos_weight=4,
             use_label_encoder=False,
             eval_metric="logloss",
             random_state=42,
@@ -69,38 +65,25 @@ class ChemistryModel:
                 for i, f in enumerate(FEATURES)
             }
 
-    def predict(self, feats: dict):
-        # 피처 키 정규화 (analysis_service의 키와 호환)
-        values = []
-        for key in FEATURES:
-            if key in feats:
-                values.append(feats[key])
-                continue
-            if key == "turn":
-                values.append(feats.get("turn_taking", 0))
-            elif key == "flow":
-                values.append(feats.get("flow_continuity", 0))
-            elif key == "romantic":
-                values.append(feats.get("romantic_intent", 0))
-            elif key == "lsm":
-                values.append(feats.get("language_style_ma", 0))
-            elif key == "preference":
-                values.append(feats.get("preference_sync", 0))
-            else:
-                values.append(0)
-
+    def predict(self, feats: dict) -> float:
+        """
+        입력: pair_features dict
+        {"lsm": 72.0, "flow_continuity": 65.0, "turn_balance": 58.0,
+        "preference_sync": 80.0, "romantic_sync": 45.0}
+        출력: 0~100 chemistry score
+        """
+        values = [float(feats.get(k, 0)) for k in FEATURES]
         x = np.array([values], dtype=float)
 
         if not self._loaded:
-            # fallback: 수동 or 학습된 가중치로 가중 평균
-            # 단순 평균보다 romantic/preference에 더 높은 가중치
+            # fallback: 가중 평균
             weighted = sum(
                 self._weights.get(f, 0) * v
                 for f, v in zip(FEATURES, values)
             )
             return float(np.clip(weighted, 0, 100))
 
-        # XGBoost: Go/Go 확률 0~1 → 0~100점
+        # 모델 로드된 경우: Go/Go 확률 → 0~100
         xs = self.scaler.transform(x)
         return float(self.model.predict_proba(xs)[0, 1] * 100)
 
