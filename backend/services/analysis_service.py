@@ -482,11 +482,14 @@ class AnalysisService:
                 # (a) Download from Firebase Storage to local temp paths
                 # storage_loader should return local file paths + metadata
                 # expected item: {"uid": <agora_uid or None>, "storage_path": "...", "local_path": "..."}
+                print(f"⬇️ [{talk_id}] Downloading {len(recording_files)} recording files...")
                 downloaded = self.storage_loader.download_recordings(recording_files, talk_id=talk_id)
+                print(f"✅ [{talk_id}] Downloaded {len(downloaded)} files")
 
-                # (b) Convert to wav (or extract wav) for STT
-                # expected return: [{"uid":..., "wav_path":..., "speaker_hint":...}, ...]
+                # AudioBuilder 전에도
+                print(f"🎵 [{talk_id}] Converting to WAV...")
                 wav_items = self.audio_builder.to_wav(downloaded, talk_id=talk_id)
+                print(f"✅ [{talk_id}] WAV conversion done: {len(wav_items)} items")
 
                 # (c) Build conversation (STT -> segments -> unified conversation)
                 # conversation_builder should:

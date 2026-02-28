@@ -350,11 +350,11 @@ WHISPER_PROMPT = (
 
 
 def _openai_timeout() -> float:
-    raw = os.getenv("OPENAI_TIMEOUT", "30")
+    raw = os.getenv("WHISPER_TIMEOUT", os.getenv("OPENAI_TIMEOUT", "120"))
     try:
         return float(raw)
     except (TypeError, ValueError):
-        return 30.0
+        return 120.0
 
 
 def _get_openai_client():
