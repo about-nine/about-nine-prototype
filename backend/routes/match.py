@@ -120,7 +120,7 @@ def list_candidates():
     if debug and not debug.get("bypass"):
         print(f"\n=== MATCH LIST DEBUG ===")
         print(f"My ID: {uid}")
-        print(f"My profile: {debug.get('me')}")
+        print(f"My profile: id={debug.get('me', {}).get('id')}, talk_count={debug.get('me', {}).get('talk_profile', {}).get('talk_count')}")
         total_count = debug.get("total_count", 0)
         filtered_stats = debug.get("filtered_stats") or {}
         print(f"\nTotal users in DB: {total_count}")

@@ -95,8 +95,10 @@ class StorageLoader:
 
             if storage_path.endswith(".m3u8"):
                 ts_prefix = storage_path[:-5]
-                for blob in bucket.list_blobs(prefix=ts_prefix):
-                    if blob.name.endswith(".ts"):
-                        _download_blob(blob.name)
+                ts_blobs = [b for b in bucket.list_blobs(prefix=ts_prefix) if b.name.endswith(".ts")]
+                if not ts_blobs:
+                    print(f"⚠️ [{talk_id}] No .ts files found for {os.path.basename(storage_path)} — recording may not be uploaded yet")
+                for blob in ts_blobs:
+                    _download_blob(blob.name)
 
         return downloaded

@@ -57,6 +57,16 @@ def _process_job(db, job_ref, job):
     talk_id = job.get("talk_id") or job_ref.id
     attempts = int(job.get("attempts") or 1)
 
+    # 녹음 업로드 완료 여부 확인
+    talk_snap = db.collection("talk_history").document(talk_id).get()
+    if talk_snap.exists:
+        talk_data = talk_snap.to_dict() or {}
+        upload_status = talk_data.get("recording_uploading_status")
+        if upload_status and upload_status != "uploaded":
+            print(f"⏳ [{talk_id}] Recording not uploaded yet ({upload_status}), requeueing")
+            job_ref.update({"status": "queued", "updated_at": _now_ms()})
+            return
+
     try:
         result = analyze_talk_pipeline(talk_id, force=True)
         if result.get("success"):
