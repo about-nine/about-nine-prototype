@@ -8,12 +8,12 @@ if [[ "${worker_disabled,,}" == "1" || "${worker_disabled,,}" == "true" || "${wo
   echo "[startup] analysis worker disabled via ANALYSIS_WORKER_DISABLED"
   worker_pid=""
 else
-  python backend/scripts/analysis_worker.py &
+  python -m backend.scripts.analysis_worker &
   worker_pid="$!"
   echo "[startup] analysis worker pid=${worker_pid}"
 fi
 
-python backend/app.py &
+python -m backend.app &
 web_pid="$!"
 echo "[startup] web pid=${web_pid}"
 
