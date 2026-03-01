@@ -468,9 +468,6 @@
       const loungeContent = document.getElementById("loungeContent");
       const aiContent = document.getElementById("aiContent");
 
-      renderSectionLoader("userList", "finding people nearby...");
-      renderSectionLoader("aiUserList", "warming up ai picks...");
-
       loungeTab.onclick = () => switchTab("lounge");
       aiTab.onclick    = () => switchTab("ai");
 
@@ -564,7 +561,6 @@
       /* ── 유저 로드 / AI 추천 ─────────────────────────── */
 
       async function loadUsers() {
-        renderSectionLoader("userList", "finding people nearby...");
         try {
           const res = await apiCall("/match/list");
           users = res.users || [];
@@ -592,7 +588,6 @@
       }
 
       async function buildAIMatch() {
-        renderSectionLoader("aiUserList", "warming up ai picks...");
         try {
           const res = await apiCall("/match/recommend");
           const list = Array.isArray(res)
@@ -1039,36 +1034,42 @@
       /* ── Init ────────────────────────────────────────── */
 
       window.onload = async () => {
+        const initialLoadingText = consumePendingLoadingText() || "loading lounge...";
+        showLoading(initialLoadingText);
         try {
-          const profileRes = await apiCall("/users/profile");
-          currentUserProfile = profileRes.user || null;
-        } catch (error) {
-          console.error("Session check failed:", error);
-          removeFromLocal("user_id");
-          navigateTo("index.html");
-          return;
+          try {
+            const profileRes = await apiCall("/users/profile");
+            currentUserProfile = profileRes.user || null;
+          } catch (error) {
+            console.error("Session check failed:", error);
+            removeFromLocal("user_id");
+            navigateTo("index.html");
+            return;
+          }
+
+          if (!getFromLocal("location")) { navigateTo("location-permission.html"); return; }
+
+          renderBottomNav("lounge");
+
+          const locationPromise = updateLocation().catch((err) => {
+            console.warn("location update failed:", err);
+          });
+
+          listenPresence();
+
+          const usersPromise = loadUsers();
+          const historyPromise = loadHistorySummary();
+
+          listenMatchRequests();
+
+          const defaultTab = isAIMatchTime() ? "ai" : "lounge";
+          switchTab(defaultTab);
+          if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
+
+          await Promise.allSettled([locationPromise, usersPromise, historyPromise]);
+        } finally {
+          hideLoading();
         }
-
-        if (!getFromLocal("location")) { navigateTo("location-permission.html"); return; }
-
-        renderBottomNav("lounge");
-
-        const locationPromise = updateLocation().catch((err) => {
-          console.warn("location update failed:", err);
-        });
-
-        listenPresence();
-
-        const usersPromise = loadUsers();
-        const historyPromise = loadHistorySummary();
-
-        listenMatchRequests();
-
-        const defaultTab = isAIMatchTime() ? "ai" : "lounge";
-        switchTab(defaultTab);
-        if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
-
-        await Promise.allSettled([locationPromise, usersPromise, historyPromise]);
       };
     </script>
   </body>

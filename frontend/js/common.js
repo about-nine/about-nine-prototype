@@ -337,8 +337,42 @@ function navigateTo(page) {
   window.location.href = page;
 }
 
+const PENDING_LOADING_TEXT_KEY = "__pending_loading_text__";
+
+function rememberPendingLoadingText(text) {
+  if (typeof text !== "string" || !text.trim()) return;
+  try {
+    rawSetItem(PENDING_LOADING_TEXT_KEY, text);
+  } catch {}
+}
+
+function consumePendingLoadingText() {
+  let text = null;
+  try {
+    text = rawGetItem(PENDING_LOADING_TEXT_KEY);
+  } catch {
+    text = null;
+  }
+  if (text) {
+    try {
+      rawRemoveItem(PENDING_LOADING_TEXT_KEY);
+    } catch {}
+  }
+  return text;
+}
+
 // 로딩 표시
-function showLoading(text = "Loading...") {
+function showLoading(text) {
+  let message = typeof text === "string" && text.trim() ? text : null;
+  if (!message) {
+    const pending = consumePendingLoadingText();
+    if (pending && pending.trim()) {
+      message = pending;
+    }
+  }
+  if (!message) {
+    message = "loading...";
+  }
   let overlay = document.getElementById("loading-overlay");
   if (!overlay) {
     overlay = document.createElement("div");
@@ -360,17 +394,6 @@ function showLoading(text = "Loading...") {
 function hideLoading() {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.add("hidden");
-}
-
-function renderSectionLoader(target, message = "loading...") {
-  const el = typeof target === "string" ? document.getElementById(target) : target;
-  if (!el) return;
-  el.innerHTML = `
-    <div class="section-loader">
-      <div class="section-spinner"></div>
-      <div class="section-loader-text">${message}</div>
-    </div>
-  `;
 }
 
 // 에러 메시지 표시
@@ -586,16 +609,16 @@ function renderBottomNav(activePage = "lounge") {
   if (!nav) return;
 
   nav.innerHTML = `
-    <button class="nav-item ${activePage === "lounge" ? "active" : ""}" onclick="navigateWithLoading('lounge.html', { showOverlay: false })">
+    <button class="nav-item ${activePage === "lounge" ? "active" : ""}" onclick="navigateWithLoading('lounge.html', 'loading lounge...')">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
     </button>
-    <button class="nav-item ${activePage === "history" ? "active" : ""}" onclick="navigateWithLoading('history.html', { showOverlay: false })">
+    <button class="nav-item ${activePage === "history" ? "active" : ""}" onclick="navigateWithLoading('history.html', 'loading history...')">
       <img src="images/asterisk.png" alt="asterisk" style="width:24px;height:24px;${activePage === "history" ? "filter:brightness(1.2);" : "filter:brightness(0.6);"}">
     </button>
-    <button class="nav-item ${activePage === "profile" ? "active" : ""}" onclick="navigateWithLoading('edit-profile.html', { showOverlay: false })">
+    <button class="nav-item ${activePage === "profile" ? "active" : ""}" onclick="navigateWithLoading('edit-profile.html', 'loading profile...')">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
@@ -604,25 +627,12 @@ function renderBottomNav(activePage = "lounge") {
   `;
 }
 
-function navigateWithLoading(page, options) {
-  let text = "loading...";
-  let showOverlay = true;
-
-  if (typeof options === "string") {
-    text = options;
-  } else if (options && typeof options === "object") {
-    if (typeof options.text === "string") text = options.text;
-    if (typeof options.showOverlay === "boolean") showOverlay = options.showOverlay;
+function navigateWithLoading(page, text = "loading...") {
+  rememberPendingLoadingText(text);
+  try {
+    showLoading(text);
+  } catch (error) {
+    console.warn("showLoading failed:", error);
   }
-
-  if (showOverlay) {
-    try {
-      showLoading(text);
-    } catch (error) {
-      console.warn("showLoading failed:", error);
-    }
-  }
-
-  const delay = showOverlay ? 30 : 0;
-  setTimeout(() => navigateTo(page), delay);
+  setTimeout(() => navigateTo(page), 30);
 }
