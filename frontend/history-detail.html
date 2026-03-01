@@ -95,6 +95,161 @@
         padding: 16px;
         margin-bottom: 16px;
       }
+
+      .history-action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .history-btn.secondary {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+      }
+
+      .bottom-sheet-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--overlay-bg);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+        z-index: 999;
+      }
+
+      .bottom-sheet-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .profile-bottom-sheet {
+        position: fixed;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%) translateY(100%);
+        width: 100%;
+        max-width: 480px;
+        height: 90vh;
+        border-radius: 20px 20px 0 0;
+        background: #1a1a1a;
+        padding: 32px 20px calc(40px + var(--safe-bottom));
+        z-index: 1000;
+        transition: transform 0.3s;
+        overflow-y: auto;
+        font-family: "Merriweather", serif;
+      }
+
+      .profile-bottom-sheet.active {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .profile-sheet-handle {
+        width: 40px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .profile-sheet-header {
+        margin-top: 24px;
+        margin-bottom: 20px;
+      }
+
+      .profile-sheet-name {
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .profile-sheet-subtitle {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 6px;
+      }
+
+      .profile-info-card {
+        background: #2a2a2a;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .profile-info-card.stacked {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .profile-info-card.locked {
+        filter: blur(5px);
+        pointer-events: none;
+      }
+
+      .profile-info-row {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .profile-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      .profile-value {
+        font-size: 14px;
+        color: var(--text-primary);
+      }
+
+      .playlist-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .playlist-chip {
+        background: #3a3a3a;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: white;
+      }
+
+      .profile-trials-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .profile-trial-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .profile-trial-title {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: lowercase;
+      }
+
+      .profile-trial-score {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
     </style>
   </head>
 
@@ -118,6 +273,16 @@
 
     <nav id="bottomNav" class="bottom-nav"></nav>
 
+    <div class="bottom-sheet-overlay" id="profileOverlay" onclick="closeProfileSheet()"></div>
+    <div class="profile-bottom-sheet" id="profileSheet">
+      <div class="profile-sheet-handle"></div>
+      <div class="profile-sheet-header">
+        <div class="profile-sheet-name" id="profileSheetName"></div>
+        <div class="profile-sheet-subtitle" id="profileSheetSubtitle"></div>
+      </div>
+      <div id="profileSheetContent"></div>
+    </div>
+
     <script src="js/common.js"></script>
 
     <script type="module">
@@ -139,6 +304,8 @@
       let isBlocked = false;
       let isDeleted = false;
       let hasPrefill = false;
+      let latestStatus = {};
+      let unlockedRounds = 1;
 
       const HISTORY_PREFILL_KEY = "history_detail_prefill";
 
@@ -160,6 +327,20 @@
         }
         navigateTo("history.html");
       };
+
+      function deriveGoNoState() {
+        const pending = latestStatus?.pending === true;
+        const someoneNo =
+          latestStatus?.someone_no === true || hadNo || isBlocked || isDeleted;
+        const mutualGo =
+          latestStatus?.mutual_go === true && !someoneNo && !pending;
+        return { pending, someoneNo, mutualGo };
+      }
+
+      function getOrdinal(roundNumber) {
+        const map = { 1: "first", 2: "second", 3: "third" };
+        return map[roundNumber] || `${roundNumber}th`;
+      }
 
       /* ── 라운드 탭 렌더 ──────────────────────────────── */
 
@@ -191,6 +372,84 @@
             renderRoundContent(Number(tab.dataset.round));
           };
         });
+      }
+
+      function renderProfileTrials(rounds) {
+        if (!rounds || typeof rounds !== "object") return "";
+        return Object.entries(rounds)
+          .map(([roundKey, info]) => {
+            const label = roundLabel(info?.topic);
+            const scoreText =
+              info?.score === null || info?.score === undefined
+                ? "--"
+                : info.score;
+            return `
+              <div class="profile-trial-item">
+                <div class="profile-trial-title">${getOrdinal(Number(roundKey))} trial (${label})</div>
+                <div class="profile-trial-score">chemistry score ${scoreText}</div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function getUnlockedRounds() {
+        return Math.max(1, Math.min(unlockedRounds || 1, 3));
+      }
+
+      function generateProfileCards() {
+        const unlocked = getUnlockedRounds();
+        const age = partner?.age ?? "--";
+        const gender = partner?.gender || "--";
+        const drink = partner?.drink || "Not provided";
+        const smoke = partner?.smoke || "Not provided";
+        const marijuana = partner?.marijuana || "Not provided";
+        const bio = partner?.bio || "Not provided";
+        const moreInfo = partner?.more_info || "Not provided";
+        const phone = partner?.phone || "--";
+        const playlist = Array.isArray(partner?.playlist) ? partner.playlist : [];
+        const lock1 = unlocked < 2 ? "locked" : "";
+        const lock2 = unlocked < 3 ? "locked" : "";
+
+        return `
+          <div class="profile-info-card">
+            <div class="profile-info-row">
+              <span class="profile-label">${age} years old</span>
+              <span class="profile-value">${gender}</span>
+            </div>
+          </div>
+          <div class="profile-info-card stacked">
+            <div class="profile-label">${getPartnerName()}'s playlist</div>
+            <div class="playlist-chips">
+              ${
+                playlist.length
+                  ? playlist
+                      .slice(0, 6)
+                      .map(
+                        (t) =>
+                          `<div class="playlist-chip">${t.name || "track"} - ${t.artist || "artist"}</div>`,
+                      )
+                      .join("")
+                  : `<div class="playlist-chip">no playlist</div>`
+              }
+            </div>
+          </div>
+          <div class="profile-info-card stacked ${lock1}">
+            <div class="profile-info-row"><span class="profile-label">drinking</span><span class="profile-value">${drink}</span></div>
+            <div class="profile-info-row"><span class="profile-label">smoking</span><span class="profile-value">${smoke}</span></div>
+            <div class="profile-info-row"><span class="profile-label">marijuana</span><span class="profile-value">${marijuana}</span></div>
+          </div>
+          <div class="profile-info-card stacked ${lock1}">
+            <div class="profile-label">Additional information</div>
+            <div class="profile-value">${moreInfo !== "Not provided" ? moreInfo : bio}</div>
+          </div>
+          <div class="profile-info-card ${lock2}">
+            <div class="profile-info-row">
+              <span class="profile-label">Contact</span>
+              <span class="profile-value">${phone}</span>
+            </div>
+          </div>
+        `;
       }
 
       /* ── 라운드 콘텐츠 ───────────────────────────────── */
@@ -265,6 +524,7 @@
         const cardEl  = document.getElementById("partnerCard");
         const name    = getPartnerName();
         const online  = isOnline(partnerId);
+        const goState = deriveGoNoState();
 
         const scoreHtml = [1, 2, 3].flatMap((r) => {
           const t = roundsMap?.[r];
@@ -273,19 +533,50 @@
           return [`<span>${roundLabel(t.topic)}: ${s}</span>`];
         }).join("") || "<span>no scores yet</span>";
 
-        const actionHtml = maxRound >= 3
-          ? `<div class="history-phone">${partner?.phone || "--"}</div>`
-          : `<button class="primary history-btn" ${online && !isBlocked && !isDeleted ? "" : "disabled"} onclick="startTalk()">start talk</button>`;
+        const viewProfileDisabled =
+          !goState.mutualGo || isBlocked || isDeleted;
+        const startDisabled =
+          maxRound >= 3 ||
+          !online ||
+          isBlocked ||
+          isDeleted ||
+          goState.pending ||
+          goState.someoneNo;
 
-        const statusDot = isDeleted
-          ? "offline"
-          : isBlocked
-            ? "blocked"
-            : online
-              ? "online"
-              : "offline";
+        const viewProfileButton = `
+          <button class="secondary history-btn" ${viewProfileDisabled ? "disabled" : ""} onclick="openProfileSheet()">
+            view profile
+          </button>
+        `;
 
-        cardEl.className = `history-card ${online ? "" : "offline"}`;
+        const startTalkButton =
+          maxRound >= 3
+            ? ""
+            : `<button class="primary history-btn" ${startDisabled ? "disabled" : ""} onclick="startTalk()">start talk</button>`;
+
+        const actionButtons = `
+          <div class="history-action-buttons">
+            ${viewProfileButton}
+            ${startTalkButton}
+          </div>
+        `;
+
+        const contactHtml =
+          maxRound >= 3
+            ? `<div class="history-phone">${partner?.phone || "--"}</div>`
+            : "";
+
+        const statusDot = goState.someoneNo
+          ? "blocked"
+          : isDeleted
+            ? "offline"
+            : isBlocked
+              ? "blocked"
+              : online
+                ? "online"
+                : "offline";
+
+        cardEl.className = `history-card ${online && statusDot !== "blocked" ? "" : "offline"}`;
         cardEl.innerHTML = `
           <div class="card">
             <div style="flex:1;">
@@ -296,7 +587,8 @@
                 </div>
               </div>
               <div class="history-meta">${scoreHtml}</div>
-              ${actionHtml}
+              ${actionButtons}
+              ${contactHtml}
             </div>
           </div>
         `;
@@ -305,7 +597,15 @@
       /* ── startTalk ───────────────────────────────────── */
 
       window.startTalk = async () => {
-        if (hadNo || isBlocked || isDeleted) return;
+        const goState = deriveGoNoState();
+        if (
+          hadNo ||
+          isBlocked ||
+          isDeleted ||
+          goState.pending ||
+          goState.someoneNo
+        )
+          return;
         if (!partner) {
           const res = await apiCall(`/talks/history-detail/${partnerId}`);
           if (!res.success || !res.partner) return;
@@ -353,6 +653,30 @@
         }
       };
 
+      window.openProfileSheet = () => {
+        const goState = deriveGoNoState();
+        if (!goState.mutualGo || isBlocked || isDeleted) return;
+        const overlay = document.getElementById("profileOverlay");
+        const sheet = document.getElementById("profileSheet");
+        document.getElementById("profileSheetName").textContent = getPartnerName();
+        const trialsMarkup = renderProfileTrials(roundsMap);
+        document.getElementById("profileSheetSubtitle").innerHTML = trialsMarkup
+          ? `<div class="profile-trials-list">${trialsMarkup}</div>`
+          : `${getOrdinal(getUnlockedRounds())} trial unlocked`;
+        document.getElementById("profileSheetContent").innerHTML = generateProfileCards();
+        overlay?.classList.add("active");
+        sheet?.classList.add("active");
+      };
+
+      window.closeProfileSheet = () => {
+        document.getElementById("profileOverlay")?.classList.remove("active");
+        document.getElementById("profileSheet")?.classList.remove("active");
+      };
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeProfileSheet();
+      });
+
       /* ── 데이터 로드 ─────────────────────────────────── */
 
       function applyPrefill(prefill) {
@@ -372,6 +696,8 @@
         maxRound = [1, 2, 3].reduce((acc, round) => (
           roundsMap[round] ? Math.max(acc, round) : acc
         ), 0);
+        latestStatus = {};
+        unlockedRounds = Math.max(1, Math.min(maxRound || 1, 3));
         renderPartnerCard();
         renderRounds();
         hasPrefill = true;
@@ -398,6 +724,8 @@
         roundsMap = detailRes.rounds  || {};
         hadNo     = detailRes.had_no  === true;
         maxRound  = detailRes.max_round || 0;
+        latestStatus = detailRes.latest_status || {};
+        unlockedRounds = Math.max(1, Math.min(maxRound || 1, 3));
 
         renderPartnerCard();
         renderRounds();

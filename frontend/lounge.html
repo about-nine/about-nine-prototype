@@ -600,6 +600,21 @@
         renderUsers(aiUsers, "aiUserList", "ai");
       }
 
+      async function checkPendingGoNo() {
+        try {
+          const res = await apiCall("/talks/pending-choice");
+          if (res?.pending_talk_id) {
+            saveToLocal("current_talk_id", res.pending_talk_id);
+            const matchId = res.match_request_id || res.pending_talk_id;
+            if (matchId) saveToLocal("match_request_id", matchId);
+            if (res.partner) saveToLocal("chat_partner", res.partner);
+            navigateTo("talk-result.html");
+          }
+        } catch (error) {
+          console.error("Failed to check pending go/no:", error);
+        }
+      }
+
       /* ── 온라인 상태 ─────────────────────────────────── */
 
       function getUserId(u) {
@@ -1059,6 +1074,7 @@
 
           const usersPromise = loadUsers();
           const historyPromise = loadHistorySummary();
+          const pendingPromise = checkPendingGoNo();
 
           listenMatchRequests();
 
@@ -1066,7 +1082,7 @@
           switchTab(defaultTab);
           if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
 
-          await Promise.allSettled([locationPromise, usersPromise, historyPromise]);
+          await Promise.allSettled([locationPromise, usersPromise, historyPromise, pendingPromise]);
         } finally {
           hideLoading();
         }

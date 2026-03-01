@@ -478,6 +478,117 @@ def save_response():
     return jsonify(success=True)
 
 
+@talks_bp.route("/pending-choice", methods=["GET"])
+def pending_choice():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    talks_ref = db.collection("talk_history")
+
+    def needs_choice(talk: dict) -> bool:
+        go_no_go = talk.get("go_no_go")
+        if isinstance(go_no_go, dict):
+            entry = go_no_go.get(user_id)
+            if isinstance(entry, bool):
+                return False
+
+        participants = talk.get("participants") or {}
+        initiator = participants.get("user_a")
+        receiver = participants.get("user_b")
+
+        if initiator == user_id and isinstance(talk.get("initiator_response"), str):
+            return False
+        if receiver == user_id and isinstance(talk.get("receiver_response"), str):
+            return False
+        return True
+
+    def extract_partner_id(talk: dict) -> str | None:
+        participants = talk.get("participants") or {}
+        if participants.get("user_a") == user_id:
+            return participants.get("user_b")
+        if participants.get("user_b") == user_id:
+            return participants.get("user_a")
+        return None
+
+    def serialize_partner(partner_id: str) -> dict | None:
+        if not partner_id:
+            return None
+        doc = db.collection("users").document(partner_id).get()
+        exists = doc.exists
+        data = doc.to_dict() or {}
+        if not exists:
+            data = {
+                "first_name": "(deleted)",
+                "last_name": "",
+                "phone": None,
+            }
+        playlist = data.get("playlist")
+        if not isinstance(playlist, list):
+            playlist = []
+        return {
+            "id": partner_id,
+            "first_name": data.get("first_name") or data.get("firstName"),
+            "last_name": data.get("last_name") or data.get("lastName"),
+            "age": data.get("age"),
+            "gender": data.get("gender"),
+            "gender_detail": data.get("gender_detail"),
+            "drink": data.get("drink"),
+            "smoke": data.get("smoke"),
+            "marijuana": data.get("marijuana"),
+            "bio": data.get("bio"),
+            "more_info": data.get("more_info"),
+            "phone": data.get("phone"),
+            "playlist": playlist,
+        }
+
+    candidates = []
+    MAX_DOCS = 50
+
+    for field in ["participants.user_a", "participants.user_b"]:
+        try:
+            docs = talks_ref.where(field, "==", user_id).stream()
+        except Exception as exc:
+            print(f"❌ pending-choice query failed ({field}): {exc}")
+            continue
+
+        for idx, doc in enumerate(docs):
+            talk = doc.to_dict() or {}
+            if not needs_choice(talk):
+                if idx + 1 >= MAX_DOCS:
+                    break
+                continue
+            ts = int(talk.get("timestamp") or talk.get("created_at") or talk.get("call_ended_at") or 0)
+            candidates.append((ts, doc.id, talk))
+            if idx + 1 >= MAX_DOCS:
+                break
+
+    if not candidates:
+        return jsonify(success=True, pending=False)
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    _, talk_id, talk = candidates[0]
+    partner_id = extract_partner_id(talk)
+    if not partner_id:
+        return jsonify(success=True, pending=False)
+
+    partner_payload = serialize_partner(partner_id)
+    if not partner_payload:
+        return jsonify(success=True, pending=False)
+
+    match_request_id = talk.get("match_request_id") or talk_id
+
+    return jsonify(
+        success=True,
+        pending=True,
+        pending_talk_id=talk_id,
+        match_request_id=match_request_id,
+        partner=partner_payload,
+        round=talk.get("round"),
+    )
+
+
 # =========================
 # Realtime Go/No status (RTDB)
 # =========================
@@ -681,8 +792,11 @@ def history_detail(partner_id):
     had_no = False
     max_round = 0
 
+    latest_snapshot = {}
+    latest_ts = -1
+
     def add_detail(talk):
-        nonlocal had_no, max_round
+        nonlocal had_no, max_round, latest_snapshot, latest_ts
         round_num = talk.get("round") or 1
         max_round = max(max_round, round_num)
         ts = talk.get("timestamp") or 0
@@ -697,7 +811,7 @@ def history_detail(partner_id):
         if existing and existing.get("timestamp", 0) >= ts:
             return
 
-        rounds[round_num] = {
+        detail_entry = {
             "topic": talk.get("topic"),
             "score": score,
             "selections": talk.get("selections") or {},
@@ -705,7 +819,10 @@ def history_detail(partner_id):
             "conversation": talk.get("conversation") or [],
             "uid_mapping": talk.get("uid_mapping") or {},
             "timestamp": ts,
+            "go_no_go": talk.get("go_no_go") or {},
+            "participants": talk.get("participants") or {},
         }
+        rounds[round_num] = detail_entry
 
         go_no_go = talk.get("go_no_go") or {}
         if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
@@ -713,10 +830,23 @@ def history_detail(partner_id):
         elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
             had_no = True
 
+        if ts >= latest_ts:
+            latest_ts = ts
+            latest_snapshot = talk
+
     for doc in query1:
         add_detail(doc.to_dict() or {})
     for doc in query2:
         add_detail(doc.to_dict() or {})
+
+    latest_go_no_go = latest_snapshot.get("go_no_go") or {}
+    latest_participants = latest_snapshot.get("participants") or {}
+    bool_values = [
+        v for v in latest_go_no_go.values() if isinstance(v, bool)
+    ]
+    someone_no = any(v is False for v in bool_values)
+    mutual_go = len(bool_values) >= 2 and all(v is True for v in bool_values)
+    pending_response = len(bool_values) < 2
 
     return jsonify(
         success=True,
@@ -726,11 +856,27 @@ def history_detail(partner_id):
             "first_name": partner.get("first_name") or partner.get("firstName"),
             "last_name": partner.get("last_name") or partner.get("lastName"),
             "phone": partner.get("phone"),
+            "age": partner.get("age"),
+            "gender": partner.get("gender"),
+            "gender_detail": partner.get("gender_detail"),
+            "drink": partner.get("drink"),
+            "smoke": partner.get("smoke"),
+            "marijuana": partner.get("marijuana"),
+            "bio": partner.get("bio"),
+            "more_info": partner.get("more_info"),
+            "playlist": partner.get("playlist") if isinstance(partner.get("playlist"), list) else [],
         },
         deleted=deleted,
         rounds=rounds,
         had_no=had_no,
         max_round=max_round,
+        latest_status={
+            "pending": pending_response,
+            "mutual_go": mutual_go,
+            "someone_no": someone_no,
+            "go_no_go": latest_go_no_go,
+            "participants": latest_participants,
+        },
     )
 
 
