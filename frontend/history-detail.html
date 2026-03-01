@@ -103,7 +103,7 @@
       <div class="chat-header brand-text" style="text-align:left;color:#8e8e8e">
         about nine
       </div>
-      <button class="back-btn" onclick="navigateTo('history.html')">
+      <button class="back-btn" onclick="goBackToHistory()">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 6l-6 6 6 6" />
         </svg>
@@ -138,6 +138,9 @@
       let maxRound = 0;
       let isBlocked = false;
       let isDeleted = false;
+      let hasPrefill = false;
+
+      const HISTORY_PREFILL_KEY = "history_detail_prefill";
 
       function getPartnerName() {
         const first = partner?.first_name || partner?.firstName || "";
@@ -149,6 +152,14 @@
         const p = presenceData[uid];
         return p && p.online === true;
       }
+
+      window.goBackToHistory = () => {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+        navigateTo("history.html");
+      };
 
       /* ── 라운드 탭 렌더 ──────────────────────────────── */
 
@@ -344,6 +355,33 @@
 
       /* ── 데이터 로드 ─────────────────────────────────── */
 
+      function applyPrefill(prefill) {
+        if (!prefill) return false;
+        if (prefill.partnerId !== partnerId) return false;
+        const summary = prefill.summary;
+        if (!summary) return false;
+
+        partner = {
+          first_name: summary.first_name,
+          last_name: summary.last_name,
+          phone: summary.phone,
+        };
+        roundsMap = summary.talks_by_round || {};
+        hadNo = summary.had_no === true;
+        isBlocked = summary.blocked === true;
+        maxRound = [1, 2, 3].reduce((acc, round) => (
+          roundsMap[round] ? Math.max(acc, round) : acc
+        ), 0);
+        renderPartnerCard();
+        renderRounds();
+        hasPrefill = true;
+        return true;
+      }
+
+      function clearPrefill() {
+        try { removeFromLocal(HISTORY_PREFILL_KEY); } catch {}
+      }
+
       async function loadData() {
         const profileRes = await apiCall("/users/profile");
         currentUserProfile = profileRes?.user || null;
@@ -374,6 +412,21 @@
 
       window.onload = async () => {
         renderBottomNav("history");
+        const prefill = (() => {
+          try {
+            const raw = rawGetItem(HISTORY_PREFILL_KEY);
+            if (!raw) return null;
+            if (typeof raw === "string") return JSON.parse(raw);
+            return raw;
+          } catch {
+            return null;
+          }
+        })();
+
+        if (applyPrefill(prefill)) {
+          clearPrefill();
+        }
+
         await loadData();
         listenPresence();
       };

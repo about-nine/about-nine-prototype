@@ -92,6 +92,9 @@
 
       let presenceData = {};
       let currentUserProfile = null;
+      let historyItemsMap = {};
+
+      const HISTORY_PREFILL_KEY = "history_detail_prefill";
 
       function isOnline(uid) {
         const p = presenceData[uid];
@@ -121,8 +124,11 @@
           return;
         }
 
+        historyItemsMap = {};
+
         listEl.innerHTML = items.map((item) => {
           const id   = item.partner_id;
+          if (id) historyItemsMap[id] = item;
           const deleted = item.deleted === true;
           const name = deleted
             ? "(deleted)"
@@ -182,6 +188,16 @@
       }
 
       window.openDetail = (partnerId) => {
+        const summary = historyItemsMap[partnerId];
+        if (summary) {
+          saveToLocal(HISTORY_PREFILL_KEY, {
+            partnerId,
+            summary,
+            timestamp: Date.now(),
+          });
+        } else {
+          removeFromLocal(HISTORY_PREFILL_KEY);
+        }
         navigateTo(`history-detail.html?partnerId=${partnerId}`);
       };
 
