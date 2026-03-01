@@ -121,7 +121,10 @@ def _calc_balance(conversation: List[Dict], speaker_a: str, speaker_b: str) -> D
 
 def _calc_silence(conversation: List[Dict]) -> Dict:
     """
-    대화 사이 침묵 분석
+    대화 사이 침묵 분석 (Agora 화자별 분리 녹음 대응)
+
+    발화 구간의 합집합을 구한 뒤,
+    아무도 말하지 않는 구간만 진짜 silence로 측정.
 
     긴 침묵(>5초): 어색함 신호 → 많으면 감점
     짧은 pause(<2초): 자연스러움 → 감점 없음
@@ -130,38 +133,41 @@ def _calc_silence(conversation: List[Dict]) -> Dict:
     if len(conversation) < 2:
         return {"score": 0, "gaps": [], "error": "not_enough_utterances"}
 
+    intervals = []
+    for u in conversation:
+        s, e = u.get("start"), u.get("end")
+        if s is not None and e is not None and e > s:
+            intervals.append((s, e))
+
+    if not intervals:
+        return {"score": 60.0, "total_gaps": 0, "long_silence_count": 0, "fallback": "no_timestamps"}
+
+    # 합집합 계산 (겹치는 구간 병합)
+    intervals.sort()
+    merged = [list(intervals[0])]
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    # 병합된 구간 사이의 gap = 진짜 silence
     gaps = []
-
-    # 시간순 정렬된 발화에서 gap 추출
-    sorted_conv = sorted(conversation, key=lambda x: x.get("start", 0))
-
-    for i in range(1, len(sorted_conv)):
-        prev_end = sorted_conv[i - 1].get("end")
-        cur_start = sorted_conv[i].get("start")
-        if prev_end is None or cur_start is None:
-            continue
-
-        # 같은 화자 연속이면 건너뜀 (화자 전환 gap만 측정)
-        if sorted_conv[i]["speaker"] == sorted_conv[i - 1]["speaker"]:
-            continue
-
-        gap = cur_start - prev_end
-        if gap > 0.1:  # 100ms 이상만
+    for i in range(1, len(merged)):
+        gap = merged[i][0] - merged[i - 1][1]
+        if gap > 0.1:
             gaps.append(gap)
 
     if not gaps:
-        # Timestamp 없는 대화는 silence를 중립 점수로 처리.
-        return {"score": 60.0, "total_gaps": 0, "long_silence_count": 0, "fallback": "no_timestamps"}
+        return {"score": 100.0, "total_gaps": 0, "long_silence_count": 0, "medium_silence_count": 0}
 
-    long_silences = [g for g in gaps if g > 5.0]      # 5초 초과
-    medium_silences = [g for g in gaps if 2.0 < g <= 5.0]  # 2~5초
+    long_silences = [g for g in gaps if g > 5.0]
+    medium_silences = [g for g in gaps if 2.0 < g <= 5.0]
 
     total_gaps = len(gaps)
-    long_ratio = len(long_silences) / total_gaps if total_gaps > 0 else 0
-    medium_ratio = len(medium_silences) / total_gaps if total_gaps > 0 else 0
+    long_ratio = len(long_silences) / total_gaps
+    medium_ratio = len(medium_silences) / total_gaps
 
-    # 점수: 긴 침묵 비율에 따라 감점
-    # long_ratio 0 → 100, long_ratio 0.3+ → 낮은 점수
     score = 100 * (1.0 - long_ratio * 2.0 - medium_ratio * 0.5)
     score = max(0, min(100, score))
 
@@ -170,8 +176,8 @@ def _calc_silence(conversation: List[Dict]) -> Dict:
         "total_gaps": total_gaps,
         "long_silence_count": len(long_silences),
         "medium_silence_count": len(medium_silences),
-        "avg_gap_sec": round(float(np.mean(gaps)), 2) if gaps else 0,
-        "max_gap_sec": round(max(gaps), 2) if gaps else 0,
+        "avg_gap_sec": round(float(np.mean(gaps)), 2),
+        "max_gap_sec": round(max(gaps), 2),
     }
 
 
