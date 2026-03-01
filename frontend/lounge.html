@@ -468,10 +468,13 @@
       const loungeContent = document.getElementById("loungeContent");
       const aiContent = document.getElementById("aiContent");
 
+      renderSectionLoader("userList", "finding people nearby...");
+      renderSectionLoader("aiUserList", "warming up ai picks...");
+
       loungeTab.onclick = () => switchTab("lounge");
       aiTab.onclick    = () => switchTab("ai");
 
-      function switchTab(tab) {
+      function setTabUI(tab) {
         document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
 
         if (tab === "lounge") {
@@ -484,6 +487,14 @@
         aiTab.classList.add("active");
         loungeContent.style.display = "none";
         aiContent.style.display = "block";
+      }
+
+      function switchTab(tab, { skipBuild = false } = {}) {
+        setTabUI(tab);
+
+        if (tab === "lounge") {
+          return;
+        }
 
         if (!isAIMatchTime()) {
           document.getElementById("aiUserList").innerHTML = `
@@ -495,6 +506,10 @@
           return;
         }
 
+        if (skipBuild) {
+          return;
+        }
+
         if (!aiUsers.length) buildAIMatch();
       }
 
@@ -502,6 +517,8 @@
         const h = new Date().getHours();
         return h >= 21 || h < 2;
       }
+
+      setTabUI(isAIMatchTime() ? "ai" : "lounge");
 
       /* ── AI 닫힘 오버레이 ────────────────────────────── */
 
@@ -547,6 +564,7 @@
       /* ── 유저 로드 / AI 추천 ─────────────────────────── */
 
       async function loadUsers() {
+        renderSectionLoader("userList", "finding people nearby...");
         try {
           const res = await apiCall("/match/list");
           users = res.users || [];
@@ -574,6 +592,7 @@
       }
 
       async function buildAIMatch() {
+        renderSectionLoader("aiUserList", "warming up ai picks...");
         try {
           const res = await apiCall("/match/recommend");
           const list = Array.isArray(res)
@@ -1033,13 +1052,23 @@
         if (!getFromLocal("location")) { navigateTo("location-permission.html"); return; }
 
         renderBottomNav("lounge");
-        await updateLocation();
+
+        const locationPromise = updateLocation().catch((err) => {
+          console.warn("location update failed:", err);
+        });
+
         listenPresence();
-        await loadUsers();
-        await loadHistorySummary();
-        isAIMatchTime() ? switchTab("ai") : switchTab("lounge");
+
+        const usersPromise = loadUsers();
+        const historyPromise = loadHistorySummary();
+
         listenMatchRequests();
+
+        const defaultTab = isAIMatchTime() ? "ai" : "lounge";
+        switchTab(defaultTab);
         if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
+
+        await Promise.allSettled([locationPromise, usersPromise, historyPromise]);
       };
     </script>
   </body>

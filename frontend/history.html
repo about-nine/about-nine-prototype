@@ -103,6 +103,8 @@
         currentUserProfile = res?.user || null;
       }
 
+      renderSectionLoader("historyList", "loading your conversations...");
+
       async function renderHistory() {
         const listEl  = document.getElementById("historyList");
         const emptyEl = document.getElementById("emptyState");
@@ -111,6 +113,8 @@
         const myFirst = currentUserProfile?.first_name || currentUserProfile?.firstName || getFromLocal("firstName") || "";
         const myLast  = currentUserProfile?.last_name  || currentUserProfile?.lastName  || getFromLocal("lastName")  || "";
         nameEl.textContent = `${myFirst} ${myLast}`.trim() || "your profile";
+
+        renderSectionLoader(listEl, "loading your conversations...");
 
         const res   = await apiCall("/talks/history-list");
         const items = res.items || [];

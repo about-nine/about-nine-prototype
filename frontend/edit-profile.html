@@ -108,7 +108,9 @@
         <button id="recommendationTab" class="tab">recommendation</button>
       </div>
 
-      <div class="content">
+      <div id="profileLoader"></div>
+
+      <div id="profileContent" class="content hidden">
         <!-- About You 탭 -->
         <div id="aboutContent" class="tab-pane active">
           <div class="card">
@@ -288,6 +290,18 @@
       const ageInput           = document.getElementById("ageInput");
       const genderSelect       = document.getElementById("genderSelect");
       const genderDetailSelect = document.getElementById("genderDetailSelect");
+      const profileContent     = document.getElementById("profileContent");
+      const profileLoader      = document.getElementById("profileLoader");
+
+      function showProfileLoader(message = "loading your profile...") {
+        if (profileLoader) renderSectionLoader(profileLoader, message);
+        profileContent?.classList.add("hidden");
+      }
+
+      function revealProfileContent() {
+        if (profileLoader) profileLoader.innerHTML = "";
+        profileContent?.classList.remove("hidden");
+      }
 
       function refreshGenderDetailOptions(gender, selectedDetail) {
         const options = genderDetailOptions[gender] || [];
@@ -380,8 +394,6 @@
         try {
           userId = getFromLocal("user_id");
           if (!userId) { navigateTo("index.html"); return; }
-
-          showLoading("loading profile...");
           const res = await apiCall("/users/profile");
 
           if (!res.success) {
@@ -450,6 +462,7 @@
 
         hasChanges = false;
         updateSaveButton();
+        revealProfileContent();
       }
 
       /* ── 플레이리스트 칩 ─────────────────────────────── */
@@ -624,6 +637,7 @@
 
       window.onload = () => {
         renderBottomNav("profile");
+        showProfileLoader();
         loadProfile();
       };
     </script>
