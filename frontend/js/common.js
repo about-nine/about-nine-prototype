@@ -229,17 +229,48 @@ const API_BASE = (() => {
     window.scrollTo(0, scrollY);
   };
 
+  const shouldLock = (el) => {
+    if (!isEditable(el)) return false;
+    if (el?.dataset?.freeScroll === "true") return false;
+    if (el?.closest?.("[data-free-scroll=\"true\"]")) return false;
+    return true;
+  };
+
   document.addEventListener("focusin", (e) => {
-    if (isEditable(e.target)) lock();
+    if (shouldLock(e.target)) lock();
+    else unlock();
   });
 
-  document.addEventListener("focusout", (e) => {
-    if (isEditable(e.target)) {
-      setTimeout(() => {
-        if (!isEditable(document.activeElement)) unlock();
-      }, 50);
-    }
+  document.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (!shouldLock(document.activeElement)) unlock();
+    }, 50);
   });
+})();
+
+(function disableLongPressActions() {
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0);
+  if (!isTouchDevice) return;
+
+  document.addEventListener(
+    "contextmenu",
+    (e) => {
+      const target = e.target;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA)$/i.test(target.tagName))) return;
+      e.preventDefault();
+    },
+    { passive: false },
+  );
+
+  document.addEventListener(
+    "dragstart",
+    (e) => {
+      e.preventDefault();
+    },
+    { passive: false },
+  );
 })();
 
 // API 호출 헬퍼

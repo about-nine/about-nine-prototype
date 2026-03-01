@@ -49,6 +49,9 @@ body {
   margin: 0;
   text-transform: lowercase;
   touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 body.scroll-locked {
@@ -96,6 +99,21 @@ body.scroll-locked {
 
 .bottom-text a:hover {
   color: var(--accent-purple);
+}
+
+/* Allow text inputs to keep selection/callout */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-touch-callout: initial;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* Policy pages */
