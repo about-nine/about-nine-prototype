@@ -528,7 +528,7 @@ ROMANTIC_SEED_EXAMPLES: Dict[str, Dict[str, Any]] = {
             "You're such a tease",
         ],
         "examples_ko": [
-            "ㅋㅋㅋ 너 웃겨", "하하 재밌다", "놀리는 거야",
+            "너 웃겨", "하하 재밌다", "놀리는 거야",
             "장난이야", "귀엽게 구네", "항상 이래",
         ],
         "examples_es": [
@@ -609,7 +609,7 @@ MUTUALITY_PATTERNS = [
     r"우리\s*(?:둘|같이|함께|는|가|도|끼리|만의|사이)",
     r"같이",
     r"함께",
-    r"둘이서?",
+    r"둘이서",
     r"우리끼리",
     r"서로",
     # Spanish

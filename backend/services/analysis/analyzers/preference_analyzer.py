@@ -585,24 +585,24 @@ class GlobalPreferenceModule(BaseSyncModule):
         }
         return agreement_score, agreement_count
 
-    def semantic_similarity(self, prefs_a: List[SyncItem], prefs_b: List[SyncItem]) -> Tuple[float, str]:
-        if not prefs_a or not prefs_b:
+    def semantic_similarity(self, items_a: List[SyncItem], items_b: List[SyncItem]) -> Tuple[float, str]:
+        if not items_a or not items_b:
             return 0.0, "no_preferences"
 
         use_openai = HAS_OPENAI and bool(os.getenv("OPENAI_API_KEY"))
         if use_openai:
             try:
-                emb_a = self._openai_embed([p.text for p in prefs_a])
-                emb_b = self._openai_embed([p.text for p in prefs_b])
+                emb_a = self._openai_embed([p.text for p in items_a])
+                emb_b = self._openai_embed([p.text for p in items_b])
 
                 total_sim = 0.0
                 matched = 0
                 used_b = set()
 
-                for i, pa in enumerate(prefs_a):
+                for i, pa in enumerate(items_a):
                     best_sim = -1.0
                     best_j = -1
-                    for j, pb in enumerate(prefs_b):
+                    for j, pb in enumerate(items_b):
                         if j in used_b or pa.sentiment != pb.sentiment:
                             continue
                         sim = _cosine_sim(emb_a[i], emb_b[j])
@@ -618,11 +618,11 @@ class GlobalPreferenceModule(BaseSyncModule):
                     sem = 0.0
                 else:
                     avg_sim = total_sim / matched
-                    coverage = matched / max(len(prefs_a), len(prefs_b))
+                    coverage = matched / max(len(items_a), len(items_b))
                     sem = avg_sim * coverage
 
                 confidence_obj = dict(self._last_meta.get("confidence", {}))
-                confidence_obj["semantic_coverage"] = round(matched / max(len(prefs_a), len(prefs_b)), 4)
+                confidence_obj["semantic_coverage"] = round(matched / max(len(items_a), len(items_b)), 4)
                 self._last_meta["confidence"] = confidence_obj
                 return sem, "multilingual_embedding"
             except Exception:
@@ -630,10 +630,10 @@ class GlobalPreferenceModule(BaseSyncModule):
 
         matched = 0
         used_b = set()
-        for pa in prefs_a:
+        for pa in items_a:
             best_sim = 0.0
             best_j = -1
-            for j, pb in enumerate(prefs_b):
+            for j, pb in enumerate(items_b):
                 if j in used_b or pa.sentiment != pb.sentiment:
                     continue
                 sim = _token_jaccard(pa.text, pb.text)
@@ -644,16 +644,16 @@ class GlobalPreferenceModule(BaseSyncModule):
                 matched += 1
                 used_b.add(best_j)
 
-        score = matched / max(len(prefs_a), len(prefs_b))
+        score = matched / max(len(items_a), len(items_b))
         return score, "token_fallback"
 
-    def category_sync(self, prefs_a: List[SyncItem], prefs_b: List[SyncItem]) -> Dict[str, float]:
+    def category_sync(self, items_a: List[SyncItem], items_b: List[SyncItem]) -> Dict[str, float]:
         sync: Dict[str, float] = {}
-        categories = set(p.category for p in prefs_a) | set(p.category for p in prefs_b)
+        categories = set(p.category for p in items_a) | set(p.category for p in items_b)
 
         for category in categories:
-            a_items = [p for p in prefs_a if p.category == category]
-            b_items = [p for p in prefs_b if p.category == category]
+            a_items = [p for p in items_a if p.category == category]
+            b_items = [p for p in items_b if p.category == category]
 
             if not a_items or not b_items:
                 sync[category] = 0.0
@@ -671,16 +671,16 @@ class GlobalPreferenceModule(BaseSyncModule):
 
     def category_detail(
         self,
-        prefs_a: List[SyncItem],
-        prefs_b: List[SyncItem],
+        items_a: List[SyncItem],
+        items_b: List[SyncItem],
         cat_sync: Dict[str, float],
     ) -> Dict[str, Any]:
         detail: Dict[str, Any] = {}
-        categories = set(p.category for p in prefs_a) | set(p.category for p in prefs_b)
+        categories = set(p.category for p in items_a) | set(p.category for p in items_b)
         for category in categories:
             detail[category] = {
-                "speaker_a": [p.text for p in prefs_a if p.category == category],
-                "speaker_b": [p.text for p in prefs_b if p.category == category],
+                "speaker_a": [p.text for p in items_a if p.category == category],
+                "speaker_b": [p.text for p in items_b if p.category == category],
                 "sync": round(cat_sync.get(category, 0.0), 4),
             }
         return detail
@@ -689,14 +689,14 @@ class GlobalPreferenceModule(BaseSyncModule):
         self,
         utterances: List[str],
         speakers: List[str],
-        prefs_a: List[SyncItem],
-        prefs_b: List[SyncItem],
+        items_a: List[SyncItem],
+        items_b: List[SyncItem],
         cat_sync: Dict[str, float],
     ) -> Dict[str, Any]:
         meta = dict(self._last_meta)
         confidence_obj = dict(meta.get("confidence", {}))
 
-        pref_balance = min(len(prefs_a), len(prefs_b)) / max(len(prefs_a), len(prefs_b), 1)
+        pref_balance = min(len(items_a), len(items_b)) / max(len(items_a), len(items_b), 1)
         confidence_obj["preference_balance"] = round(pref_balance, 4)
 
         language_counts = detect_utterance_languages(
