@@ -992,7 +992,7 @@ a:hover {
 }
 
 .status-dot.completed {
-  background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%);
+  background: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);
 }
 
 .main-container {

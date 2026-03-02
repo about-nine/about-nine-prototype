@@ -563,12 +563,9 @@
           </button>
         `;
 
-        const startTalkButton =
-          maxRound >= 3
-            ? ""
-            : `<button class="primary history-btn" ${startDisabled ? "disabled" : ""} onclick="startTalk()">
-                ${startButtonLabel}
-              </button>`;
+        const startTalkButton = `<button class="primary history-btn" ${startDisabled ? "disabled" : ""} onclick="startTalk()">
+            ${startButtonLabel}
+          </button>`;
 
         const actionButtons = `
           <div class="history-action-buttons">
@@ -576,11 +573,6 @@
             ${startTalkButton}
           </div>
         `;
-
-        const contactHtml =
-          maxRound >= 3
-            ? `<button class="primary history-btn" disabled>completed</button>`
-            : "";
 
         const statusDot = goState.someoneNo
           ? "blocked"
@@ -606,7 +598,6 @@
               </div>
               <div class="history-meta">${scoreHtml}</div>
               ${actionButtons}
-              ${contactHtml}
             </div>
           </div>
         `;

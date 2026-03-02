@@ -202,10 +202,8 @@
         top: -24px;
         width: 100%;
         text-align: center;
-        font-size: 14px;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.7);
+        font-size: 18px;
+        color: var(--text-primary);
       }
 
       .score-circle-image {
@@ -224,7 +222,7 @@
       }
 
       .score-number {
-        font-size: 38px;
+        font-size: 40px;
         color: white;
       }
 
@@ -232,9 +230,8 @@
         width: 100%;
         text-align: center;
         font-size: 14px;
-        color: rgba(255, 255, 255, 0.7);
+        color: var(--text-secondary);
         line-height: 2;
-        word-spacing: 0.5em;
       }
 
       /* ── 프로필 시트 내부 ────────────────────────────── */
@@ -379,14 +376,13 @@
         .score-circle-container {
           width: 220px;
           height: 220px;
-          margin-bottom: 28px;
+          margin-bottom: 0px;
         }
         .score-number {
-          font-size: 30px;
+          font-size: 40px;
         }
         .keywords-area {
-          font-size: 13px;
-          word-spacing: 0.4em;
+          font-size: 14px;
         }
         .profile-info-card {
           padding: 14px 16px;
@@ -397,7 +393,7 @@
         .score-circle-container {
           width: 210px;
           height: 210px;
-          margin-bottom: 24px;
+          margin-bottom: 0px;
         }
         .result-header {
           padding-top: 18px;
@@ -497,6 +493,9 @@
       let partnerPollTimer = null;
       let partnerTimeoutTimer = null;
       let lastMessageType = null;
+      let waitingDotsTimer = null;
+      let waitingDotsElement = null;
+      let waitingDotsBaseText = "";
       const PARTNER_WAIT_MS = 60000;
       const SCORE_GUIDANCE = {
         1: [
@@ -683,6 +682,12 @@
         `;
 
         messages.appendChild(div);
+        if (text.includes("waiting for your match's response")) {
+          waitingDotsElement = div.querySelector(".coco-bubble");
+          waitingDotsBaseText = text.replace(/\.{0,}$/,"").trim();
+          startWaitingDots();
+        }
+
         lastMessageType = "coco";
         scrollToBottom();
       }
@@ -779,7 +784,7 @@
           return;
         }
 
-        await addCocoMessage("waiting for your match's response...", 300);
+        await addCocoMessage("waiting for your match's response.", 300);
         listenForPartnerResponse();
       };
 
@@ -836,6 +841,7 @@
 
       async function handlePartnerTimeout() {
         handlePartnerTimersCleanup();
+        stopWaitingDots();
         await addCocoMessage("your match hasn't responded yet", 200);
         await addCocoMessage(
           "you can check the result in your history later",
@@ -846,6 +852,7 @@
 
       function listenForPartnerResponse() {
         if (!talkId) return;
+        stopWaitingDots();
         handlePartnerTimersCleanup();
 
         partnerTimeoutTimer = setTimeout(() => {
@@ -912,6 +919,7 @@
 
             if (partnerResponse) {
               handlePartnerTimersCleanup();
+              stopWaitingDots();
               myChoice === "go" && partnerResponse === "go"
                 ? await handleBothGo()
                 : await handleSomeoneNo(partnerResponse);
@@ -921,6 +929,7 @@
               String(error?.message || "").includes("talk_history not found")
             ) {
               handlePartnerTimersCleanup();
+              stopWaitingDots();
               removeFromLocal("current_talk_id");
               alert("talk history not found");
               navigateTo("lounge.html");
@@ -932,6 +941,7 @@
       /* ================= 둘 다 GO ================= */
 
       async function handleBothGo() {
+        stopWaitingDots();
         const steps = getRoundBothGoSteps(currentRound);
         for (const step of steps) {
           if (step.type === "message") {
@@ -1038,6 +1048,7 @@
       /* ================= 한 명이라도 NO ================= */
 
       async function handleSomeoneNo() {
+        stopWaitingDots();
         await addCocoMessage(
           "well, well, it looks like this one wasn't your one and only",
           500,
@@ -1414,3 +1425,24 @@
     </script>
   </body>
 </html>
+      function startWaitingDots() {
+        stopWaitingDots();
+        if (!waitingDotsElement) return;
+        waitingDotsTimer = setInterval(() => {
+          if (!waitingDotsElement) return;
+          const current = waitingDotsElement.textContent || waitingDotsBaseText;
+          const count = (current.match(/\./g) || []).length;
+          const nextCount = (count + 1) % 4;
+          const dots = ".".repeat(nextCount);
+          waitingDotsElement.textContent = `${waitingDotsBaseText}${dots}`;
+        }, 700);
+      }
+
+      function stopWaitingDots() {
+        if (waitingDotsTimer) {
+          clearInterval(waitingDotsTimer);
+          waitingDotsTimer = null;
+        }
+        waitingDotsElement = null;
+        waitingDotsBaseText = "";
+      }
