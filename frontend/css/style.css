@@ -991,6 +991,10 @@ a:hover {
   background-size: 14px 14px;
 }
 
+.status-dot.completed {
+  background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%);
+}
+
 .main-container {
   width: 100%;
   max-width: 480px;

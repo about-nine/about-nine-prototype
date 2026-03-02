@@ -551,6 +551,11 @@
           isDeleted ||
           goState.pending ||
           goState.someoneNo;
+        const startButtonLabel = isBlocked
+          ? "blocked"
+          : maxRound >= 3
+            ? "completed"
+            : "start talk";
 
         const viewProfileButton = `
           <button class="secondary history-btn" ${viewProfileDisabled ? "disabled" : ""} onclick="openProfileSheet()">
@@ -561,7 +566,9 @@
         const startTalkButton =
           maxRound >= 3
             ? ""
-            : `<button class="primary history-btn" ${startDisabled ? "disabled" : ""} onclick="startTalk()">start talk</button>`;
+            : `<button class="primary history-btn" ${startDisabled ? "disabled" : ""} onclick="startTalk()">
+                ${startButtonLabel}
+              </button>`;
 
         const actionButtons = `
           <div class="history-action-buttons">
@@ -572,7 +579,7 @@
 
         const contactHtml =
           maxRound >= 3
-            ? `<div class="history-phone">${partner?.phone || "--"}</div>`
+            ? `<button class="primary history-btn" disabled>completed</button>`
             : "";
 
         const statusDot = goState.someoneNo
@@ -581,9 +588,11 @@
             ? "offline"
             : isBlocked
               ? "blocked"
-              : online
-                ? "online"
-                : "offline";
+              : maxRound >= 3
+                ? "completed"
+                : online
+                  ? "online"
+                  : "offline";
 
         cardEl.className = `history-card ${online && statusDot !== "blocked" ? "" : "offline"}`;
         cardEl.innerHTML = `

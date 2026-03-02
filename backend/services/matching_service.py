@@ -206,7 +206,6 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_vec = my_embedding.get("vector")
     my_default = my_embedding.get("is_default") is True
 
-    my_blocked = set(me.get("blocked_users") or [])
     my_loc = me.get("location") or {}
     my_gender = me.get("gender")
     my_age = me.get("age")
@@ -339,7 +338,6 @@ def filter_users_for_list(user_id, bypass_filters=False):
     my_age = me.get("age")
     my_sexual_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
-    my_blocked = set(me.get("blocked_users") or [])
 
     if not my_loc or my_loc.get("lat") is None or my_loc.get("lng") is None:
         return None, None, (400, "missing my location")
@@ -347,14 +345,12 @@ def filter_users_for_list(user_id, bypass_filters=False):
     if not my_gender or my_age is None:
         return None, None, (400, "missing my profile")
 
-    completed_partners = partners_completed_three_rounds(db, user_id)
     pending_partners, had_no_partners = partner_status_flags(db, user_id)
 
     users = []
     total_count = 0
     filtered_stats = {
         "same_user": 0,
-        "blocked": 0,
         "no_onboarding": 0,
         "no_location": 0,
         "too_far": 0,
@@ -363,7 +359,6 @@ def filter_users_for_list(user_id, bypass_filters=False):
         "age_mismatch": 0,
         "reverse_orientation": 0,
         "reverse_age": 0,
-        "completed_all_rounds": 0,
         "pending": 0,
         "had_no": 0,
         "passed": 0,
@@ -378,17 +373,6 @@ def filter_users_for_list(user_id, bypass_filters=False):
         # 본인 제외
         if u["id"] == user_id:
             filtered_stats["same_user"] += 1
-            continue
-
-        # 차단 확인 (양방향)
-        other_blocked = set(u.get("blocked_users") or [])
-        if u.get("id") in my_blocked or user_id in other_blocked:
-            filtered_stats["blocked"] += 1
-            continue
-
-        # 3라운드까지 완료한 파트너 제외
-        if u["id"] in completed_partners:
-            filtered_stats["completed_all_rounds"] += 1
             continue
 
         if u["id"] in pending_partners:

@@ -110,22 +110,32 @@
 
       .life-guide {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
         margin-top: 10px;
+        width: 100%;
       }
 
       .life-card {
-        background: #e0e0e0;
+        background: #d9d9d9;
         border-radius: 16px;
-        height: 110px;
+        padding: 40px 20px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 12px;
         font-weight: 600;
-        color: #222;
-        text-transform: lowercase;
+        color: black;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        aspect-ratio: 1 / 1;
+        min-height: 96px;
+        text-transform: none;
+      }
+
+      .life-card:active {
+        transform: scale(0.95);
       }
 
       .life-modal {
@@ -135,7 +145,8 @@
         display: none;
         align-items: center;
         justify-content: center;
-        z-index: 999;
+        z-index: 10000;
+        padding: 20px;
       }
 
       .life-modal.active {
@@ -143,30 +154,27 @@
       }
 
       .life-modal-content {
-        background: #e0e0e0;
+        background: var(--bg-card);
         border-radius: 20px;
-        width: 80%;
-        max-width: 360px;
-        min-height: 220px;
-        padding: 24px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        width: 90%;
+        max-width: 400px;
+        padding: 40px 30px;
         text-align: center;
       }
 
       .life-modal-category {
-        font-size: 12px;
+        font-size: 14px;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: #666;
+        color: var(--text-secondary);
         margin-bottom: 14px;
       }
 
       .life-modal-question {
-        font-size: 16px;
-        color: #222;
-        white-space: pre-wrap;
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--text-primary);
+        white-space: pre-line;
       }
 
       @supports (height: 100svh) {
@@ -210,13 +218,14 @@
         }
 
         .life-guide {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
         }
 
         .life-card {
-          height: 96px;
+          padding: 28px 10px;
           font-size: 11px;
+          min-height: 88px;
         }
       }
 
@@ -226,7 +235,7 @@
         }
 
         .life-card {
-          height: 88px;
+          min-height: 82px;
         }
       }
 

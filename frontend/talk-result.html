@@ -23,8 +23,19 @@
 
       /* ── Chemistry Score 카드 ───────────────────────── */
 
-      .chemistry-card {
+      .chemistry-card,
+      .profile-card,
+      .contact-card {
         padding: 20px;
+        border-radius: 20px;
+        border: 1px solid transparent;
+        background:
+          linear-gradient(#1f1f1f, #1f1f1f) padding-box,
+          linear-gradient(135deg, #667eea 0%, #764ba2 100%) border-box;
+        position: relative;
+      }
+
+      .chemistry-card {
         cursor: pointer;
         transition: transform 0.2s;
       }
@@ -87,9 +98,16 @@
       /* ── 프로필 카드 ────────────────────────────────── */
 
       .profile-card {
-        padding: 20px;
         cursor: pointer;
         transition: transform 0.2s;
+      }
+
+      .contact-card {
+        cursor: default;
+      }
+
+      .contact-card strong {
+        text-decoration: underline;
       }
 
       .profile-name {
@@ -179,6 +197,17 @@
         margin-bottom: 40px;
       }
 
+      .score-circle-label {
+        position: absolute;
+        top: -24px;
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
       .score-circle-image {
         position: absolute;
         width: 100%;
@@ -194,10 +223,6 @@
         text-align: center;
       }
 
-      .score-rating {
-        font-size: 45px;
-        color: white;
-      }
       .score-number {
         font-size: 38px;
         color: white;
@@ -356,9 +381,6 @@
           height: 220px;
           margin-bottom: 28px;
         }
-        .score-rating {
-          font-size: 36px;
-        }
         .score-number {
           font-size: 30px;
         }
@@ -434,13 +456,13 @@
       <div class="sheet-handle"></div>
 
       <div class="score-circle-container">
+        <div class="score-circle-label">chemistry score</div>
         <img
           class="score-circle-image"
           src="images/chemistry.png"
           alt="chemistry score"
         />
         <div class="score-circle-text">
-          <div class="score-rating" id="sheetRating">fair</div>
           <div class="score-number" id="sheetScore">80</div>
         </div>
       </div>
@@ -480,82 +502,55 @@
         1: [
           {
             min: 90,
-            title: "Perfect food match.",
-            body: "Don’t overthink it. Keep the chat going.",
-          },
-          {
-            min: 80,
-            title: "Not sure yet.",
-            body: "Could be shyness, could be chemistry. Talk a little more.",
+            body: "Perfect food match.\nDon’t overthink it.\nKeep the chat going.",
           },
           {
             min: 70,
-            title: "Hmm, kind of unclear.",
-            body: "There might be a better match out there.",
+            body: "Not sure yet.\nCould be shyness, could be chemistry.\nTalk a little more.",
           },
           {
             min: 50,
-            title: "Hmm, kind of unclear.",
-            body: "There might be a better match out there.",
+            body: "Hmm, kind of unclear.\nThere might be a better match out there.",
           },
           {
             min: 0,
-            title: "Probably not the one.",
-            body: "Try talking to someone else.",
+            body: "Probably not the one.\nTry talking to someone else.",
           },
         ],
         2: [
           {
             min: 90,
-            title: "Your visual taste really clicks.",
-            body: "Make it to the final chat.",
-          },
-          {
-            min: 80,
-            title: "Almost there.",
-            body: "If it doesn’t hit 100–90 after the last chat, that’s probably your answer.",
+            body: "Your visual taste really clicks.\nMake it to the final chat.",
           },
           {
             min: 70,
-            title: "The vibe feels a bit off.",
-            body: "There may be someone better out there.",
+            body: "Almost there.\nIf it doesn’t hit 100–90 after the last chat, that’s probably your answer.",
           },
           {
             min: 50,
-            title: "This score says you’re not a great match.",
-            body: "Whether to continue is up to you.",
+            body: "The vibe feels a bit off.\nThere may be someone better out there.",
           },
           {
             min: 0,
-            title: "This score says you’re not a great match.",
-            body: "Whether to continue is up to you.",
+            body: "This score says you’re not a great match.\nWhether to continue is up to you.",
           },
         ],
         3: [
           {
             min: 90,
-            title: "Your values feel deeply aligned.",
-            body: "There’s a natural sense of understanding in how you see life.",
-          },
-          {
-            min: 80,
-            title: "You share many similarities, with a few differences.",
-            body: "How those differences feel to you may matter more than the score.",
+            body: "Your values feel deeply aligned.\nThere’s a natural sense of understanding in how you see life.",
           },
           {
             min: 70,
-            title: "Some perspectives don’t fully overlap.",
-            body: "It’s worth noticing where you connected — and where you didn’t.",
+            body: "You share many similarities, with a few differences.\nHow those differences feel to you may matter more than the score.",
           },
           {
             min: 50,
-            title: "Your views seem to move in different directions.",
-            body: "This score simply reflects that contrast.",
+            body: "Some perspectives don’t fully overlap.\nIt’s worth noticing where you connected — and where you didn’t.",
           },
           {
             min: 0,
-            title: "Your views seem to move in different directions.",
-            body: "This score simply reflects that contrast.",
+            body: "Your views seem to move in different directions.\nThis score simply reflects that contrast.",
           },
         ],
       };
@@ -661,6 +656,14 @@
         return `${first} ${last}`.trim() || "your match";
       }
 
+      function getScoreLabel(score) {
+        if (score === null) return "--";
+        if (score >= 90) return "great";
+        if (score >= 75) return "good";
+        if (score >= 60) return "fair";
+        return "low";
+      }
+
       /* ================= 메시지 추가 ================= */
 
       async function addCocoMessage(text, delay = 0) {
@@ -698,7 +701,7 @@
       async function addScoreCard(delay = 0) {
         await sleep(delay);
         const score = calculateScore();
-        const rating = getScoreRating(score);
+        const ratingText = getScoreLabel(score);
         const scoreText = score === null ? "--" : score;
         const messages = document.getElementById("messages");
 
@@ -711,7 +714,7 @@
               <div class="chemistry-score-text">
                 chemistry score:
                 <strong id="chemistryScoreValue">${scoreText}</strong>
-                (<span id="chemistryScoreRating">${rating}</span>)
+                (<span id="chemistryScoreRating">${ratingText}</span>)
               </div>
               <button class="view-details-btn">view details</button>
             </div>
@@ -834,7 +837,10 @@
       async function handlePartnerTimeout() {
         handlePartnerTimersCleanup();
         await addCocoMessage("your match hasn't responded yet", 200);
-        await addCocoMessage("you can check the result in your history later", 200);
+        await addCocoMessage(
+          "you can check the result in your history later",
+          200,
+        );
         await showLoungeButton(400);
       }
 
@@ -932,6 +938,8 @@
             await addCocoMessage(step.text, step.delay ?? 500);
           } else if (step.type === "profile") {
             await addProfileCard(step.delay ?? 500);
+          } else if (step.type === "contact") {
+            await addContactCard(step.delay ?? 500);
           }
         }
         await showLoungeButton(500);
@@ -942,11 +950,7 @@
         if (round >= 3) {
           return [
             { type: "message", text: "wishing you luck!", delay: 500 },
-            {
-              type: "message",
-              text: `contact (${getPartnerContactValue()})`,
-              delay: 900,
-            },
+            { type: "contact", delay: 900 },
           ];
         }
         return [
@@ -960,8 +964,32 @@
         ];
       }
 
+      function formatContactNumber(raw) {
+        if (!raw) return "--";
+        const trimmed = String(raw).trim();
+        if (!trimmed) return "--";
+        const digits = trimmed.replace(/\D/g, "");
+        if (!digits) return trimmed;
+        let country = "";
+        let local = digits;
+        if (trimmed.startsWith("+") && digits.length > 8) {
+          const countryLen = Math.max(1, digits.length - 10);
+          country = digits.slice(0, countryLen);
+          local = digits.slice(countryLen);
+        }
+        const paddedLocal = local.padStart(10, "0").slice(-10);
+        const prefixLen = Math.max(2, paddedLocal.length - 8);
+        const first = paddedLocal.slice(0, prefixLen);
+        const middle = paddedLocal.slice(prefixLen, prefixLen + 4);
+        const last = paddedLocal.slice(prefixLen + 4);
+        const formattedLocal = [first, middle, last].filter(Boolean).join("-");
+        return country
+          ? `+${country} ${formattedLocal}`
+          : formattedLocal;
+      }
+
       function getPartnerContactValue() {
-        return partner?.phone || "--";
+        return formatContactNumber(partner?.phone);
       }
 
       async function addProfileCard(delay = 0) {
@@ -975,6 +1003,30 @@
             <div class="profile-card" onclick="openProfileSheet()">
               <div class="profile-name">${getPartnerName()}</div>
               <button class="view-details-btn">view profile</button>
+            </div>
+          </div>
+        `;
+        messages.appendChild(div);
+        lastMessageType = "coco";
+        scrollToBottom();
+      }
+
+      async function addContactCard(delay = 0) {
+        await sleep(delay);
+        const contact = getPartnerContactValue();
+        const displayContact =
+          contact && contact !== "--" ? `(${contact})` : contact;
+        const messages = document.getElementById("messages");
+        const div = document.createElement("div");
+        div.className = "coco-message chat-row";
+        div.innerHTML = `
+          <div class="coco-avatar chat-avatar"></div>
+          <div class="coco-bubble chat-bubble" style="max-width:80%;padding:0;">
+            <div class="chemistry-card contact-card">
+              <div class="chemistry-score-text">
+                contact<br />
+                <strong>${displayContact}</strong>
+              </div>
             </div>
           </div>
         `;
@@ -1022,8 +1074,6 @@
         const score = calculateScore();
         document.getElementById("sheetScore").textContent =
           score === null ? "--" : score;
-        document.getElementById("sheetRating").textContent =
-          getScoreRating(score);
         document.getElementById("sheetKeywords").innerHTML =
           renderAnalysisFeatures();
         openSheet("analysisSheet");
@@ -1226,7 +1276,6 @@
       function getScoreGuidance(round, score) {
         if (score === null) {
           return {
-            title: "analyzing",
             body: "chemistry score is still being prepared.",
           };
         }
@@ -1236,10 +1285,6 @@
           entries.find((entry) => score >= entry.min) ||
           entries[entries.length - 1];
         return match;
-      }
-
-      function getScoreRating(score) {
-        return getScoreGuidance(currentRound, score).title;
       }
 
       function extractAnalysisScore(data) {
@@ -1305,7 +1350,7 @@
 
       function updateScoreUI() {
         const scoreText = analysisScore === null ? "--" : analysisScore;
-        const ratingText = getScoreRating(analysisScore);
+        const ratingText = getScoreLabel(analysisScore);
 
         document.getElementById("chemistryScoreValue")?.textContent !==
           undefined &&
@@ -1316,8 +1361,6 @@
             ratingText);
         document.getElementById("sheetScore") &&
           (document.getElementById("sheetScore").textContent = scoreText);
-        document.getElementById("sheetRating") &&
-          (document.getElementById("sheetRating").textContent = ratingText);
 
         const keywordsEl = document.getElementById("sheetKeywords");
         if (keywordsEl) keywordsEl.innerHTML = renderAnalysisFeatures();

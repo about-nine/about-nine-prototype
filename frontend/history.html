@@ -150,6 +150,12 @@
             online &&
             item.blocked !== true &&
             !completedAllRounds;
+          const buttonLabel =
+            item.blocked === true
+              ? "blocked"
+              : completedAllRounds
+                ? "completed"
+                : "start talk";
           const scoreHtml    = scores.length
             ? scores.map((s) => `<span>${s}</span>`).join("")
             : "<span>no scores yet</span>";
@@ -157,9 +163,11 @@
             ? "offline"
             : item.blocked === true
               ? "blocked"
-              : online
-                ? "online"
-                : "offline";
+              : completedAllRounds
+                ? "completed"
+                : online
+                  ? "online"
+                  : "offline";
 
           return `
             <div class="history-card ${online ? "" : "offline"}">
@@ -176,7 +184,7 @@
                   </div>
                   <div class="history-meta">${scoreHtml}</div>
                   <button class="primary history-btn" ${startEnabled ? "" : "disabled"} onclick="startTalk('${id}')">
-                    start talk
+                    ${buttonLabel}
                   </button>
                 </div>
               </div>

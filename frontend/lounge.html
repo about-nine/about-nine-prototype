@@ -714,8 +714,18 @@
             const isBlocked = isUserBlocked(uid, u);
             const completedAllRounds = !isAi && historySummaryByPartner?.[uid]?.completedAllRounds;
             const startDisabled = isBlocked || !online || completedAllRounds;
-            const statusClass = isBlocked ? "blocked" : online ? "online" : "offline";
-            const buttonLabel = completedAllRounds ? "completed" : "start talk";
+            const statusClass = isBlocked
+              ? "blocked"
+              : completedAllRounds
+                ? "completed"
+                : online
+                  ? "online"
+                  : "offline";
+            const buttonLabel = isBlocked
+              ? "blocked"
+              : completedAllRounds
+                ? "completed"
+                : "start talk";
             return `
               <div class="user-card-wrapper ${online ? "" : "offline"}">
                 <div class="card user-card"
