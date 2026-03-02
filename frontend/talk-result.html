@@ -476,6 +476,89 @@
       let partnerTimeoutTimer = null;
       let lastMessageType = null;
       const PARTNER_WAIT_MS = 60000;
+      const SCORE_GUIDANCE = {
+        1: [
+          {
+            min: 90,
+            title: "Perfect food match.",
+            body: "Don’t overthink it. Keep the chat going.",
+          },
+          {
+            min: 80,
+            title: "Not sure yet.",
+            body: "Could be shyness, could be chemistry. Talk a little more.",
+          },
+          {
+            min: 70,
+            title: "Hmm, kind of unclear.",
+            body: "There might be a better match out there.",
+          },
+          {
+            min: 50,
+            title: "Hmm, kind of unclear.",
+            body: "There might be a better match out there.",
+          },
+          {
+            min: 0,
+            title: "Probably not the one.",
+            body: "Try talking to someone else.",
+          },
+        ],
+        2: [
+          {
+            min: 90,
+            title: "Your visual taste really clicks.",
+            body: "Make it to the final chat.",
+          },
+          {
+            min: 80,
+            title: "Almost there.",
+            body: "If it doesn’t hit 100–90 after the last chat, that’s probably your answer.",
+          },
+          {
+            min: 70,
+            title: "The vibe feels a bit off.",
+            body: "There may be someone better out there.",
+          },
+          {
+            min: 50,
+            title: "This score says you’re not a great match.",
+            body: "Whether to continue is up to you.",
+          },
+          {
+            min: 0,
+            title: "This score says you’re not a great match.",
+            body: "Whether to continue is up to you.",
+          },
+        ],
+        3: [
+          {
+            min: 90,
+            title: "Your values feel deeply aligned.",
+            body: "There’s a natural sense of understanding in how you see life.",
+          },
+          {
+            min: 80,
+            title: "You share many similarities, with a few differences.",
+            body: "How those differences feel to you may matter more than the score.",
+          },
+          {
+            min: 70,
+            title: "Some perspectives don’t fully overlap.",
+            body: "It’s worth noticing where you connected — and where you didn’t.",
+          },
+          {
+            min: 50,
+            title: "Your views seem to move in different directions.",
+            body: "This score simply reflects that contrast.",
+          },
+          {
+            min: 0,
+            title: "Your views seem to move in different directions.",
+            body: "This score simply reflects that contrast.",
+          },
+        ],
+      };
 
       /* ================= 초기화 ================= */
 
@@ -922,57 +1005,17 @@
 
       /* ================= 바텀시트 ================= */
 
-      function formatFeatureLabel(key) {
-        const mapping = {
-          lsm: "Language Style Match",
-          flow_continuity: "Flow Continuity",
-          turn_balance: "Turn Balance",
-          preference_sync: "Preference Sync",
-          romantic_sync: "Romantic Sync",
-        };
-        return (
-          mapping[key] ||
-          key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())
-        );
-      }
-
       function renderAnalysisFeatures() {
-        const analysis = talkData?.analysis || {};
-        const baseFeatures = analysis?.pair_features || {};
-        const keys = [
-          "lsm",
-          "flow_continuity",
-          "turn_balance",
-          "preference_sync",
-          "romantic_sync",
-        ];
-
-        const entries = keys
-          .filter(
-            (key) =>
-              typeof baseFeatures[key] === "number" &&
-              !Number.isNaN(baseFeatures[key]),
-          )
-          .map((key) => [key, baseFeatures[key]]);
-
-        if (!entries.length)
+        if (analysisScore === null) {
           return "<div class='waiting-message'>analysis details not ready</div>";
-
-        const warning = analysis?.analysis_warning;
-        const warningHtml = warning
-          ? `<div class='waiting-message'>analysis warning: ${warning}</div>`
-          : "";
-
-        return (
-          warningHtml +
-          entries
-            .sort((a, b) => b[1] - a[1])
-            .map(
-              ([key, value]) =>
-                `<div>${formatFeatureLabel(key)} <strong>${Math.round(value)}</strong></div>`,
-            )
-            .join("")
-        );
+        }
+        const guidance = getScoreGuidance(currentRound, analysisScore);
+        const body = guidance.body
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join("<br>");
+        return `<div class="score-guidance-text">${body}</div>`;
       }
 
       window.openAnalysisSheet = () => {
@@ -1180,13 +1223,23 @@
         return analysisScore;
       }
 
+      function getScoreGuidance(round, score) {
+        if (score === null) {
+          return {
+            title: "analyzing",
+            body: "chemistry score is still being prepared.",
+          };
+        }
+        const normalizedRound = SCORE_GUIDANCE[round] ? round : 1;
+        const entries = SCORE_GUIDANCE[normalizedRound] || SCORE_GUIDANCE[1];
+        const match =
+          entries.find((entry) => score >= entry.min) ||
+          entries[entries.length - 1];
+        return match;
+      }
+
       function getScoreRating(score) {
-        if (score === null) return "analyzing";
-        if (score >= 90) return "excellent";
-        if (score >= 75) return "great";
-        if (score >= 60) return "good";
-        if (score >= 50) return "fair";
-        return "okay";
+        return getScoreGuidance(currentRound, score).title;
       }
 
       function extractAnalysisScore(data) {
