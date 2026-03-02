@@ -575,9 +575,13 @@
           historySummaryByPartner = {};
           items.forEach((item) => {
             const completedAllRounds = [1, 2, 3].every((r) => item.talks_by_round?.[r]);
+            const hadNo = item.had_no === true;
+            const pendingGoNo = item.pending_go_no === true;
             historySummaryByPartner[item.partner_id] = {
               completedAllRounds,
               blocked: item.blocked === true,
+              hadNo,
+              pendingGoNo,
             };
           });
         } catch {
@@ -585,6 +589,7 @@
         }
 
         if (users.length) renderUsers(users, "userList", "lounge");
+        if (aiUsers.length && isAIMatchTime()) renderUsers(aiUsers, "aiUserList", "ai");
       }
 
       async function buildAIMatch() {
@@ -641,6 +646,16 @@
         return false;
       }
 
+      function shouldHideUserFromLists(user) {
+        const uid = getUserId(user);
+        if (!uid) return false;
+        const history = historySummaryByPartner?.[uid];
+        if (!history) return false;
+        if (history.hadNo) return true;
+        if (history.pendingGoNo) return true;
+        return false;
+      }
+
       /* ── 플레이리스트 티커 ────────────────────────────── */
 
       function formatTrackLabel(track) {
@@ -674,12 +689,9 @@
         const el = document.getElementById(containerId);
         const isAi = mode === "ai";
 
-        const sortedList = [...list].sort((a, b) => {
-          const aOn = isOnline(getUserId(a)), bOn = isOnline(getUserId(b));
-          return aOn === bOn ? 0 : aOn ? -1 : 1;
-        });
+        const filteredList = list.filter((user) => !shouldHideUserFromLists(user));
 
-        if (!sortedList.length) {
+        if (!filteredList.length) {
           el.innerHTML = `
             <div class="empty-state-box">
               <img src="images/asterisk.png" alt="asterisk">
@@ -688,6 +700,11 @@
           `;
           return;
         }
+
+        const sortedList = [...filteredList].sort((a, b) => {
+          const aOn = isOnline(getUserId(a)), bOn = isOnline(getUserId(b));
+          return aOn === bOn ? 0 : aOn ? -1 : 1;
+        });
 
         el.innerHTML = `
           <div class="subtitle-text">${isAi ? "our recommended matches" : "pick whoever feels right"}</div>
@@ -698,6 +715,7 @@
             const completedAllRounds = !isAi && historySummaryByPartner?.[uid]?.completedAllRounds;
             const startDisabled = isBlocked || !online || completedAllRounds;
             const statusClass = isBlocked ? "blocked" : online ? "online" : "offline";
+            const buttonLabel = completedAllRounds ? "completed" : "start talk";
             return `
               <div class="user-card-wrapper ${online ? "" : "offline"}">
                 <div class="card user-card"
@@ -714,7 +732,7 @@
                   </div>
                 </div>
                 <button class="primary user-card-button" data-user-id="${uid}" ${startDisabled ? "disabled" : ""}>
-                  start talk
+                  ${buttonLabel}
                 </button>
               </div>
             `;

@@ -120,6 +120,69 @@ def partners_completed_three_rounds(db, user_id: str):
         if required.issubset(rounds)
     }
 
+
+def partner_status_flags(db, user_id: str):
+    """
+    Returns two sets:
+    - pending_partners: last talk requires go/no response (one side missing)
+    - had_no_partners: any talk where someone already chose no
+    """
+    if not user_id:
+        return set(), set()
+
+    talks_ref = db.collection("talk_history")
+    latest_by_partner: Dict[str, Dict] = {}
+
+    queries = [
+        talks_ref.where("participants.user_a", "==", user_id).stream(),
+        talks_ref.where("participants.user_b", "==", user_id).stream(),
+    ]
+
+    for query in queries:
+        for doc in query:
+            talk = doc.to_dict() or {}
+            participants = talk.get("participants") or {}
+            if participants.get("user_a") == user_id:
+                partner_id = participants.get("user_b")
+            else:
+                partner_id = participants.get("user_a")
+
+            if not partner_id:
+                continue
+
+            ts = int(
+                talk.get("timestamp")
+                or talk.get("created_at")
+                or talk.get("call_ended_at")
+                or 0
+            )
+            existing = latest_by_partner.get(partner_id)
+            if existing and ts <= existing.get("ts", 0):
+                continue
+
+            go_no_go = talk.get("go_no_go") or {}
+            bool_values = [v for v in go_no_go.values() if isinstance(v, bool)]
+            someone_no = (
+                any(v is False for v in bool_values)
+                or talk.get("initiator_response") == "no"
+                or talk.get("receiver_response") == "no"
+            )
+            pending = not someone_no and 0 < len(bool_values) < 2
+            latest_by_partner[partner_id] = {
+                "ts": ts,
+                "pending": pending,
+                "had_no": someone_no,
+            }
+
+    pending_partners = {
+        pid for pid, data in latest_by_partner.items() if data.get("pending")
+    }
+    had_no_partners = {
+        pid for pid, data in latest_by_partner.items() if data.get("had_no")
+    }
+
+    return pending_partners, had_no_partners
+
 _models_initialized = False
 
 def _ensure_models():
@@ -151,6 +214,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_age_pref = me.get("age_preference", {})
 
     completed_partners = partners_completed_three_rounds(db, uid)
+    pending_partners, had_no_partners = partner_status_flags(db, uid)
 
     scores: List[Tuple[str, float]] = []
     candidates: List[str] = []
@@ -160,6 +224,12 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
             continue
 
         if other_id in completed_partners:
+            continue
+
+        if other_id in pending_partners:
+            continue
+
+        if other_id in had_no_partners:
             continue
 
         other_blocked = set(user.get("blocked_users") or [])
@@ -278,6 +348,7 @@ def filter_users_for_list(user_id, bypass_filters=False):
         return None, None, (400, "missing my profile")
 
     completed_partners = partners_completed_three_rounds(db, user_id)
+    pending_partners, had_no_partners = partner_status_flags(db, user_id)
 
     users = []
     total_count = 0
@@ -293,6 +364,8 @@ def filter_users_for_list(user_id, bypass_filters=False):
         "reverse_orientation": 0,
         "reverse_age": 0,
         "completed_all_rounds": 0,
+        "pending": 0,
+        "had_no": 0,
         "passed": 0,
     }
 
@@ -316,6 +389,14 @@ def filter_users_for_list(user_id, bypass_filters=False):
         # 3라운드까지 완료한 파트너 제외
         if u["id"] in completed_partners:
             filtered_stats["completed_all_rounds"] += 1
+            continue
+
+        if u["id"] in pending_partners:
+            filtered_stats["pending"] += 1
+            continue
+
+        if u["id"] in had_no_partners:
+            filtered_stats["had_no"] += 1
             continue
 
         # 온보딩 완료 확인

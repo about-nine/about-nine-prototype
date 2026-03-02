@@ -673,6 +673,7 @@ def history_list():
                 "talks_by_round": {},
                 "last_timestamp": 0,
                 "had_no": False,
+                "pending_go_no": False,
             },
         )
 
@@ -695,10 +696,21 @@ def history_list():
         entry["last_timestamp"] = max(entry["last_timestamp"], ts)
 
         go_no_go = talk.get("go_no_go") or {}
-        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
+        go_values = [
+            v for v in go_no_go.values() if isinstance(v, bool)
+        ]
+        someone_no = (
+            any(v is False for v in go_values)
+            or talk.get("initiator_response") == "no"
+            or talk.get("receiver_response") == "no"
+        )
+        if someone_no:
             entry["had_no"] = True
-        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
-            entry["had_no"] = True
+
+        if ts >= entry["last_timestamp"]:
+            entry["pending_go_no"] = (
+                not someone_no and len(go_values) < 2 and len(go_values) > 0
+            )
 
     for doc in query1:
         add_talk(doc.to_dict() or {})
@@ -725,6 +737,7 @@ def history_list():
                     "talks_by_round": partner_map[pid]["talks_by_round"],
                     "last_timestamp": partner_map[pid]["last_timestamp"],
                     "had_no": partner_map[pid]["had_no"],
+                    "pending_go_no": partner_map[pid]["pending_go_no"],
                     "blocked": pid in my_blocked,
                     "deleted": True,
                 }
@@ -736,17 +749,18 @@ def history_list():
         is_blocked = pid in my_blocked or user_id in other_blocked
 
         items.append(
-            {
-                "partner_id": pid,
-                "first_name": user_data.get("first_name") or user_data.get("firstName"),
-                "last_name": user_data.get("last_name") or user_data.get("lastName"),
-                "talks_by_round": partner_map[pid]["talks_by_round"],
-                "last_timestamp": partner_map[pid]["last_timestamp"],
-                "had_no": partner_map[pid]["had_no"],
-                "blocked": is_blocked,
-                "deleted": False,
-            }
-        )
+                {
+                    "partner_id": pid,
+                    "first_name": user_data.get("first_name") or user_data.get("firstName"),
+                    "last_name": user_data.get("last_name") or user_data.get("lastName"),
+                    "talks_by_round": partner_map[pid]["talks_by_round"],
+                    "last_timestamp": partner_map[pid]["last_timestamp"],
+                    "had_no": partner_map[pid]["had_no"],
+                    "pending_go_no": partner_map[pid]["pending_go_no"],
+                    "blocked": is_blocked,
+                    "deleted": False,
+                }
+            )
 
     items.sort(key=lambda x: x.get("last_timestamp", 0), reverse=True)
     return jsonify(success=True, items=items)
