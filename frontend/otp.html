@@ -280,13 +280,10 @@
 
           try {
             const payload = { idToken };
-            const inviteCode = getFromLocal("invite_code");
-            if (inviteCode) payload.invite_code = inviteCode;
             const result = await apiCall("/auth/firebase-login", "POST", payload);
             saveToLocal("id_token", idToken);
             saveToLocal("user_id", result.user_id);
             saveToLocal("onboarding_completed", !!result.is_existing_user);
-            removeFromLocal("invite_code");
 
             if (result.is_existing_user) {
               navigateTo("lounge.html");
@@ -296,11 +293,7 @@
           } catch (apiErr) {
             console.error("Backend login failed:", apiErr.message);
 
-            if (apiErr.message?.includes("invite")) {
-              showError("error", "invite code required. please start over");
-            } else {
-              showError("error", "login failed: " + apiErr.message);
-            }
+            showError("error", "login failed: " + apiErr.message);
           }
         } catch (e) {
           console.error("Unexpected error:", e);

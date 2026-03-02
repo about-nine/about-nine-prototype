@@ -315,6 +315,14 @@
         return `${first} ${last}`.trim() || "your match";
       }
 
+      function getPartnerFirstName() {
+        const first = partner?.first_name || partner?.firstName;
+        if (first && typeof first === "string") return first;
+        const last = partner?.last_name || partner?.lastName;
+        if (last && typeof last === "string") return last;
+        return "your match";
+      }
+
       function isOnline(uid) {
         const p = presenceData[uid];
         return p && p.online === true;
@@ -471,16 +479,17 @@
       function formatSpeaker(rawSpeaker, talk) {
         if (!rawSpeaker) return "unknown";
         const partnerName = getPartnerName();
+        const partnerFirst = getPartnerFirstName();
         const mapping = talk?.uid_mapping || {};
 
         if (rawSpeaker === userId)    return "you";
-        if (rawSpeaker === partnerId) return partnerName;
+        if (rawSpeaker === partnerId) return partnerFirst;
 
         if (typeof rawSpeaker === "string") {
           const key = rawSpeaker.startsWith("uid_") ? rawSpeaker.replace("uid_", "") : rawSpeaker;
           const mapped = mapping[key];
           if (mapped === userId)    return "you";
-          if (mapped === partnerId) return partnerName;
+          if (mapped === partnerId) return partnerFirst;
         }
 
         return rawSpeaker;

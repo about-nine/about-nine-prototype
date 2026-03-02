@@ -110,9 +110,9 @@
         if (isEntering) return;
         isEntering = true;
         hideError("error");
-        // localStorage에 user_id가 없으면 로그인 플로우로
+        // localStorage에 user_id가 없으면 전화번호 인증 플로우로
         if (!getFromLocal("user_id")) {
-          navigateTo("invite-code.html");
+          navigateTo("phone.html");
           return;
         }
 
@@ -129,7 +129,7 @@
             error?.message?.includes("user not found")
           ) {
             try { localStorage.clear(); } catch {}
-            navigateTo("invite-code.html");
+            navigateTo("phone.html");
             return;
           }
           showError("error", "network issue. tap to retry");
