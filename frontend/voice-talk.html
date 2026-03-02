@@ -668,6 +668,12 @@
           navigateTo("lounge.html");
           return;
         }
+
+        if (d.status === "expired") {
+          alert("the match request expired before the call started.");
+          navigateTo("lounge.html");
+          return;
+        }
         if (d?.call_ended && d.ended_by !== userId) {
           console.log("⚠️ 상대방에 의해 통화 종료됨");
           await window.endCall({ remote: true });

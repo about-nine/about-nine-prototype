@@ -312,6 +312,9 @@
       let currentQuestion = null;
       let currentCenterIndex = -1;
       let requestId = null;
+      let matchRequestRef = null;
+      const READY_TIMEOUT_MS = 120000;
+      let readyTimeout = null;
 
       function initRequestId() {
         if (requestId) return requestId;
@@ -321,9 +324,37 @@
 
         if (!requestId) {
           console.error("No requestId found");
+        } else if (!matchRequestRef) {
+          matchRequestRef = ref(rtdb, `match_requests/${requestId}`);
         }
 
         return requestId;
+      }
+
+      function clearReadyTimeout() {
+        if (readyTimeout) {
+          clearTimeout(readyTimeout);
+          readyTimeout = null;
+        }
+      }
+
+      function startReadyTimeout() {
+        if (!matchRequestRef) return;
+        clearReadyTimeout();
+        readyTimeout = setTimeout(async () => {
+          try {
+            await update(matchRequestRef, {
+              status: "expired",
+              expired_by: userId,
+              expired_at: Date.now(),
+            });
+          } catch (error) {
+            console.error("Failed to set match as expired:", error);
+          }
+          hideLoading();
+          alert("your match didn't get ready in time. returning to lounge.");
+          navigateTo("lounge.html");
+        }, READY_TIMEOUT_MS);
       }
 
       /* ====================== 초기화 ====================== */
@@ -361,8 +392,7 @@
             return;
           }
 
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          const snapshot = await get(requestRef);
+          const snapshot = await get(matchRequestRef);
 
           if (!snapshot.exists()) {
             console.error("Match request not found");
@@ -526,13 +556,19 @@
       /* ====================== 완료 ====================== */
 
       function startReadyListener() {
-        if (!requestId) return;
+        if (!matchRequestRef) return;
 
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-
-        onValue(requestRef, async (snapshot) => {
+        onValue(matchRequestRef, async (snapshot) => {
           const data = snapshot.val();
           if (!data) return;
+
+          if (data.status === "expired") {
+            clearReadyTimeout();
+            hideLoading();
+            alert("this match request expired. please try again later.");
+            navigateTo("lounge.html");
+            return;
+          }
 
           const initiatorReady = data.initiator_ready || false;
           const receiverReady = data.receiver_ready || false;
@@ -542,6 +578,8 @@
           );
 
           if (initiatorReady && receiverReady) {
+            clearReadyTimeout();
+            hideLoading();
             // 녹화 시작은 voice-talk.html에서 처리
             navigateTo("voice-talk.html");
           }
@@ -566,8 +604,7 @@
         showLoading("waiting for your partner...");
 
         try {
-          const requestRef = ref(rtdb, `match_requests/${requestId}`);
-          const snapshot = await get(requestRef);
+          const snapshot = await get(matchRequestRef);
           const matchRequest = snapshot.val();
 
           const isInitiator = matchRequest.initiator === userId;
@@ -576,7 +613,7 @@
             ? "initiator_selection"
             : "receiver_selection";
 
-          await update(requestRef, {
+          await update(matchRequestRef, {
             [readyField]: true,
             [selectionField]: selectedOption,
           });
@@ -584,6 +621,7 @@
           console.log(
             `✅ Set ${readyField} = true, ${selectionField} = ${selectedOption}`,
           );
+          startReadyTimeout();
         } catch (error) {
           console.error("Failed to update ready status:", error);
           hideLoading();
@@ -596,8 +634,7 @@
           throw new Error("No requestId");
         }
 
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
-        const snapshot = await get(requestRef);
+        const snapshot = await get(matchRequestRef);
         if (!snapshot.exists()) {
           throw new Error("match_request not found");
         }
@@ -624,7 +661,7 @@
               questions[Math.floor(Math.random() * questions.length)];
           });
 
-          await update(requestRef, { guide_questions: selectedQuestions });
+          await update(matchRequestRef, { guide_questions: selectedQuestions });
           return selectedQuestions;
         }
 
@@ -632,7 +669,7 @@
         const maxAttempts = 20;
         for (let i = 0; i < maxAttempts; i += 1) {
           await sleep(500);
-          const latestSnap = await get(requestRef);
+          const latestSnap = await get(matchRequestRef);
           const latest = latestSnap.val() || {};
           if (latest.guide_questions) {
             return latest.guide_questions;
