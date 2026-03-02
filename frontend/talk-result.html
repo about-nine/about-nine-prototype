@@ -497,6 +497,7 @@
       let waitingDotsElement = null;
       let waitingDotsBaseText = "";
       const PARTNER_WAIT_MS = 60000;
+      /* Original SCORE_GUIDANCE preserved for reference
       const SCORE_GUIDANCE = {
         1: [
           {
@@ -552,6 +553,54 @@
             body: "Your views seem to move in different directions.\nThis score simply reflects that contrast.",
           },
         ],
+      };
+      */
+      const FEATURE_GUIDANCE = {
+        lsm: {
+          label: "tempo",
+          tiers: [
+            { min: 0.85, text: "both of you matched pace effortlessly." },
+            { min: 0.7, text: "rhythm was steady with a few pauses." },
+            { min: 0.5, text: "flow felt jumpy with uneven pauses." },
+            { min: 0, text: "tempo never settled into a groove." },
+          ],
+        },
+        flow_continuity: {
+          label: "warmth",
+          tiers: [
+            { min: 0.85, text: "tone stayed soft and affirming." },
+            { min: 0.7, text: "responses were considerate most of the time." },
+            { min: 0.5, text: "energy cooled off between turns." },
+            { min: 0, text: "emotional tone stayed distant or distracted." },
+          ],
+        },
+        turn_balance: {
+          label: "balance",
+          tiers: [
+            { min: 0.85, text: "each person shared without crowding." },
+            { min: 0.7, text: "spotlight shifted with light adjustments." },
+            { min: 0.5, text: "one side held the mic more often." },
+            { min: 0, text: "conversation stalled after short replies." },
+          ],
+        },
+        preference_sync: {
+          label: "curiosity",
+          tiers: [
+            { min: 0.85, text: "questions stacked with genuine interest." },
+            { min: 0.7, text: "follow-ups dug a layer deeper." },
+            { min: 0.5, text: "only a few details earned follow-ups." },
+            { min: 0, text: "little interest in each other’s picks." },
+          ],
+        },
+        romantic_sync: {
+          label: "clarity",
+          tiers: [
+            { min: 0.85, text: "answers landed crisply with zero static." },
+            { min: 0.7, text: "thoughts were mostly clear with light repeats." },
+            { min: 0.5, text: "ideas needed extra rephrasing to land." },
+            { min: 0, text: "core values remained undefined." },
+          ],
+        },
       };
 
       /* ================= 초기화 ================= */
@@ -1069,16 +1118,17 @@
       /* ================= 바텀시트 ================= */
 
       function renderAnalysisFeatures() {
-        if (analysisScore === null) {
+        if (analysisScore === null || !talkData?.analysis?.pair_features) {
           return "<div class='waiting-message'>analysis details not ready</div>";
         }
-        const guidance = getScoreGuidance(currentRound, analysisScore);
-        const body = guidance.body
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .join("<br>");
-        return `<div class="score-guidance-text">${body}</div>`;
+        const features = talkData.analysis.pair_features;
+        const lines = Object.entries(features)
+          .map(([key, value]) => {
+            const text = getFeatureGuidanceText(value, key);
+            return `<div>${text}</div>`;
+          })
+          .join("");
+        return `<div class="score-guidance-text">${lines}</div>`;
       }
 
       window.openAnalysisSheet = () => {
@@ -1445,4 +1495,15 @@
         }
         waitingDotsElement = null;
         waitingDotsBaseText = "";
+      }
+      function getFeatureGuidanceText(score, featureKey) {
+        if (typeof score !== "number" || Number.isNaN(score)) {
+          return `${FEATURE_GUIDANCE[featureKey]?.label || featureKey} · awaiting score.`;
+        }
+        const config = FEATURE_GUIDANCE[featureKey];
+        if (!config) return `${featureKey}: ${score}`;
+        const tier =
+          config.tiers.find((t) => score >= t.min) ||
+          config.tiers[config.tiers.length - 1];
+        return `${config.label} · ${tier.text}`;
       }
