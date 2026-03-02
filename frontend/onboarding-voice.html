@@ -151,6 +151,71 @@
         padding: 0 24px;
         box-sizing: border-box;
       }
+
+      .voice-switch-modal {
+        position: fixed;
+        inset: 0;
+        background: var(--overlay-bg);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 11000;
+        padding: 20px;
+      }
+
+      .voice-switch-modal.active {
+        display: flex;
+      }
+
+      .voice-switch-card {
+        width: 100%;
+        max-width: 360px;
+        background: #1f1f1f;
+        border-radius: 24px;
+        padding: 28px;
+        text-align: center;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        font-family: "Merriweather", serif;
+      }
+
+      .voice-switch-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      .voice-switch-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+
+      .voice-switch-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .voice-switch-actions button {
+        width: 100%;
+        padding: 12px 18px;
+        border-radius: 24px;
+        border: none;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .voice-switch-actions button.keep-trying {
+        background: #3a3a3a;
+        color: white;
+      }
+
+      .voice-switch-actions button.primary {
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        color: white;
+      }
       .vi-bar {
         width: 3px;
         height: 4px;
@@ -237,6 +302,22 @@
           </button>
         </div>
         <span id="obPermissionError" class="error hidden"></span>
+      </div>
+    </div>
+
+    <div class="voice-switch-modal" id="voiceSwitchModal">
+      <div class="voice-switch-card">
+        <div class="voice-switch-title">having trouble?</div>
+        <div class="voice-switch-text">
+          it looks like the mic couldn't catch what you said a few times.<br />
+          want to switch to the chat onboarding instead?
+        </div>
+        <div class="voice-switch-actions">
+          <button class="keep-trying" id="voiceSwitchKeep">keep trying</button>
+          <button class="primary" id="voiceSwitchChat">
+            switch to chat onboarding
+          </button>
+        </div>
       </div>
     </div>
 
@@ -345,6 +426,9 @@
       let lastVoiceTime = 0;
       const SILENCE_MS = 1300;
       const speechPaceSamples = [];
+      const FAILURE_THRESHOLD = 3;
+      const failureCounts = {};
+      let switchModalOpen = false;
 
       /* ================= DOM ================= */
 
@@ -356,6 +440,9 @@
       const $permissionBtn = document.getElementById("obPermissionBtn");
       const $permissionSkip = document.getElementById("obPermissionSkip");
       const $permissionError = document.getElementById("obPermissionError");
+      const $switchModal = document.getElementById("voiceSwitchModal");
+      const $switchKeep = document.getElementById("voiceSwitchKeep");
+      const $switchChat = document.getElementById("voiceSwitchChat");
       const cocoPlayer = new Audio();
       cocoPlayer.preload = "auto";
       cocoPlayer.setAttribute("playsinline", "");
@@ -503,6 +590,43 @@
 
       function stopLiveTranscription() {
         /* disabled */
+      }
+
+      function resetFailure(questionId) {
+        if (!questionId) return;
+        failureCounts[questionId] = 0;
+      }
+
+      function incrementFailure(questionId) {
+        if (!questionId) return;
+        failureCounts[questionId] = (failureCounts[questionId] || 0) + 1;
+        if (failureCounts[questionId] >= FAILURE_THRESHOLD) {
+          showSwitchModal();
+        }
+      }
+
+      function showSwitchModal() {
+        if (!$switchModal || switchModalOpen) return;
+        $switchModal.classList.add("active");
+        switchModalOpen = true;
+        setVoiceState("");
+        stopLiveTranscription();
+        speechActive = false;
+        voiceFrameCount = 0;
+        try {
+          if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
+        } catch {}
+      }
+
+      function hideSwitchModal(resetCurrent = false) {
+        if (!$switchModal) return;
+        $switchModal.classList.remove("active");
+        switchModalOpen = false;
+        if (resetCurrent && currentQ?.id) {
+          resetFailure(currentQ.id);
+        }
       }
 
       function micErrorMessage(err) {
@@ -889,6 +1013,14 @@
         navigateTo("onboarding-chat.html");
       });
 
+      $switchKeep?.addEventListener("click", () => {
+        hideSwitchModal(true);
+        setStatus("okay, let's try that again.", "");
+      });
+      $switchChat?.addEventListener("click", () => {
+        navigateTo("onboarding-chat.html");
+      });
+
       /* ================= HANDLE UTTERANCE ================= */
 
       // #7: range와 ask 완전히 분기 — 이중 저장 없음
@@ -896,6 +1028,7 @@
         if (q.t === "range") {
           if (data.min !== undefined && data.max !== undefined) {
             answers[q.id] = { min: data.min, max: data.max };
+            resetFailure(q.id);
             const replyText = data.reply || "got it";
             $msg.textContent = replyText;
             await playAudio(data.audio);
@@ -907,6 +1040,7 @@
               data.reply || "could you tell me the age range you have in mind?";
             $msg.textContent = reaskText;
             await playCoco(reaskText);
+            incrementFailure(q.id);
           }
           return;
         }
@@ -919,10 +1053,12 @@
           $msg.textContent = reaskText;
           await playCoco(reaskText);
           currentQ = q;
+          incrementFailure(q.id);
           return;
         }
 
         answers[q.id] = mapped;
+        resetFailure(q.id);
         if (q.id === "gender" && data.gender_detail) {
           answers["gender_detail"] = data.gender_detail;
         }
@@ -958,6 +1094,7 @@
       async function next() {
         const q = FLOW[step];
         if (!q) return;
+        if (q.id) resetFailure(q.id);
 
         setVoiceState("");
         currentQ = null;
