@@ -718,6 +718,7 @@
         await sleep(delay);
         const messages = document.getElementById("messages");
         const showAvatar = lastMessageType !== "coco";
+        const safeText = escapeHtml(text);
 
         const div = document.createElement("div");
         div.className = "coco-message chat-row";
@@ -727,7 +728,7 @@
               ? '<div class="coco-avatar chat-avatar"></div>'
               : '<div class="coco-avatar-spacer"></div>'
           }
-          <div class="coco-bubble chat-bubble">${text}</div>
+          <div class="coco-bubble chat-bubble">${safeText}</div>
         `;
 
         messages.appendChild(div);
@@ -746,7 +747,7 @@
         const messages = document.getElementById("messages");
         const div = document.createElement("div");
         div.className = "user-message chat-row mine";
-        div.innerHTML = `<div class="user-bubble chat-bubble mine">${text}</div>`;
+        div.innerHTML = `<div class="user-bubble chat-bubble mine">${escapeHtml(text)}</div>`;
         messages.appendChild(div);
         lastMessageType = "user";
         scrollToBottom();
@@ -901,7 +902,6 @@
 
       function listenForPartnerResponse() {
         if (!talkId) return;
-        stopWaitingDots();
         handlePartnerTimersCleanup();
 
         partnerTimeoutTimer = setTimeout(() => {
@@ -1054,13 +1054,14 @@
       async function addProfileCard(delay = 0) {
         await sleep(delay);
         const messages = document.getElementById("messages");
+        const safePartnerName = escapeHtml(getPartnerName());
         const div = document.createElement("div");
         div.className = "coco-message chat-row";
         div.innerHTML = `
           <div class="coco-avatar chat-avatar"></div>
           <div class="coco-bubble chat-bubble" style="max-width:80%;padding:0;">
             <div class="profile-card" onclick="openProfileSheet()">
-              <div class="profile-name">${getPartnerName()}</div>
+              <div class="profile-name">${safePartnerName}</div>
               <button class="view-details-btn">view profile</button>
             </div>
           </div>
@@ -1075,6 +1076,7 @@
         const contact = getPartnerContactValue();
         const displayContact =
           contact && contact !== "--" ? `(${contact})` : contact;
+        const safeDisplayContact = escapeHtml(displayContact || "--");
         const messages = document.getElementById("messages");
         const div = document.createElement("div");
         div.className = "coco-message chat-row";
@@ -1084,7 +1086,7 @@
             <div class="chemistry-card contact-card">
               <div class="chemistry-score-text">
                 contact<br />
-                <strong>${displayContact}</strong>
+                <strong>${safeDisplayContact}</strong>
               </div>
             </div>
           </div>
@@ -1125,7 +1127,7 @@
         const lines = Object.entries(features)
           .map(([key, value]) => {
             const text = getFeatureGuidanceText(value, key);
-            return `<div>${text}</div>`;
+            return `<div>${escapeHtml(text)}</div>`;
           })
           .join("");
         return `<div class="score-guidance-text">${lines}</div>`;
@@ -1163,8 +1165,8 @@
                 : info.score;
             return `
               <div class="profile-trial-item">
-                <div class="profile-trial-title">${getOrdinal(Number(roundKey))} trial (${label})</div>
-                <div class="profile-trial-score">chemistry score ${scoreText}</div>
+                <div class="profile-trial-title">${escapeHtml(getOrdinal(Number(roundKey)))} trial (${escapeHtml(label)})</div>
+                <div class="profile-trial-score">chemistry score ${escapeHtml(String(scoreText))}</div>
               </div>
             `;
           })
@@ -1182,7 +1184,7 @@
           const rounds = await fetchProfileRounds();
           trialsEl.innerHTML = rounds
             ? `<div class="profile-trials-list">${renderProfileTrials(rounds)}</div>`
-            : `${getOrdinal(currentRound)} trial · chemistry score ${score === null ? "--" : score}`;
+            : `${escapeHtml(getOrdinal(currentRound))} trial · chemistry score ${escapeHtml(String(score === null ? "--" : score))}`;
         }
 
         document.getElementById("profileCards").innerHTML =
@@ -1207,16 +1209,24 @@
 
         const lock1 = unlocked < 2 ? "locked" : "";
         const lock2 = unlocked < 3 ? "locked" : "";
+        const safePartnerName = escapeHtml(getPartnerName());
+        const safeAge = escapeHtml(String(age));
+        const safeGender = escapeHtml(String(gender));
+        const safeDrink = escapeHtml(String(drink));
+        const safeSmoke = escapeHtml(String(smoke));
+        const safeMarijuana = escapeHtml(String(marijuana));
+        const safeMoreInfo = escapeHtml(String(moreInfo !== "Not provided" ? moreInfo : bio));
+        const safePhone = escapeHtml(String(phone));
 
         return `
           <div class="profile-info-card">
             <div class="profile-info-row">
-              <span class="profile-label">${age} years old</span>
-              <span class="profile-value">${gender}</span>
+              <span class="profile-label">${safeAge} years old</span>
+              <span class="profile-value">${safeGender}</span>
             </div>
           </div>
           <div class="profile-info-card stacked">
-            <div class="profile-label">${getPartnerName()}'s playlist</div>
+            <div class="profile-label">${safePartnerName}'s playlist</div>
             <div class="playlist-chips">
               ${
                 playlist.length
@@ -1224,7 +1234,7 @@
                       .slice(0, 6)
                       .map(
                         (t) =>
-                          `<div class="playlist-chip">${t.name || "track"} - ${t.artist || "artist"}</div>`,
+                          `<div class="playlist-chip">${escapeHtml(String(t.name || "track"))} - ${escapeHtml(String(t.artist || "artist"))}</div>`,
                       )
                       .join("")
                   : `<div class="playlist-chip">no playlist</div>`
@@ -1232,18 +1242,18 @@
             </div>
           </div>
           <div class="profile-info-card stacked ${lock1}">
-            <div class="profile-info-row"><span class="profile-label">drinking</span><span class="profile-value">${drink}</span></div>
-            <div class="profile-info-row"><span class="profile-label">smoking</span><span class="profile-value">${smoke}</span></div>
-            <div class="profile-info-row"><span class="profile-label">marijuana</span><span class="profile-value">${marijuana}</span></div>
+            <div class="profile-info-row"><span class="profile-label">drinking</span><span class="profile-value">${safeDrink}</span></div>
+            <div class="profile-info-row"><span class="profile-label">smoking</span><span class="profile-value">${safeSmoke}</span></div>
+            <div class="profile-info-row"><span class="profile-label">marijuana</span><span class="profile-value">${safeMarijuana}</span></div>
           </div>
           <div class="profile-info-card stacked ${lock1}">
             <div class="profile-label">Additional information</div>
-            <div class="profile-value">${moreInfo !== "Not provided" ? moreInfo : bio}</div>
+            <div class="profile-value">${safeMoreInfo}</div>
           </div>
           <div class="profile-info-card ${lock2}">
             <div class="profile-info-row">
               <span class="profile-label">Contact</span>
-              <span class="profile-value">${phone}</span>
+              <span class="profile-value">${safePhone}</span>
             </div>
           </div>
         `;
@@ -1427,11 +1437,54 @@
         if (keywordsEl) keywordsEl.innerHTML = renderAnalysisFeatures();
       }
 
+      function startWaitingDots() {
+        stopWaitingDots();
+        if (!waitingDotsElement) return;
+        waitingDotsTimer = setInterval(() => {
+          if (!waitingDotsElement) return;
+          const current = waitingDotsElement.textContent || waitingDotsBaseText;
+          const count = (current.match(/\./g) || []).length;
+          const nextCount = (count + 1) % 4;
+          const dots = ".".repeat(nextCount);
+          waitingDotsElement.textContent = `${waitingDotsBaseText}${dots}`;
+        }, 700);
+      }
+
+      function stopWaitingDots() {
+        if (waitingDotsTimer) {
+          clearInterval(waitingDotsTimer);
+          waitingDotsTimer = null;
+        }
+        waitingDotsElement = null;
+        waitingDotsBaseText = "";
+      }
+
+      function getFeatureGuidanceText(score, featureKey) {
+        if (typeof score !== "number" || Number.isNaN(score)) {
+          return `${FEATURE_GUIDANCE[featureKey]?.label || featureKey} · awaiting score.`;
+        }
+        const config = FEATURE_GUIDANCE[featureKey];
+        if (!config) return `${featureKey}: ${score}`;
+        const tier =
+          config.tiers.find((t) => score >= t.min) ||
+          config.tiers[config.tiers.length - 1];
+        return `${config.label} · ${tier.text}`;
+      }
+
       /* ================= 유틸 ================= */
 
       function scrollToBottom() {
         const messages = document.getElementById("messages");
         messages.scrollTop = messages.scrollHeight;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
       }
 
       async function loadTalkHistory() {
@@ -1475,35 +1528,3 @@
     </script>
   </body>
 </html>
-      function startWaitingDots() {
-        stopWaitingDots();
-        if (!waitingDotsElement) return;
-        waitingDotsTimer = setInterval(() => {
-          if (!waitingDotsElement) return;
-          const current = waitingDotsElement.textContent || waitingDotsBaseText;
-          const count = (current.match(/\./g) || []).length;
-          const nextCount = (count + 1) % 4;
-          const dots = ".".repeat(nextCount);
-          waitingDotsElement.textContent = `${waitingDotsBaseText}${dots}`;
-        }, 700);
-      }
-
-      function stopWaitingDots() {
-        if (waitingDotsTimer) {
-          clearInterval(waitingDotsTimer);
-          waitingDotsTimer = null;
-        }
-        waitingDotsElement = null;
-        waitingDotsBaseText = "";
-      }
-      function getFeatureGuidanceText(score, featureKey) {
-        if (typeof score !== "number" || Number.isNaN(score)) {
-          return `${FEATURE_GUIDANCE[featureKey]?.label || featureKey} · awaiting score.`;
-        }
-        const config = FEATURE_GUIDANCE[featureKey];
-        if (!config) return `${featureKey}: ${score}`;
-        const tier =
-          config.tiers.find((t) => score >= t.min) ||
-          config.tiers[config.tiers.length - 1];
-        return `${config.label} · ${tier.text}`;
-      }
