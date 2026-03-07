@@ -124,6 +124,14 @@ def health():
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
+def send_frontend_file(filename: str):
+    response = send_from_directory(FRONTEND_DIR, filename)
+    if filename.endswith(".html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 
 # 정적 파일 전용
 @app.route("/<path:filename>")
@@ -136,7 +144,7 @@ def static_files(filename):
     file_path = FRONTEND_DIR / filename
 
     if file_path.exists():
-        return send_from_directory(FRONTEND_DIR, filename)
+        return send_frontend_file(filename)
 
     return jsonify(success=False, message="Not found"), 404
 
@@ -144,7 +152,7 @@ def static_files(filename):
 # 루트 → index.html
 @app.route("/")
 def index():
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    return send_frontend_file("index.html")
 
 # =========================
 # Run
