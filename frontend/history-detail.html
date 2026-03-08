@@ -581,9 +581,12 @@
             ? "completed"
             : "start talk";
 
+        const viewProfileLabel = viewProfileDisabled
+          ? "profile unavailable"
+          : "view profile";
         const viewProfileButton = `
           <button class="secondary history-btn" ${viewProfileDisabled ? "disabled" : ""} onclick="openProfileSheet()">
-            view profile
+            ${viewProfileLabel}
           </button>
         `;
 
