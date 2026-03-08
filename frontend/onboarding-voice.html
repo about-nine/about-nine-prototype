@@ -606,6 +606,7 @@
 
           if (transcript) {
             noSpeechCount = 0;
+            console.log("[STT]", transcript, `(${duration}ms)`);
             $heard.textContent = transcript;
             processTranscript(transcript, duration);
           } else {
@@ -662,21 +663,24 @@
 
       /* ================= FLOW ================= */
 
-      const INTRO_STEPS = [
-        `hi ${firstName}, i'm coco`,
-        "let's find someone\nwho really gets you",
-        "to do that,\ni need to get to know you first",
-      ];
-
       async function startFlow() {
         if (flowStarted) return;
         flowStarted = true;
-        for (const text of INTRO_STEPS) {
-          $msg.textContent = text;
-          $heard.textContent = "";
-          await playCoco(text);
-        }
         await conversationTurn();
+      }
+
+      async function fetchTurnData() {
+        const res = await fetch(`${VOICE_API_BASE}/turn`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            history: conversationHistory.slice(-20),
+            collected,
+            firstName,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
       }
 
       /* ================= CONVERSATION ================= */
@@ -697,19 +701,11 @@
         setVoiceState("processing");
 
         try {
-          const res = await fetch(`${VOICE_API_BASE}/turn`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              history: conversationHistory.slice(-20),
-              collected,
-              firstName,
-            }),
-          });
-
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
+          const data = await fetchTurnData();
           if (data.error) throw new Error(data.error);
+
+          console.log("[COCO]", data.reply);
+          console.log("[collected]", JSON.stringify(data.collected), "→ total:", JSON.stringify({ ...collected, ...data.collected }));
 
           if (data.collected) Object.assign(collected, data.collected);
           conversationHistory.push({ role: "assistant", content: data.reply });
@@ -730,9 +726,12 @@
             if (requiredCount > prevRequiredCount) {
               stuckTurns = 0;
               prevRequiredCount = requiredCount;
+              console.log("[stuck] progress made →", requiredCount, "/ 7 required");
             } else {
               stuckTurns++;
+              console.log("[stuck]", stuckTurns, "/ 3 — no new required field collected");
               if (stuckTurns >= 3) {
+                console.log("[stuck] fallback to chat. collected so far:", JSON.stringify(collected));
                 fallbackToChat();
                 return;
               }

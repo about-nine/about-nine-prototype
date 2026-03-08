@@ -131,7 +131,7 @@ def make_audio(reply):
         voice="shimmer",
         input=reply,
         response_format="mp3",
-        speed=1.2,
+        speed=0.8,
         instructions="Speak in a soft, gentle, whispering tone. Keep your voice calm, quiet, and intimate, like you're telling a secret."
     )
     return base64.b64encode(tts.read()).decode()
@@ -185,7 +185,8 @@ Conversation rules:
 - If the same field keeps failing across multiple turns, rephrase the question completely — describe it differently or offer a brief list of options rather than asking the same way again
 - Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
 - Speech recognition may mishear certain words. When extracting fields, consider: "this/sis woman" likely means "cis woman", "non binary" means "non-binary", "weed/cannabis" means marijuana
-- 1-2 sentences max per reply
+- 1 sentence max per reply — keep it short, this is voice
+- Never use lists, options, or multiple questions in one turn
 - Always reply in English
 
 Return JSON only:
