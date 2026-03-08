@@ -756,7 +756,7 @@
                 nudgeField = targetField;
               }
               console.log("[stuck] global:", globalStuckCount, "| consecutive:", consecutiveStuck, "on", targetField);
-              if (globalStuckCount >= 5) {
+              if (globalStuckCount >= 8) {
                 console.log("[stuck] fallback. collected:", JSON.stringify(collected));
                 fallbackToChat();
                 return;
