@@ -727,11 +727,9 @@
             const startDisabled = isBlocked || !online || completedAllRounds;
             const statusClass = isBlocked
               ? "blocked"
-              : completedAllRounds
-                ? "completed"
-                : online
-                  ? "online"
-                  : "offline";
+              : online
+                ? "online"
+                : "offline";
             const buttonLabel = isBlocked
               ? "blocked"
               : completedAllRounds
