@@ -578,14 +578,12 @@
         const statusDot = goState.someoneNo
           ? "blocked"
           : isDeleted
-            ? "offline"
+            ? "blocked"
             : isBlocked
               ? "blocked"
-              : maxRound >= 3
-                ? "completed"
-                : online
-                  ? "online"
-                  : "offline";
+              : online
+                ? "online"
+                : "offline";
 
         cardEl.className = `history-card ${online && statusDot !== "blocked" ? "" : "offline"}`;
         cardEl.innerHTML = `

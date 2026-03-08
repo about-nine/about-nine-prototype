@@ -160,11 +160,11 @@
             ? scores.map((s) => `<span>${s}</span>`).join("")
             : "<span>no scores yet</span>";
           const statusDot    = deleted
-            ? "offline"
-            : item.blocked === true
+            ? "blocked"
+            : item.had_no === true
               ? "blocked"
-              : completedAllRounds
-                ? "completed"
+              : item.blocked === true
+                ? "blocked"
                 : online
                   ? "online"
                   : "offline";
