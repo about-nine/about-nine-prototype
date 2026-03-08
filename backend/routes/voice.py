@@ -350,12 +350,28 @@ def voice_stt():
     if not audio:
         return jsonify(error="no audio"), 400
     language = request.form.get("language") or None
+    field_hint = request.form.get("field_hint") or None
+
+    _FIELD_PROMPTS = {
+        "gender": "woman man non-binary",
+        "gender_detail": "cis man cis woman trans man trans woman non-binary intersex genderfluid genderqueer",
+        "sexual_orientation": "men women men and women all types of genders non-binary people",
+        "age_preference": "twenty thirty forty fifty years old to between",
+        "drink": "yes no I drink I don't drink alcohol",
+        "smoke": "yes no I smoke I don't smoke cigarettes",
+        "marijuana": "yes no I use I don't use marijuana weed cannabis",
+    }
+    whisper_prompt = _FIELD_PROMPTS.get(field_hint) if field_hint else None
+
     try:
-        transcript = client.audio.transcriptions.create(
+        kwargs = dict(
             model="whisper-1",
             file=(audio.filename, audio.stream, audio.mimetype),
             language=language,
         )
+        if whisper_prompt:
+            kwargs["prompt"] = whisper_prompt
+        transcript = client.audio.transcriptions.create(**kwargs)
         text = apply_stt_corrections(transcript.text.strip())
         return jsonify(transcript=text)
     except Exception as e:

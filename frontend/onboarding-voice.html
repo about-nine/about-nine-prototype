@@ -614,6 +614,8 @@
           const ext = mimeType.includes("mp4") ? "mp4" : "webm";
           formData.append("audio", blob, `audio.${ext}`);
           if (STT_LANGUAGE) formData.append("language", STT_LANGUAGE);
+          const currentField = REQUIRED_FIELDS.find(k => !collected[k]);
+          if (currentField) formData.append("field_hint", currentField);
 
           const res = await fetch(`${VOICE_API_BASE}/stt`, { method: "POST", body: formData });
           const data = await res.json().catch(() => ({}));
