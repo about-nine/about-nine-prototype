@@ -1,43 +1,88 @@
-# routes/voice.py - voice STT, TTS, and bio endpoints
+# routes/voice.py
 from flask import Blueprint, request, jsonify
-import base64, tempfile, os
-import traceback
-import re
-
+import base64, json, re, traceback
 from openai import OpenAI
-client = OpenAI()
 
+client = OpenAI()
 voice_bp = Blueprint("voice", __name__, url_prefix="/api/voice")
 
-MAX_AUDIO_MB = 6
+REQUIRED_FIELDS = ["gender", "gender_detail", "sexual_orientation", "age_preference", "drink", "smoke", "marijuana"]
+
+GENDER_DETAIL_OPTIONS = {
+    "woman": ["cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary"],
+    "man": ["cis man", "trans man", "intersex man", "transmasculine", "man and non-binary"],
+    "non-binary": [
+        "agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming",
+        "gender questioning", "gender variant", "intersex", "neutrois",
+        "non-binary man", "non-binary woman", "pangender", "polygender",
+        "transgender", "two-spirit",
+    ],
+}
+
+SEXUAL_ORIENTATION_OPTIONS = [
+    "men", "women", "men and women",
+    "men and non-binary people", "women and non-binary people",
+    "all types of genders",
+]
+
+def normalize_gender_detail(value: str, gender: str) -> str | None:
+    """Map free-form LLM output to one of the canonical gender_detail values."""
+    v = value.strip().lower()
+    allowed = GENDER_DETAIL_OPTIONS.get(gender, [])
+    if v in allowed:
+        return v
+    # common variation mappings
+    _map = {
+        "cisgender woman": "cis woman", "cis-woman": "cis woman",
+        "cisgender man": "cis man", "cis-man": "cis man",
+        "transgender woman": "trans woman", "trans-woman": "trans woman",
+        "transgender man": "trans man", "trans-man": "trans man",
+        "transgender": "transgender",
+        "intersex woman": "intersex woman", "intersex man": "intersex man",
+        "gender fluid": "genderfluid", "gender-fluid": "genderfluid",
+        "gender queer": "genderqueer", "gender-queer": "genderqueer",
+        "gender nonconforming": "gender nonconforming",
+        "gender non-conforming": "gender nonconforming",
+        "gender non conforming": "gender nonconforming",
+        "two spirit": "two-spirit",
+        "non binary man": "non-binary man", "non binary woman": "non-binary woman",
+    }
+    mapped = _map.get(v)
+    if mapped and mapped in allowed:
+        return mapped
+    return None
+
+
+def normalize_sexual_orientation(value: str) -> str | None:
+    """Map free-form LLM output to one of the canonical sexual_orientation values."""
+    v = value.strip().lower()
+    if v in SEXUAL_ORIENTATION_OPTIONS:
+        return v
+    # broad mappings
+    if v in ("everyone", "all", "all genders", "anyone", "all people", "all gender", "everybody", "any gender"):
+        return "all types of genders"
+    if "non-binary" in v and "men" in v and "women" in v:
+        return "all types of genders"
+    if "men and non-binary" in v:
+        return "men and non-binary people"
+    if "women and non-binary" in v:
+        return "women and non-binary people"
+    if "men and women" in v or "women and men" in v or v in ("bisexual", "bi"):
+        return "men and women"
+    if v in ("pansexual", "pan", "queer", "fluid", "omnisexual"):
+        return "all types of genders"
+    if v == "men" or v == "man" or v == "male" or v == "males" or v == "guys":
+        return "men"
+    if v == "women" or v == "woman" or v == "female" or v == "females":
+        return "women"
+    if "non-binary" in v:
+        return "all types of genders"
+    return None
 
 
 # =========================
 # helpers
 # =========================
-
-def safe_temp_save(file_storage, mime_type="audio/webm"):
-    # mime → 확장자 매핑
-    ext_map = {
-        "audio/webm":  ".webm",
-        "audio/mp4":   ".m4a",
-        "audio/mpeg":  ".mp3",
-        "audio/ogg":   ".ogg",
-        "audio/wav":   ".wav",
-        "audio/x-wav": ".wav",
-        "audio/oga":   ".ogg",
-    }
-    ext = ext_map.get(mime_type, ".webm")
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-    file_storage.save(tmp.name)
-    return tmp.name
-
-def check_size(file_storage):
-    file_storage.stream.seek(0, os.SEEK_END)
-    size = file_storage.stream.tell()
-    file_storage.stream.seek(0)
-    if size > MAX_AUDIO_MB * 1024 * 1024:
-        raise ValueError("audio too large")
 
 def make_audio(reply):
     tts = client.audio.speech.create(
@@ -45,10 +90,11 @@ def make_audio(reply):
         voice="shimmer",
         input=reply,
         response_format="mp3",
-        speed=1.2, 
+        speed=1.2,
         instructions="Speak in a soft, gentle, whispering tone. Keep your voice calm, quiet, and intimate, like you're telling a secret."
     )
     return base64.b64encode(tts.read()).decode()
+
 
 # =========================
 # TURN endpoint
@@ -56,280 +102,151 @@ def make_audio(reply):
 
 @voice_bp.route("/turn", methods=["POST"])
 def voice_turn():
+    data = request.get_json(silent=True) or {}
+    history = data.get("history") or []
+    collected = data.get("collected") or {}
+    first_name = (data.get("firstName") or "").strip()
 
-    if "audio" not in request.files:
-        return jsonify(error="missing audio"), 400
+    missing_required = [k for k in REQUIRED_FIELDS if not collected.get(k)]
+    is_initial = not any(m.get("role") == "user" for m in history)
+    all_done = not missing_required
 
-    # 🔥 프론트에서 전달된 옵션 배열
-    import json
-    opts_raw   = request.form.get("options")
-    opts       = json.loads(opts_raw) if opts_raw else []
-    qtype = request.form.get("type", "")
-    is_range = qtype == "range"
-    lang_candidates_raw = request.form.get("lang_candidates")
-    lang_codes = []
-    if lang_candidates_raw:
-        try:
-            lang_candidates = json.loads(lang_candidates_raw)
-            if isinstance(lang_candidates, dict):
-                codes = lang_candidates.get("codes") or []
-                if isinstance(codes, list):
-                    lang_codes = [str(c) for c in codes if c]
-        except Exception:
-            lang_codes = []
+    system = f"""You are COCO, a warm and emotionally intelligent companion for a dating app.
+You're having a natural onboarding conversation with {first_name or "someone new"}.
+Your goal: learn about them through genuine conversation — not a questionnaire.
 
-    path = None
+You need to collect through conversation:
+
+REQUIRED (must all be gathered before ending):
+- gender: "woman", "man", or "non-binary"
+- gender_detail: more specific identity{f" — allowed values for a {collected['gender']}: {GENDER_DETAIL_OPTIONS.get(collected['gender'], [])}" if collected.get("gender") else " (ask after learning their gender)"}
+- sexual_orientation: who they're attracted to
+- age_preference: age range they're looking for (min and max as integers)
+- drink: "yes" or "no" (alcohol)
+- smoke: "yes" or "no" (cigarettes)
+- marijuana: "yes" or "no"
+
+Already collected: {json.dumps(collected)}
+Still needed (REQUIRED): {missing_required}
+
+{"This is the very start of the conversation. Warmly ask about their gender to begin." if is_initial else ""}
+{"After learning their gender, follow up with gender_detail (a more specific identity description) before moving on to other topics." if collected.get("gender") and not collected.get("gender_detail") else ""}
+{"All required info is collected — wrap up the conversation warmly and naturally." if all_done else ""}
+
+Conversation rules:
+- Be warm and human, like a friend — NOT a form or survey
+- Ask only one thing at a time
+- If they mention optional info naturally, note it
+- If they're unclear, ask gently without repeating a list of options robotically
+- If they change their mind, update accordingly
+- Never suggest skipping or say things like "moving on" or "got it" robotically
+- If you need to ask about something the user already touched on but wasn't clear enough to collect, reference what they said rather than asking from scratch (e.g. "You mentioned you drink socially — so you do drink, yeah?" instead of "Do you drink alcohol?")
+- 1-2 sentences max per reply
+- Always reply in English
+
+Return JSON only:
+{{
+  "reply": "<your conversational response>",
+  "collected": {{<new fields you can extract from THIS turn only — empty dict if none>}},
+  "is_complete": <true only when ALL required fields are now collected, including this turn>
+}}
+
+Field formats for "collected":
+- gender: "woman" | "man" | "non-binary"
+- gender_detail: one of the allowed values listed above — omit if not mentioned
+- drink / smoke / marijuana: "yes" | "no"
+- sexual_orientation: must be exactly one of: "men" | "women" | "men and women" | "men and non-binary people" | "women and non-binary people" | "all types of genders"
+- age_preference: {{"min": <int>, "max": <int>}}
+
+Only extract what was clearly said in this turn. Do not re-extract already-collected fields."""
+
+    messages = [{"role": "system", "content": system}]
+    for msg in history[-20:]:
+        if msg.get("role") in ("user", "assistant") and msg.get("content"):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
     try:
-        audio_file = request.files["audio"]
-        check_size(audio_file)
-        mime_type = (audio_file.content_type or "audio/webm").split(";")[0].strip()
-        path = safe_temp_save(audio_file, mime_type)
+        gpt = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.4,
+            response_format={"type": "json_object"},
+            messages=messages,
+        )
+        parsed = json.loads(gpt.choices[0].message.content)
+        reply = parsed.get("reply", "")
+        new_collected = parsed.get("collected") or {}
+        is_complete = bool(parsed.get("is_complete", False))
 
-        stt_prompt = "This is a dating app onboarding. The user may speak any language."
-        if lang_codes:
-            stt_prompt += f" Language hints: {', '.join(lang_codes)}."
+        # merge new fields into collected
+        merged = dict(collected)
+        for k, v in new_collected.items():
+            if v is not None and v != "":
+                merged[k] = v
 
-        with open(path, "rb") as f:
-            stt = client.audio.transcriptions.create(
-                model="gpt-4o-transcribe",
-                file=f,
-                temperature=0,
-                prompt=stt_prompt
-            )
-
-        transcript = (stt.text or "").strip()
-
-        if not transcript:
-            return jsonify(transcript="")
-        
-        clean = transcript.strip()
-
-        # 최소 한 글자 이상의 알파벳/숫자 포함 필요
-        if not re.search(r"[a-zA-Z0-9]", clean):
-            return jsonify(transcript="")
-
-        # 너무 짧은 단일 문자 noise 제거 (예: "uh","h")
-        if len(clean) <= 1:
-            return jsonify(transcript="")
-
-        # -------- GPT mapping --------
-        if is_range:
-            # age range 자유응답 파싱
-            system = """
-            You are COCO, a warm dating app companion.
-            IMPORTANT: Always reply in English only, regardless of what language the user speaks.
-            The user was asked what age range they're looking for.
-
-            Return JSON only:
-            {"min": <int>, "max": <int>, "reply": "<one short sentence echoing their range. e.g. 'someone between 25 and 35 — love that.' under 12 words.>"}
-
-            User may speak any language. Translate and extract numbers.
-            Examples:
-            "20 to 35" → 20, 35
-            "mid twenties to early forties" → 24, 42
-            "i don't mind, anyone" → 20, 60
-            If unclear, default to min:20, max:60.
-            """
-            gpt = client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user",   "content": transcript}
-                ]
-            )
-            parsed = json.loads(gpt.choices[0].message.content)
-            mn     = int(parsed.get("min", 20))
-            mx     = int(parsed.get("max", 60))
-            reply  = parsed.get("reply", "got it")
-
-            # min > max 방어
-            if mn > mx:
-                mn, mx = mx, mn
-
-            audio_b64 = make_audio(reply) if reply else None
-
-            return jsonify(
-                transcript=transcript,
-                min=mn,
-                max=mx,
-                reply=reply,
-                audio=audio_b64
-            )
-
-        else:
-            base_gender = request.form.get("base_gender", "")
-            is_gender_q = set(opts) == {"woman", "man", "non-binary"}
-            is_correction = request.form.get("is_correction") == "true"
-            prev_answer = request.form.get("prev_answer", "")
-
-            if is_gender_q:
-                all_details = [
-                    "cis woman", "trans woman", "intersex woman", "transfeminine", "woman and non-binary",
-                    "cis man", "trans man", "intersex man", "transmasculine", "man and non-binary",
-                    "agender", "bigender", "genderfluid", "genderqueer", "gender nonconforming",
-                    "gender questioning", "gender variant", "intersex", "neutrois", "non-binary man",
-                    "non-binary woman", "pangender", "polygender", "transgender", "two-spirit"
-                ]
-                system = f"""
-                You are COCO, a warm and emotionally intelligent dating app companion.
-                IMPORTANT: Always reply in English only.
-                The user was asked: "how do you identify your gender?"
-                {"They previously said: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
-
-                Your job is to understand what they mean — across ANY language, phrasing, or identity term —
-                and map it to the closest fit using your judgment.
-
-                BASE gender must be one of: {opts}
-                Ask yourself: does this person relate more to woman, man, or neither/outside the binary?
-                Be generous and thoughtful. Someone who says "queer", "femme", "they/them", "non-binair",
-                "I'm more on the feminine side", "androgynous" — reason about what fits best.
-                Only return null if you genuinely cannot infer even a rough direction.
-
-                DETAIL: pick the single closest match from this list, or null if unknown:
-                {all_details}
-
-                Return JSON only:
-                {{
-                "mapped": "<one of {opts} or null>",
-                "gender_detail": "<closest match from detail list or null>",
-                "reply": "<one warm sentence in English. if mapped is set, echo it and move on — e.g. 'non-binary — love that.' if mapped is null, ask only about base gender.>"
-                }}
-
-                Rules:
-                - reply MUST be one sentence, under 15 words, English only
-                - if mapped is set, NEVER ask a follow-up — just confirm and move on
-                - if mapped is null, ask ONLY: woman, man, or non-binary — nothing else
-                - if correction, acknowledge naturally: 'oh, trans woman — got it.'
-                - NEVER list options robotically
-                - NEVER suggest skipping
-                - if user says just "woman", "man", "non-binary" with NO detail qualifier, set gender_detail to null — NEVER assume cis or any specific identity
-                - only set gender_detail when the user explicitly mentions it
-                - Common speech-to-text errors to account for: "this woman/man" likely means "cis woman/man", 
-                    "sis" means "cis", "trans-gender" means "transgender", "non binary" means "non-binary".
-                    Use context to correct obvious phonetic misrecognitions before mapping.
-                """
+        # normalize sexual_orientation to canonical value
+        so = merged.get("sexual_orientation")
+        if so is not None:
+            normalized_so = normalize_sexual_orientation(so)
+            if normalized_so:
+                merged["sexual_orientation"] = normalized_so
             else:
-                question_id = request.form.get("question_id", "")
-                            
-                question_text = request.form.get("question_text", "")
+                merged.pop("sexual_orientation", None)
 
-                # question_id별 topic 명시 (GPT가 혼동 못하도록)
-                TOPIC_LABELS = {
-                    "drink":    "alcohol / drinking",
-                    "smoke":    "cigarettes / tobacco smoking",
-                    "marijuana": "marijuana / cannabis use (NOT smoking cigarettes)",
-                    "sexual_orientation": "romantic/sexual attraction",
-                    "gender": "gender identity",
-                    "gender_detail": "gender identity detail",
-                }
-                topic_label = TOPIC_LABELS.get(question_id, question_id)
-                
-                system = f"""
-                You are COCO, a warm and emotionally intelligent dating app companion.
-                IMPORTANT: Always reply in English only, regardless of what language the user speaks.
-                The user was asked a question with these options: {opts}
-                The specific question being asked is about: {question_id}
-                {f"The user's base gender is: {base_gender}. Use this context to pick the correct option." if base_gender else ""}
-                {"They previously answered: " + prev_answer + ". They may be correcting themselves." if is_correction else ""}
-
-                Return JSON only:
-                {{
-                "mapped": "<exact option or null>",
-                "reply": "<one short sentence only. if mapped, ONLY echo/confirm — never ask follow-up questions. e.g. 'a drinker — love that.' or 'non-smoker, got it.' if null, redirect gently with a hint toward the options.>"
-                }}
-
-                Rules:
-                - User may speak any language. Understand and map correctly.
-                - mapped MUST be verbatim from the list or null
-                - Only map if the answer clearly corresponds to one of the options
-                - Do NOT map if the transcript is noise, filler words, or completely unrelated
-                - If null, reply naturally hints at the options without reading them aloud like a list. Weave 1-2 options into a conversational sentence. e.g. for attraction: 'no worries — do you lean toward men, women, or does it depend on the person?' e.g. for smoking: 'just checking — would you say yes or no to smoking?' Always reference what they actually said if possible.
-                - reply MUST be one sentence, under 15 words
-                - if user deflects, redirect with a hint toward the actual options — never say 'yes or no' if the options are not yes/no
-                - NEVER suggest skipping or moving on
-                - if mapped, reply is a warm one-sentence echo — natural and conversational, NOT label-like.
-                    e.g. 'oh, you enjoy a drink — love that.' not 'a drinker — got it.'
-                    e.g. 'ah, marijuana's your thing — totally fine.' not 'marijuana user, got it.'
-                    e.g. 'oh nice, you're into women — got it.' not 'women, noted.'
-                    Always use 'you' — make it feel like you're talking to them, not filing a form.
-                - The topic is SPECIFICALLY about: {topic_label}. The actual question asked was: '{question_text}'. reply MUST be about {topic_label} ONLY — if the topic is marijuana, NEVER say smoker/non-smoker, NEVER reference cigarettes.
-                - reply must be about {question_id} — never reference a different topic
-                - Map based on intent: "sometimes", "occasionally", "yeah" → yes; "nah", "not really", "i quit" → no
-                - Only return null if genuinely unclear or completely off-topic
-                """
-
-            gpt = client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.3,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": transcript}
-                ]
-            )
-            parsed = json.loads(gpt.choices[0].message.content)
-            mapped = parsed.get("mapped")
-            if isinstance(mapped, str):
-                mapped_norm = mapped.strip().lower()
-                opts_norm = {o.lower(): o for o in opts}
-                mapped = opts_norm.get(mapped_norm)
+        # normalize gender_detail to canonical value
+        gd = merged.get("gender_detail")
+        if gd is not None:
+            gender = merged.get("gender", "")
+            normalized_gd = normalize_gender_detail(gd, gender)
+            if normalized_gd:
+                merged["gender_detail"] = normalized_gd
             else:
-                mapped = None
+                merged.pop("gender_detail", None)
 
-            gender_detail = parsed.get("gender_detail")
-            if isinstance(gender_detail, str):
-                gender_detail = gender_detail.strip().lower()
-            if is_gender_q:
-                valid_gender_details = {
-                    "cis woman",
-                    "trans woman",
-                    "intersex woman",
-                    "transfeminine",
-                    "woman and non-binary",
-                    "cis man",
-                    "trans man",
-                    "intersex man",
-                    "transmasculine",
-                    "man and non-binary",
-                    "agender",
-                    "bigender",
-                    "genderfluid",
-                    "genderqueer",
-                    "gender nonconforming",
-                    "gender questioning",
-                    "gender variant",
-                    "intersex",
-                    "neutrois",
-                    "non-binary man",
-                    "non-binary woman",
-                    "pangender",
-                    "polygender",
-                    "transgender",
-                    "two-spirit",
-                }
-                if gender_detail not in valid_gender_details:
-                    gender_detail = None
-            reply = parsed.get("reply", "got it")
+        # normalize age_preference: accept {min, max} dict or "25-40" / "25 to 40" strings
+        ap = merged.get("age_preference")
+        if ap is not None:
+            if isinstance(ap, dict):
+                mn = ap.get("min")
+                mx = ap.get("max")
+                if isinstance(mn, (int, float)) and isinstance(mx, (int, float)):
+                    mn, mx = int(mn), int(mx)
+                    if mn > mx:
+                        mn, mx = mx, mn
+                    merged["age_preference"] = {"min": mn, "max": mx}
+                else:
+                    merged.pop("age_preference", None)
+            elif isinstance(ap, str):
+                m = re.search(r"(\d+)\D+(\d+)", ap)
+                if m:
+                    mn, mx = int(m.group(1)), int(m.group(2))
+                    if mn > mx:
+                        mn, mx = mx, mn
+                    merged["age_preference"] = {"min": mn, "max": mx}
+                else:
+                    merged.pop("age_preference", None)
+            else:
+                merged.pop("age_preference", None)
 
-            audio_b64 = make_audio(reply) if reply else None
+        # server-side guard: is_complete only if all required fields present with valid values
+        all_present = all(merged.get(req) for req in REQUIRED_FIELDS)
+        if is_complete and not all_present:
+            is_complete = False
+        # force-complete if LLM forgot to set it but everything is collected
+        if not is_complete and all_present:
+            is_complete = True
 
-            return jsonify(
-                transcript=transcript,
-                mapped=mapped,
-                gender_detail=gender_detail,
-                reply=reply,
-                audio=audio_b64
-            )
+        audio_b64 = make_audio(reply) if reply else None
 
-    except Exception as e:
+        return jsonify(
+            reply=reply,
+            audio=audio_b64,
+            collected=merged,
+            is_complete=is_complete,
+        )
+
+    except Exception:
         traceback.print_exc()
         return jsonify(error="voice processing failed"), 500
-
-    finally:
-        if path and os.path.exists(path):
-            os.remove(path)
 
 
 # =========================
@@ -342,10 +259,8 @@ def voice_tts():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify(error="missing text"), 400
-
     try:
-        audio_b64 = make_audio(text)
-        return jsonify(audio=audio_b64)
+        return jsonify(audio=make_audio(text))
     except Exception as e:
         print("voice_tts error:", e)
         return jsonify(error="tts failed"), 500
@@ -358,53 +273,50 @@ def voice_tts():
 @voice_bp.route("/bio", methods=["POST"])
 def voice_bio():
     data = request.json or {}
-    transcripts = data.get("transcripts", [])
+    history = data.get("history") or []
 
-    if not transcripts:
+    user_messages = [
+        m["content"] for m in history
+        if m.get("role") == "user" and m.get("content")
+    ]
+    if not user_messages:
         return jsonify(bio="")
 
     try:
+        text = "\n".join(f'"{msg}"' for msg in user_messages)
 
-        text = "\n".join(
-            f'Q:{t.get("question")} -> "{t.get("said")}"'
-            for t in transcripts
-        )
+        system = """You are writing a one-line dating profile bio based on how someone spoke during onboarding.
 
-        system = """
-        You are writing a one-line dating profile bio based on how someone spoke during onboarding.
+Your job is NOT to summarize their profile answers.
+Your job is to capture the KIND OF PERSON they seem to be —
+inferred from their attitude, tone, word choice, and values.
 
-        Your job is NOT to summarize their answers.
-        Your job is to capture the KIND OF PERSON they seem to be — 
-        inferred from the attitude, tone, and values behind what they said.
+NEVER include anything related to:
+- gender or gender identity
+- sexual orientation or who they're attracted to
+- age or age preferences
+- drinking, smoking, or marijuana use
+These are stored separately and must NOT appear in the bio.
 
-        Rules:
-        - exactly one sentence, lowercase, first person
-        - read between the lines: what does their wording reveal about their personality?
-        e.g. "i don't smoke, but i'd never make that anyone else's problem" 
-        → they have standards but aren't judgmental
-        - if they said something culturally specific, that's character too
-        - do NOT mention specific habits, substances, or lifestyle facts directly
-        - do NOT mention the app or finding a match
-        - if there is genuinely nothing to infer beyond bare yes/no answers with no elaboration, 
-        return an empty string — nothing else, no explanation
+Rules:
+- exactly one sentence, lowercase, first person
+- only write if there is genuine personality to infer beyond the profile questions
+- if the user only gave bare yes/no answers with no personality showing, return an empty string
+- do NOT mention the app or finding a match
 
-        Translate non-English input naturally. Write as if they wrote it themselves.
-        """
+Translate non-English input naturally. Write as if they wrote it themselves."""
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.4,
             messages=[
-                {"role":"system","content":system},
-                {"role":"user","content":text}
-            ]
+                {"role": "system", "content": system},
+                {"role": "user", "content": text},
+            ],
         )
-
         bio = resp.choices[0].message.content.strip().strip('"')
-        
         if bio.lower() in ("(empty string)", "empty string", "none", "null"):
             bio = ""
-
         return jsonify(bio=bio)
 
     except Exception as e:

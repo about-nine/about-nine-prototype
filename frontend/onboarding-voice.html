@@ -64,13 +64,6 @@
         box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
       }
 
-      /* correction — 완전 정지 대신 아주 느린 미세 pulse */
-      .correction-window .pulse-circle {
-        background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
-        animation: pulseStill 4s ease-in-out infinite;
-        box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
-      }
-
       /* Coco 말하는 중 */
       .coco-speaking .pulse-circle {
         background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
@@ -160,7 +153,7 @@
         align-items: center;
         justify-content: center;
         z-index: 11000;
-        padding: 20px;
+        padding: 24px;
       }
 
       .voice-switch-modal.active {
@@ -169,52 +162,46 @@
 
       .voice-switch-card {
         width: 100%;
-        max-width: 360px;
-        background: #1f1f1f;
-        border-radius: 24px;
-        padding: 28px;
-        text-align: center;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        max-width: 420px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
         font-family: "Merriweather", serif;
       }
 
       .voice-switch-title {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 12px;
+        font-size: 22px;
+        font-weight: 700;
       }
 
       .voice-switch-text {
         font-size: 14px;
         color: var(--text-secondary);
-        line-height: 1.6;
-        margin-bottom: 24px;
+        line-height: 1.5;
       }
 
       .voice-switch-actions {
         display: flex;
         flex-direction: column;
-        gap: 12px;
-      }
-
-      .voice-switch-actions button {
-        width: 100%;
-        padding: 12px 18px;
-        border-radius: 24px;
-        border: none;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
+        gap: 10px;
+        margin-top: 6px;
       }
 
       .voice-switch-actions button.keep-trying {
-        background: #3a3a3a;
-        color: white;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
       }
 
       .voice-switch-actions button.primary {
         background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
         color: white;
+        border: none;
       }
       .vi-bar {
         width: 3px;
@@ -309,14 +296,12 @@
       <div class="voice-switch-card">
         <div class="voice-switch-title">having trouble?</div>
         <div class="voice-switch-text">
-          it looks like the mic couldn't catch what you said a few times.<br />
+          it looks like the mic couldn't catch what you said a few times.
           want to switch to the chat onboarding instead?
         </div>
         <div class="voice-switch-actions">
+          <button class="primary" id="voiceSwitchChat">switch to chat onboarding</button>
           <button class="keep-trying" id="voiceSwitchKeep">keep trying</button>
-          <button class="primary" id="voiceSwitchChat">
-            switch to chat onboarding
-          </button>
         </div>
       </div>
     </div>
@@ -333,108 +318,38 @@
       const phone = getFromLocal("phone");
       const lastName = getFromLocal("lastName") || "";
       const VOICE_API_BASE = `${API_BASE}/voice`;
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      const IS_WEBKIT =
-        /AppleWebKit/i.test(navigator.userAgent) &&
-        !/Chrome|Chromium|CriOS/i.test(navigator.userAgent);
-      const SPEECH_LANG =
-        getFromLocal("speech_lang") ||
-        (Array.isArray(navigator.languages) && navigator.languages[0]) ||
-        navigator.language ||
-        "en-US";
-      const LANG_HINTS_BY_CC = {
-        "+1": "en",
-        "+44": "en",
-        "+82": "ko",
-        "+81": "ja",
-        "+86": "zh",
-      };
+      const BROWSER_LANG = navigator.languages?.[0] || navigator.language || "en-US";
+      const SPEECH_LANGS = BROWSER_LANG.toLowerCase().startsWith("en")
+        ? ["en-US"]
+        : [BROWSER_LANG, "en-US"];
+      let speechLangIndex = 0;
       const SILENT_WAV_B64 =
-        "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-
-      /* ================= FLOW ================= */
-
-      const FLOW = [
-        { t: "bot", text: `hi ${firstName}, i'm coco` },
-        { t: "bot", text: "let's find someone\nwho really gets you" },
-        { t: "bot", text: "to do that,\ni need to get to know you first" },
-        {
-          t: "ask",
-          id: "gender",
-          q: "how do you identify\nyour gender?",
-          opts: ["woman", "man", "non-binary"],
-        },
-        { t: "gender_detail" },
-        {
-          t: "ask",
-          id: "drink",
-          q: "do you drink alcohol?",
-          opts: ["yes", "no"],
-        },
-        { t: "ask", id: "smoke", q: "do you smoke?", opts: ["yes", "no"] },
-        {
-          t: "ask",
-          id: "marijuana",
-          q: "do you use marijuana?",
-          opts: ["yes", "no"],
-        },
-        {
-          t: "ask",
-          id: "sexual_orientation",
-          q: "who catches your eye?\nmen, women, non-binary, everyone —\ntell me however feels natural",
-          opts: [
-            "men",
-            "women",
-            "men and women",
-            "men and non-binary people",
-            "women and non-binary people",
-            "all types of genders",
-          ],
-        },
-        {
-          t: "range",
-          id: "age_preference",
-          q: "what age range\nare you looking for?",
-        },
-        { t: "bot", text: "thanks for telling me" },
-        { t: "bot", text: "now let's switch gears" },
-        { t: "bot", text: "let's fill your playlist\nwith the music you love" },
-        { t: "done" },
-      ];
+        "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
       /* ================= STATE ================= */
 
-      let step = 0;
-      const answers = {};
-      const voiceTranscripts = [];
-      let currentQ = null;
-      const GENDER_STEP_INDEX = FLOW.findIndex((item) => item.id === "gender");
-      let audioUnlocked = false;
-      let recognizer = null;
-      let recognitionActive = false;
-      let liveFinal = "";
-      let flowStarted = false;
-      let speechChunks = [];
-      let speechActive = false;
-      let currentMimeType = "audio/webm";
+      const REQUIRED_FIELDS = ["gender", "gender_detail", "sexual_orientation", "age_preference", "drink", "smoke", "marijuana"];
+
+      let recognition = null;
+      let isListening = false;
       let isProcessing = false;
-      let correctionTimer = null;
+      let flowStarted = false;
+      let audioUnlocked = false;
       let speechStartTime = 0;
-      let ambientLevel = 0.03;
-      let voiceFrameCount = 0;
-      let lastVoiceTime = 0;
-      const SILENCE_MS = 1300;
-      const speechPaceSamples = [];
-      const FAILURE_THRESHOLD = 3;
-      const failureCounts = {};
       let switchModalOpen = false;
+      let noSpeechCount = 0;
+      let stuckTurns = 0;
+      let prevRequiredCount = 0;
+      const NO_SPEECH_THRESHOLD = 5;
+      const conversationHistory = [];
+      const collected = {};
+      const speechPaceSamples = [];
 
       /* ================= DOM ================= */
 
       const $msg = document.getElementById("obMsg");
       const $heard = document.getElementById("obHeard");
-      const $page = document.querySelector(".onboarding-page"); // #8: 한 곳에서만 선언
+      const $page = document.querySelector(".onboarding-page");
       const $voiceIndicator = document.getElementById("voiceIndicator");
       const $permission = document.getElementById("obPermission");
       const $permissionBtn = document.getElementById("obPermissionBtn");
@@ -448,23 +363,16 @@
       cocoPlayer.setAttribute("playsinline", "");
       cocoPlayer.playsInline = true;
 
-      /* ================= AUDIO HELPER ================= */
+      /* ================= AUDIO ================= */
 
       function playAudio(b64) {
         return new Promise((resolve) => {
-          if (!b64) {
-            resolve(false);
-            return;
-          }
-          const cleaned = String(b64).replace(/\s+/g, "");
-          const audioUrl = "data:audio/mpeg;base64," + cleaned;
+          if (!b64) { resolve(false); return; }
           const audio = cocoPlayer;
-          try {
-            audio.pause();
-          } catch {}
+          try { audio.pause(); } catch {}
           audio.onended = null;
           audio.onerror = null;
-          audio.src = audioUrl;
+          audio.src = "data:audio/mpeg;base64," + String(b64).replace(/\s+/g, "");
           audio.load();
           audio.volume = 1;
           let done = false;
@@ -475,33 +383,16 @@
             resolve(played);
           };
           $page.classList.add("coco-speaking");
-          const timeout = setTimeout(() => {
-            try {
-              audio.pause();
-            } catch {}
-            finish(false);
-          }, 8000);
-          audio.onended = () => {
-            clearTimeout(timeout);
-            finish(true);
-          };
-          audio.onerror = () => {
-            clearTimeout(timeout);
-            finish(false);
-          };
-          const playPromise = audio.play();
-          if (playPromise?.catch) {
-            playPromise.catch(() => {
-              clearTimeout(timeout);
-              finish(false);
-            });
-          }
+          const timeout = setTimeout(() => { try { audio.pause(); } catch {} finish(false); }, 8000);
+          audio.onended = () => { clearTimeout(timeout); finish(true); };
+          audio.onerror = () => { clearTimeout(timeout); finish(false); };
+          const p = audio.play();
+          if (p?.catch) p.catch(() => { clearTimeout(timeout); finish(false); });
         });
       }
 
       function setStatus(message, heard = "") {
-        if (message !== null && message !== undefined)
-          $msg.textContent = message;
+        if (message !== null && message !== undefined) $msg.textContent = message;
         if (heard !== null) $heard.textContent = heard;
       }
 
@@ -516,21 +407,8 @@
         $permissionError.classList.remove("hidden");
       }
 
-      function startFlow() {
-        if (flowStarted) return;
-        flowStarted = true;
-        next();
-      }
-
-      function speakText() {
-        // Web speech synthesis is intentionally disabled.
-        return Promise.resolve(false);
-      }
-
       async function fetchTtsAudio(text) {
-        const plain = String(text || "")
-          .replace(/\n+/g, " ")
-          .trim();
+        const plain = String(text || "").replace(/\n+/g, " ").trim();
         if (!plain) return null;
         try {
           const res = await fetch(`${VOICE_API_BASE}/tts`, {
@@ -541,17 +419,12 @@
           if (!res.ok) return null;
           const data = await res.json().catch(() => ({}));
           return data.audio || null;
-        } catch {
-          return null;
-        }
+        } catch { return null; }
       }
 
       async function playCoco(text) {
         const audio = await fetchTtsAudio(text);
-        if (audio) {
-          const played = await playAudio(audio);
-          if (played) return true;
-        }
+        if (audio) { const played = await playAudio(audio); if (played) return true; }
         return false;
       }
 
@@ -564,433 +437,124 @@
           cocoPlayer.currentTime = 0;
           const p = cocoPlayer.play();
           if (p?.catch) p.catch(() => {});
-        } catch {
-          // no-op
-        }
+        } catch {}
       }
+
+      /* ================= VOICE STATE ================= */
 
       function setVoiceState(state) {
-        $page.classList.remove(
-          "user-listening",
-          "coco-processing",
-          "correction-window",
-        );
+        $page.classList.remove("user-listening", "coco-processing");
         if (state === "listening") $page.classList.add("user-listening");
         if (state === "processing") $page.classList.add("coco-processing");
-        if (state === "correction") $page.classList.add("correction-window");
       }
 
-      function initLiveTranscription() {
-        /* disabled */
-      }
-
-      function startLiveTranscription() {
-        /* disabled */
-      }
-
-      function stopLiveTranscription() {
-        /* disabled */
-      }
-
-      function resetFailure(questionId) {
-        if (!questionId) return;
-        failureCounts[questionId] = 0;
-      }
-
-      function incrementFailure(questionId) {
-        if (!questionId) return;
-        failureCounts[questionId] = (failureCounts[questionId] || 0) + 1;
-        if (failureCounts[questionId] >= FAILURE_THRESHOLD) {
-          showSwitchModal();
-        }
-      }
+      /* ================= MODAL ================= */
 
       function showSwitchModal() {
         if (!$switchModal || switchModalOpen) return;
         $switchModal.classList.add("active");
         switchModalOpen = true;
         setVoiceState("");
-        stopLiveTranscription();
-        speechActive = false;
-        voiceFrameCount = 0;
-        try {
-          if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
-        } catch {}
+        stopListening();
       }
 
-      function hideSwitchModal(resetCurrent = false) {
+      function hideSwitchModal() {
         if (!$switchModal) return;
         $switchModal.classList.remove("active");
         switchModalOpen = false;
-        if (resetCurrent && currentQ?.id) {
-          resetFailure(currentQ.id);
-        }
+        noSpeechCount = 0;
       }
 
-      function micErrorMessage(err) {
-        const name = err?.name || "";
-        const msg = String(err?.message || "");
-        if (name === "NotAllowedError" || name === "SecurityError") {
-          return "mic permission was blocked. please allow access in the browser.";
-        }
-        if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-          return "no microphone found. please connect a mic and retry.";
-        }
-        if (
-          name === "NotReadableError" ||
-          msg.toLowerCase().includes("failed to start the audio device")
-        ) {
-          return "mic is being used by another app. close other apps and try again.";
-        }
-        if (name === "NotSupportedError") {
-          return "mic is not supported in this browser.";
-        }
-        return "failed to start the microphone. please try again.";
-      }
+      /* ================= WEB SPEECH API ================= */
 
-      function resetVoice() {
-        stopLiveTranscription();
-        try {
-          if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
+      function setupRecognition() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SR();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = SPEECH_LANGS[speechLangIndex];
+
+        recognition.onstart = () => {
+          speechStartTime = Date.now();
+          setVoiceState("listening");
+        };
+
+        recognition.onspeechstart = () => {
+          $voiceIndicator.classList.add("user-speaking");
+        };
+
+        recognition.onspeechend = () => {
+          $voiceIndicator.classList.remove("user-speaking");
+        };
+
+        recognition.onresult = (event) => {
+          noSpeechCount = 0;
+          speechLangIndex = 0;
+          recognition.lang = SPEECH_LANGS[0];
+          let final = "";
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const t = event.results[i][0].transcript;
+            if (event.results[i].isFinal) final += t;
+            else interim += t;
           }
-        } catch {}
-        if (stream) {
-          try {
-            stream.getTracks().forEach((t) => t.stop());
-          } catch {}
-        }
-        mediaRecorder = null;
-        stream = null;
-        speechChunks = [];
-        speechActive = false;
-        isProcessing = false;
-        initVoice.started = false;
-      }
-
-      function getLangCandidatesFromPhone(phoneValue) {
-        const raw = String(phoneValue || "").trim();
-        if (!raw.startsWith("+")) return null;
-        const cc = Object.keys(LANG_HINTS_BY_CC).find((code) =>
-          raw.startsWith(code),
-        );
-        if (!cc) return null;
-        const primary = LANG_HINTS_BY_CC[cc];
-        const codes = [primary, "en"].filter(
-          (v, i, a) => v && a.indexOf(v) === i,
-        );
-        return { codes, country_code: cc };
-      }
-
-      async function processSpeechBlob(blob, speechDurationMs = 0) {
-        if (!currentQ || !blob) return;
-        if (isProcessing) return;
-        if (blob.size < 500) return;
-        isProcessing = true;
-
-        const isCorrection = currentQ.t === "correction_window";
-        const prevAnswer = isCorrection ? answers[currentQ.id] || "" : "";
-        const activeQ = isCorrection
-          ? { ...currentQ, t: currentQ.originalT }
-          : currentQ;
-
-        if (isCorrection) {
-          clearTimeout(correctionTimer);
-          correctionTimer = null;
-        }
-
-        try {
-          const form = new FormData();
-          const blobType = blob.type || currentMimeType || "";
-          const ext = blobType.includes("mp4")
-            ? "mp4"
-            : blobType.includes("mpeg")
-              ? "mp3"
-              : blobType.includes("ogg") || blobType.includes("oga")
-                ? "ogg"
-                : blobType.includes("wav")
-                  ? "wav"
-                  : "webm";
-          form.append("audio", blob, `speech.${ext}`);
-          form.append("type", activeQ.t || "ask");
-          form.append("question_id", activeQ.id || "");
-
-          if (activeQ.q) {
-            form.append("question_text", activeQ.q.replace(/\n/g, " "));
+          if (interim) $heard.textContent = interim;
+          if (final.trim()) {
+            const durationMs = speechStartTime ? Date.now() - speechStartTime : 0;
+            speechStartTime = 0;
+            processTranscript(final.trim(), durationMs);
           }
+        };
 
-          if (activeQ.id === "gender_detail") {
-            form.append("base_gender", answers.gender || "");
-          }
-
-          if (currentQ.opts) {
-            form.append("options", JSON.stringify(currentQ.opts));
-          }
-          const langCandidates = getLangCandidatesFromPhone(phone);
-          if (langCandidates) {
-            form.append("lang_candidates", JSON.stringify(langCandidates));
-          }
-
-          if (isCorrection) {
-            form.append("is_correction", "true");
-            form.append("prev_answer", prevAnswer);
-          }
-          if (speechDurationMs > 0) {
-            form.append(
-              "speech_duration_ms",
-              String(Math.round(speechDurationMs)),
-            );
-          }
-
-          const res = await fetch(`${VOICE_API_BASE}/turn`, {
-            method: "POST",
-            body: form,
-          });
-          const data = await res.json().catch(() => ({}));
-
-          console.group(`🎤 [${activeQ.id}] "${data.transcript}"`);
-          console.log("question type:", activeQ.t);
-          console.log("options:", activeQ.opts);
-          console.log("mapped:", data.mapped);
-          console.log("gender_detail:", data.gender_detail);
-          console.log("reply:", data.reply);
-          console.log("raw server data:", data);
-          console.groupEnd();
-
-          if (!res.ok || data?.error) {
-            setStatus(
-              "voice service isn't available right now.\nplease try again or use text onboarding.",
-              "",
-            );
+        recognition.onerror = (event) => {
+          $voiceIndicator.classList.remove("user-speaking");
+          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            showPermissionError("mic permission was blocked. please allow access in the browser.");
+            setStatus("mic permission denied.", "");
+            isListening = false;
             return;
           }
-
-          if (data.transcript) $heard.textContent = data.transcript;
-
-          if (
-            data.transcript &&
-            speechDurationMs > 1500 &&
-            data.transcript.length > 5
-          ) {
-            const charsPerSec =
-              data.transcript.length / (speechDurationMs / 1000);
-            speechPaceSamples.push(charsPerSec);
+          if (event.error === "no-speech") {
+            if (speechLangIndex < SPEECH_LANGS.length - 1) {
+              speechLangIndex++;
+              recognition.lang = SPEECH_LANGS[speechLangIndex];
+            } else {
+              speechLangIndex = 0;
+              recognition.lang = SPEECH_LANGS[0];
+              noSpeechCount++;
+              if (noSpeechCount >= NO_SPEECH_THRESHOLD) {
+                noSpeechCount = 0;
+                showSwitchModal();
+              }
+            }
           }
+        };
 
-          await handleUtteranceServer(data, activeQ);
-        } catch (e) {
-          console.error("turn error:", e);
-          setStatus(
-            "voice service isn't available right now.\nplease try again or use text onboarding.",
-            "",
-          );
-        } finally {
-          isProcessing = false;
-        }
+        recognition.onend = () => {
+          $voiceIndicator.classList.remove("user-speaking");
+          if (isListening && !isProcessing && !switchModalOpen) {
+            setTimeout(() => {
+              if (isListening && !isProcessing && !switchModalOpen) {
+                try { recognition.start(); } catch (e) {}
+              }
+            }, 150);
+          }
+        };
       }
 
-      function finalizeSpeech() {
-        if (!speechActive) return;
-        speechActive = false;
-        const speechDurationMs = speechStartTime
-          ? Date.now() - speechStartTime
-          : 0;
-        speechStartTime = 0;
-        stopLiveTranscription();
+      function startListening() {
+        if (!recognition || isProcessing || switchModalOpen) return;
+        isListening = true;
+        try { recognition.start(); } catch (e) {}
+      }
+
+      function stopListening() {
+        isListening = false;
         $voiceIndicator.classList.remove("user-speaking");
-        setVoiceState("processing");
-
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder._pendingDurationMs = speechDurationMs;
-          try {
-            mediaRecorder.stop();
-          } catch (e) {}
-        }
+        try { recognition.stop(); } catch (e) {}
       }
 
-      /* ================= VOICE RECORD ================= */
-
-      let mediaRecorder, stream;
-
-      async function initVoice() {
-        if (initVoice.started) return true;
-
-        const host = window.location.hostname;
-        const isLocal =
-          host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
-        if (!window.isSecureContext && !isLocal) {
-          const msg =
-            "mic access requires https (or localhost).\nplease open with a secure url.";
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-
-        if (!navigator.mediaDevices?.getUserMedia) {
-          const msg =
-            "mic access isn't supported on this device.\nplease use the text onboarding instead.";
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-
-        if (!window.MediaRecorder) {
-          const msg =
-            "voice recording isn't supported here.\nplease use the text onboarding instead.";
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (err) {
-          console.error("getUserMedia failed:", err);
-          const msg = micErrorMessage(err);
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-
-        initLiveTranscription();
-
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : MediaRecorder.isTypeSupported("audio/mp4")
-            ? "audio/mp4"
-            : "";
-
-        try {
-          mediaRecorder = new MediaRecorder(
-            stream,
-            mimeType ? { mimeType } : {},
-          );
-        } catch (err) {
-          console.error("MediaRecorder init failed:", err);
-          const msg = micErrorMessage(err);
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-        currentMimeType = mediaRecorder.mimeType || mimeType || "audio/webm";
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            if (e.data.type) currentMimeType = e.data.type;
-            speechChunks.push(e.data);
-          }
-        };
-        mediaRecorder.onstop = () => {
-          if (!speechChunks.length) return;
-          const blobType = speechChunks[0]?.type || currentMimeType;
-          const blob = new Blob(speechChunks, { type: blobType });
-          const durationMs = mediaRecorder._pendingDurationMs || 0;
-          mediaRecorder._pendingDurationMs = 0;
-          speechChunks = [];
-          processSpeechBlob(blob, durationMs);
-        };
-
-        let ctx;
-        try {
-          ctx = new AudioContext();
-          await ctx.resume();
-        } catch (err) {
-          console.error("AudioContext init failed:", err);
-          const msg = "audio output is blocked. please allow sound and retry.";
-          showPermissionError(msg);
-          setStatus(msg, "");
-          return false;
-        }
-        const src = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        src.connect(analyser);
-        const buf = new Uint8Array(analyser.fftSize);
-
-        async function calibrateAmbient() {
-          const samples = [];
-          return new Promise((resolve) => {
-            let count = 0;
-            function sample() {
-              analyser.getByteTimeDomainData(buf);
-              let sum = 0;
-              for (let i = 0; i < buf.length; i++) {
-                const v = (buf[i] - 128) / 128;
-                sum += v * v;
-              }
-              samples.push(Math.sqrt(sum / buf.length));
-              count++;
-              if (count < 60) {
-                requestAnimationFrame(sample);
-              } else {
-                const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-                ambientLevel = Math.max(avg * 2.5, 0.03);
-                resolve();
-              }
-            }
-            requestAnimationFrame(sample);
-          });
-        }
-
-        function detect() {
-          analyser.getByteTimeDomainData(buf);
-          if (!currentQ || $page.classList.contains("coco-speaking")) {
-            voiceFrameCount = 0;
-            requestAnimationFrame(detect);
-            return;
-          }
-          let sum = 0;
-          for (let i = 0; i < buf.length; i++) {
-            const v = (buf[i] - 128) / 128;
-            sum += v * v;
-          }
-          const vol = Math.sqrt(sum / buf.length);
-
-          if (vol > ambientLevel) {
-            lastVoiceTime = Date.now();
-            voiceFrameCount++;
-            if (voiceFrameCount >= 3) {
-              $voiceIndicator.classList.add("user-speaking");
-              if (!speechActive) {
-                speechChunks = [];
-                speechActive = true;
-                speechStartTime = Date.now();
-                setVoiceState("listening");
-                startLiveTranscription();
-                if (mediaRecorder && mediaRecorder.state === "inactive") {
-                  try {
-                    mediaRecorder.start();
-                  } catch (e) {}
-                }
-              }
-            }
-          } else {
-            voiceFrameCount = 0;
-            if (speechActive) {
-              if (speechActive && Date.now() - lastVoiceTime > SILENCE_MS) {
-                $voiceIndicator.classList.remove("user-speaking");
-                finalizeSpeech();
-              }
-            }
-          }
-
-          requestAnimationFrame(detect);
-          // #8: $page를 detect 안에서 다시 선언하지 않음
-        }
-        await calibrateAmbient();
-
-        // 30초마다 말 안 할 때 재캘리브레이션
-        setInterval(async () => {
-          if (!speechActive && !$page.classList.contains("coco-speaking")) {
-            await calibrateAmbient();
-          }
-        }, 30000);
-
-        detect();
-        initVoice.started = true;
-        showPermissionError("");
-        return true;
-      }
+      /* ================= PERMISSION ================= */
 
       async function handlePermissionStart() {
         if (!$permissionBtn) return;
@@ -998,229 +562,159 @@
         showPermissionError("");
         unlockAudioPlayback();
         setStatus("initializing mic...", "");
-        const ok = await initVoice();
-        if (ok) {
-          $permission?.classList.add("hidden");
-          setStatus("", "");
-          startFlow();
-        } else {
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          showPermissionError("voice recognition isn't supported in this browser.\nplease use text onboarding instead.");
           $permissionBtn.disabled = false;
+          return;
         }
+
+        // trigger browser permission prompt
+        const granted = await new Promise((resolve) => {
+          let done = false;
+          const finish = (v) => { if (!done) { done = true; resolve(v); } };
+          const temp = new SR();
+          temp.onstart = () => { temp.abort(); finish(true); };
+          temp.onerror = (e) => {
+            if (e.error === "not-allowed" || e.error === "service-not-allowed") finish(false);
+            else finish(true);
+          };
+          temp.onend = () => finish(true);
+          setTimeout(() => finish(true), 4000);
+          try { temp.start(); } catch (e) { finish(false); }
+        });
+
+        if (!granted) {
+          showPermissionError("mic permission was blocked. please allow access in the browser.");
+          $permissionBtn.disabled = false;
+          return;
+        }
+
+        setupRecognition();
+        $permission?.classList.add("hidden");
+        setStatus("", "");
+        startFlow();
       }
 
       $permissionBtn?.addEventListener("click", handlePermissionStart);
-      $permissionSkip?.addEventListener("click", () => {
-        navigateTo("onboarding-chat.html");
-      });
+      $permissionSkip?.addEventListener("click", () => navigateTo("onboarding-chat.html"));
 
       $switchKeep?.addEventListener("click", () => {
-        hideSwitchModal(true);
-        setStatus("okay, let's try that again.", "");
+        hideSwitchModal();
+        setStatus("okay, let's try again.", "");
+        startListening();
       });
-      $switchChat?.addEventListener("click", () => {
-        navigateTo("onboarding-chat.html");
-      });
-
-      /* ================= HANDLE UTTERANCE ================= */
-
-      // #7: range와 ask 완전히 분기 — 이중 저장 없음
-      async function handleUtteranceServer(data, q) {
-        if (q.t === "range") {
-          if (data.min !== undefined && data.max !== undefined) {
-            answers[q.id] = { min: data.min, max: data.max };
-            resetFailure(q.id);
-            const replyText = data.reply || "got it";
-            $msg.textContent = replyText;
-            await playAudio(data.audio);
-            step++;
-            next();
-          } else {
-            // #5: min/max 없을 때 재질문
-            const reaskText =
-              data.reply || "could you tell me the age range you have in mind?";
-            $msg.textContent = reaskText;
-            await playCoco(reaskText);
-            incrementFailure(q.id);
-          }
-          return;
-        }
-
-        // 일반 ask
-        const mapped = data.mapped;
-        if (!mapped) {
-          const reaskText =
-            data.reply || "hmm, could you say that differently?";
-          $msg.textContent = reaskText;
-          await playCoco(reaskText);
-          currentQ = q;
-          incrementFailure(q.id);
-          return;
-        }
-
-        answers[q.id] = mapped;
-        resetFailure(q.id);
-        if (q.id === "gender" && data.gender_detail) {
-          answers["gender_detail"] = data.gender_detail;
-        }
-
-        console.log("📋 answers so far:", JSON.parse(JSON.stringify(answers)));
-        console.log("📝 transcripts so far:", voiceTranscripts.length);
-
-        voiceTranscripts.push({
-          question: q.q,
-          said: data.transcript,
-          mappedTo: mapped,
-        });
-
-        const replyText = data.reply || "got it";
-        $msg.textContent = replyText;
-        await playAudio(data.audio);
-
-        // ✅ 에코 후 correction window 진입 (3초 대기)
-        setVoiceState("correction");
-        $heard.textContent = "";
-        currentQ = { ...q, t: "correction_window", originalT: q.t };
-
-        correctionTimer = setTimeout(() => {
-          correctionTimer = null;
-          currentQ = null;
-          step++;
-          next();
-        }, 4000);
-      }
+      $switchChat?.addEventListener("click", () => navigateTo("onboarding-chat.html"));
 
       /* ================= FLOW ================= */
 
-      async function next() {
-        const q = FLOW[step];
-        if (!q) return;
-        if (q.id) resetFailure(q.id);
+      const INTRO_STEPS = [
+        `hi ${firstName}, i'm coco`,
+        "let's find someone\nwho really gets you",
+        "to do that,\ni need to get to know you first",
+      ];
 
-        setVoiceState("");
-        currentQ = null;
-
-        if (q.t === "bot") {
-          $msg.textContent = q.text;
-          await playCoco(q.text);
-          step++;
-          next();
-          return;
+      async function startFlow() {
+        if (flowStarted) return;
+        flowStarted = true;
+        for (const text of INTRO_STEPS) {
+          $msg.textContent = text;
+          $heard.textContent = "";
+          await playCoco(text);
         }
+        await conversationTurn();
+      }
 
-        if (q.t === "gender_detail") {
-          if (answers.gender_detail) {
-            step++;
-            next();
-            return;
-          }
-          if (!answers.gender) {
-            setStatus("before this, tell me your gender first.");
-            if (GENDER_STEP_INDEX >= 0) {
-              step = GENDER_STEP_INDEX;
-            } else {
-              step = Math.max(0, step - 1);
-            }
-            next();
-            return;
-          }
-          const map = {
-            woman: [
-              "cis woman",
-              "trans woman",
-              "intersex woman",
-              "transfeminine",
-              "woman and non-binary",
-            ],
-            man: [
-              "cis man",
-              "trans man",
-              "intersex man",
-              "transmasculine",
-              "man and non-binary",
-            ],
-            "non-binary": [
-              "agender",
-              "bigender",
-              "genderfluid",
-              "genderqueer",
-              "gender nonconforming",
-              "gender questioning",
-              "gender variant",
-              "intersex",
-              "neutrois",
-              "non-binary man",
-              "non-binary woman",
-              "pangender",
-              "polygender",
-              "transgender",
-              "two-spirit",
-            ],
-          };
-          const opts = map[answers.gender];
-          if (!opts) {
-            setStatus("could you choose a gender first?");
-            step =
-              GENDER_STEP_INDEX >= 0
-                ? GENDER_STEP_INDEX
-                : Math.max(0, step - 1);
-            next();
-            return;
-          }
-          FLOW.splice(step, 1, {
-            t: "ask",
-            id: "gender_detail",
-            q: "a little more specific —\ncis, trans, non-binary?\nor something else entirely?",
-            opts,
+      /* ================= CONVERSATION ================= */
+
+      async function processTranscript(transcript, durationMs) {
+        if (isProcessing) return;
+        if (durationMs > 1000 && transcript.length > 5) {
+          speechPaceSamples.push(transcript.length / (durationMs / 1000));
+        }
+        $heard.textContent = transcript;
+        conversationHistory.push({ role: "user", content: transcript });
+        await conversationTurn();
+      }
+
+      async function conversationTurn() {
+        isProcessing = true;
+        stopListening();
+        setVoiceState("processing");
+
+        try {
+          const res = await fetch(`${VOICE_API_BASE}/turn`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              history: conversationHistory.slice(-20),
+              collected,
+              firstName,
+            }),
           });
-          next();
-          return;
-        }
 
-        if (q.t === "ask") {
-          console.log(`➡️ step ${step}: ask [${q.id}]`, q.opts);
-          $msg.textContent = q.q;
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+
+          if (data.collected) Object.assign(collected, data.collected);
+          conversationHistory.push({ role: "assistant", content: data.reply });
+
+          $msg.textContent = data.reply;
           $heard.textContent = "";
-          await playCoco(q.q);
-          currentQ = q;
-          setVoiceState("listening");
-          return;
-        }
+          await playAudio(data.audio);
 
-        if (q.t === "range") {
-          console.log(`➡️ step ${step}: range [${q.id}]`);
-          $msg.textContent = q.q;
-          $heard.textContent = "";
-          await playCoco(q.q);
-          currentQ = q; // opts 없음 → backend is_range=True
-          setVoiceState("listening");
-          return; // #6: return 추가 — done으로 fall-through 없음
-        }
+          if (data.is_complete) {
+            await finish();
+            return;
+          }
 
-        if (q.t === "done") {
-          console.log(
-            "✅ DONE. Final answers:",
-            JSON.parse(JSON.stringify(answers)),
-          );
-          finish();
+          // stuck 감지: 오디오 재생 후 체크 (유저가 응답을 들은 뒤 전환)
+          const userTurns = conversationHistory.filter(m => m.role === "user").length;
+          if (userTurns > 0) {
+            const requiredCount = REQUIRED_FIELDS.filter(k => collected[k]).length;
+            if (requiredCount > prevRequiredCount) {
+              stuckTurns = 0;
+              prevRequiredCount = requiredCount;
+            } else {
+              stuckTurns++;
+              if (stuckTurns >= 3) {
+                fallbackToChat();
+                return;
+              }
+            }
+          }
+
+          isProcessing = false;
+          startListening();
+        } catch (e) {
+          console.error("turn error:", e);
+          setStatus("voice service isn't available right now.\nplease try again or use text onboarding.", "");
+          isProcessing = false;
+          startListening();
         }
+      }
+
+      function fallbackToChat() {
+        saveToLocal("voice_collected", collected);
+        navigateTo("onboarding-chat.html");
       }
 
       /* ================= BIO ================= */
 
       async function generateBio() {
-        if (!voiceTranscripts.length) return "";
+        if (!conversationHistory.length) return "";
         try {
           const res = await fetch(`${VOICE_API_BASE}/bio`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transcripts: voiceTranscripts }),
+            body: JSON.stringify({ history: conversationHistory }),
           });
           if (!res.ok) return "";
           const d = await res.json();
           return d.bio || "";
-        } catch {
-          return "";
-        }
+        } catch { return ""; }
       }
 
       /* ================= FINISH ================= */
@@ -1229,25 +723,35 @@
         showLoading();
         try {
           const bio = await generateBio();
-
-          // 유효 샘플 2개 이상일 때만 전송
           const speech_pace =
             speechPaceSamples.length >= 2
-              ? speechPaceSamples.reduce((a, b) => a + b) /
-                speechPaceSamples.length
+              ? speechPaceSamples.reduce((a, b) => a + b) / speechPaceSamples.length
               : null;
+
+          // convert conversationHistory to {question, said} format for embedding
+          const transcripts = [];
+          for (let i = 0; i < conversationHistory.length; i++) {
+            const msg = conversationHistory[i];
+            if (msg.role === "user" && msg.content) {
+              const prev = conversationHistory[i - 1];
+              transcripts.push({
+                question: (prev?.role === "assistant" ? prev.content : "") || "",
+                said: msg.content,
+              });
+            }
+          }
 
           await apiCall("/onboarding/save", "POST", {
             user_id: userId,
-            profile: answers,
+            profile: collected,
             firstName,
             lastName,
             age,
             birthdate,
             phone,
-            transcripts: voiceTranscripts,
+            transcripts,
             ...(bio ? { bio } : {}),
-            ...(speech_pace !== null ? { speech_pace } : {}), // 추가
+            ...(speech_pace !== null ? { speech_pace } : {}),
           });
           saveToLocal("onboarding_completed", true);
           saveToLocal("just_completed_onboarding", true);

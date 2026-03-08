@@ -80,14 +80,26 @@
         scrollBottom();
       }
 
+      /* voice fallback: load pre-collected data if redirected from voice onboarding */
+      const voiceCollected = getFromLocal("voice_collected");
+      if (voiceCollected && typeof voiceCollected === "object") {
+        Object.assign(answers, voiceCollected);
+        saveToLocal("voice_collected", null);
+      }
+      const fromVoice = !!voiceCollected;
+
       /* questions */
       const firstName = getFromLocal("firstName") || "there";
 
       const Q = [
-        { type: "bot", text: `hi ${firstName}, i'm coco` },
-        { type: "bot", text: "let's find someone who really gets you" },
-        { type: "bot", text: "to do that," },
-        { type: "bot", text: "we need to get to know you first" },
+        ...(fromVoice
+          ? [{ type: "bot", text: "let me ask a few more things in text" }]
+          : [
+              { type: "bot", text: `hi ${firstName}, i'm coco` },
+              { type: "bot", text: "let's find someone who really gets you" },
+              { type: "bot", text: "to do that," },
+              { type: "bot", text: "we need to get to know you first" },
+            ]),
 
         {
           type: "select",
@@ -199,27 +211,45 @@
         }
 
         if (q.type === "select") {
+          // skip if already answered from voice
+          if (answers[q.id] !== undefined) {
+            step++;
+            next();
+            return;
+          }
           addBot(q.text);
           ageBox.classList.remove("active");
-          select.style.display = "block"; // 추가: select 보이기
-          select.disabled = false; // 활성화
+          select.style.display = "block";
+          select.disabled = false;
           send.disabled = true;
           select.innerHTML =
-            `<option value="">select</option>` + // 수정: placeholder 텍스트
-            q.options.map((o) => `<option value="${o}">${o}</option>`).join(""); // 수정: value 추가
+            `<option value="">select</option>` +
+            q.options.map((o) => `<option value="${o}">${o}</option>`).join("");
           return;
         }
 
         if (q.type === "range") {
+          // skip if already answered from voice
+          if (answers[q.id] !== undefined) {
+            step++;
+            next();
+            return;
+          }
           addBot(q.text);
           ageBox.classList.add("active");
           select.style.display = "none";
-          select.disabled = true; // 추가: range일 때는 select 비활성화
+          select.disabled = true;
           send.disabled = false;
           return;
         }
 
         if (q.type === "gender_detail") {
+          // skip entirely if already answered from voice
+          if (answers.gender_detail !== undefined) {
+            step++;
+            next();
+            return;
+          }
           const g = answers.gender;
           const map = {
             woman: [
