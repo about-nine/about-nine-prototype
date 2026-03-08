@@ -211,6 +211,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_age = me.get("age")
     my_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
+    my_blocked = set(me.get("blocked_users") or [])
 
     completed_partners = partners_completed_three_rounds(db, uid)
     pending_partners, had_no_partners = partner_status_flags(db, uid)
@@ -242,17 +243,18 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
         if not my_loc or not other_loc:
             continue
 
-        try:
-            d = distance_km(
-                float(my_loc.get("lat")),
-                float(my_loc.get("lng")),
-                float(other_loc.get("lat")),
-                float(other_loc.get("lng")),
-            )
-        except Exception:
-            continue
-        if d > DEFAULT_DISTANCE_KM:
-            continue
+        # 거리 체크 (10km) - TEMP disabled for AI match
+        # try:
+        #     d = distance_km(
+        #         float(my_loc.get("lat")),
+        #         float(my_loc.get("lng")),
+        #         float(other_loc.get("lat")),
+        #         float(other_loc.get("lng")),
+        #     )
+        # except Exception:
+        #     continue
+        # if d > DEFAULT_DISTANCE_KM:
+        #     continue
 
         other_gender = user.get("gender")
         other_age = user.get("age")
@@ -394,14 +396,14 @@ def filter_users_for_list(user_id, bypass_filters=False):
             filtered_stats["no_location"] += 1
             continue
 
-        # 거리 체크 (10km)
-        d = distance_km(
-            my_loc["lat"], my_loc["lng"],
-            loc["lat"], loc["lng"]
-        )
-        if d > DEFAULT_DISTANCE_KM:
-            filtered_stats["too_far"] += 1
-            continue
+        # 거리 체크 (10km) - TEMP disabled for lounge list
+        # d = distance_km(
+        #     my_loc["lat"], my_loc["lng"],
+        #     loc["lat"], loc["lng"]
+        # )
+        # if d > DEFAULT_DISTANCE_KM:
+        #     filtered_stats["too_far"] += 1
+        #     continue
 
         other_gender = u.get("gender")
         other_age = u.get("age")

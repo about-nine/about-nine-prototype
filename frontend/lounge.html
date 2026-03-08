@@ -550,7 +550,7 @@
 
       async function updateLocation() {
         const stored = getFromLocal("location");
-        if (!stored?.lat || !stored?.lng) return;
+        if (stored?.lat == null || stored?.lng == null) return;
         try {
           await apiCall("/users/update-location", "POST", { lat: stored.lat, lng: stored.lng });
         } catch (error) {
@@ -660,8 +660,16 @@
 
       function formatTrackLabel(track) {
         if (!track) return "";
-        const name   = (track.name || "").trim();
-        const artist = (track.artist || track.artists || track.artist_name || track.artistName || "").trim();
+        const name = (track.name || "").trim();
+        let artistValue = track.artist || track.artists || track.artist_name || track.artistName || "";
+        if (Array.isArray(artistValue)) {
+          artistValue = artistValue.map((a) => {
+            if (!a) return "";
+            if (typeof a === "string") return a;
+            return a.name || "";
+          }).filter(Boolean).join(", ");
+        }
+        const artist = (artistValue || "").trim();
         return name && artist ? `${name} - ${artist}` : name || artist;
       }
 
@@ -689,7 +697,10 @@
         const el = document.getElementById(containerId);
         const isAi = mode === "ai";
 
-        const filteredList = list.filter((user) => !shouldHideUserFromLists(user));
+        const safeList = Array.isArray(list)
+          ? list.filter((user) => user && getUserId(user))
+          : [];
+        const filteredList = safeList.filter((user) => !shouldHideUserFromLists(user));
 
         if (!filteredList.length) {
           el.innerHTML = `
@@ -1002,6 +1013,7 @@
       }
 
       async function openPlaylist(u) {
+        if (!u) return;
         selectedUser = u;
         playlistTracks = u.playlist || [];
         currentPlayingIndex = -1;
