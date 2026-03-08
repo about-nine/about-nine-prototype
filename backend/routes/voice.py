@@ -238,7 +238,7 @@ Only extract what was clearly said in this turn. Do not re-extract already-colle
         gpt = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.4,
-            max_tokens=300,
+
             response_format={"type": "json_object"},
             messages=messages,
         )

@@ -502,10 +502,14 @@
           showSwitchModal();
           return;
         }
-        const hint = NO_SPEECH_HINTS[noSpeechCount];
-        if (hint) setStatus(hint, "");
         stopListening();
-        startListening();
+        const hint = NO_SPEECH_HINTS[noSpeechCount];
+        if (hint) {
+          setStatus(hint, "");
+          playCoco(hint).then(() => { if (!switchModalOpen) startListening(); });
+        } else {
+          startListening();
+        }
       }
 
       function showSwitchModal() {
@@ -772,7 +776,10 @@
           startListening();
         } catch (e) {
           console.error("turn error:", e);
-          setStatus("voice service isn't available right now.\nplease try again or use text onboarding.", "");
+          // 에러 난 턴의 user 메시지를 history에서 제거해 다음 턴 맥락 오염 방지
+          if (conversationHistory.length && conversationHistory[conversationHistory.length - 1].role === "user") {
+            conversationHistory.pop();
+          }
           isProcessing = false;
           startListening();
         }
