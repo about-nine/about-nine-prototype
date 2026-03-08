@@ -496,6 +496,20 @@
         return rawSpeaker;
       }
 
+      const WHISPER_ECHO_PHRASE =
+        "transcribe speech as spoken, preserving the original language and script";
+
+      function normalizePromptText(text) {
+        if (!text || typeof text !== "string") return "";
+        return text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      const NORMALIZED_WHISPER_ECHO = normalizePromptText(WHISPER_ECHO_PHRASE);
+
       function renderRoundContent(roundNumber) {
         const contentEl = document.getElementById("roundContent");
         const talk = roundsMap[roundNumber];
@@ -507,7 +521,16 @@
         const partnerName = getPartnerName();
 
         const conversation = Array.isArray(talk.conversation)
-          ? talk.conversation.map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`).join("\n")
+          ? talk.conversation
+            .filter((t) => {
+              const text = t?.text || "";
+              const normalized = normalizePromptText(text);
+              if (!normalized) return false;
+              if (NORMALIZED_WHISPER_ECHO && normalized.includes(NORMALIZED_WHISPER_ECHO)) return false;
+              return true;
+            })
+            .map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`)
+            .join("\n")
           : "analysis pending";
 
         const selectionHtml = roundNumber === 3

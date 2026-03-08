@@ -14,6 +14,7 @@ Agora 개별 녹음 WAV → OpenAI Whisper API STT → 통합 대화 전사본
 """
 
 import os
+import re
 import wave
 import struct
 import tempfile
@@ -319,6 +320,19 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
         "구독과 좋아요", "시청해 주셔서 감사합니다", "영상 시청",
     }
 
+    prompt_phrases = [
+        WHISPER_PROMPT,
+        "Transcribe speech as spoken, preserving the original language and script.",
+    ]
+    normalized_prompts = []
+    for phrase in prompt_phrases:
+        if not phrase:
+            continue
+        normalized = re.sub(r"[^a-z0-9]+", " ", phrase.lower())
+        normalized = " ".join(normalized.split())
+        if normalized:
+            normalized_prompts.append(normalized)
+
     filtered = []
     for seg in segments:
         text = seg["text"].strip()
@@ -326,6 +340,13 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
         # 너무 짧음
         if len(text) < min_text_len:
             continue
+
+        if normalized_prompts:
+            normalized_text = re.sub(r"[^a-z0-9]+", " ", text.lower())
+            normalized_text = " ".join(normalized_text.split())
+            if normalized_text:
+                if any(p in normalized_text for p in normalized_prompts):
+                    continue
 
         # 알려진 환각 패턴
         if text.lower().strip(".,!? ") in HALLUCINATION_PATTERNS:
