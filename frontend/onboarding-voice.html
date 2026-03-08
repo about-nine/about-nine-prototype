@@ -781,7 +781,7 @@
       async function fallbackToChat() {
         setVoiceState("");
         stopListening();
-        const msg = "let's continue in chat — just a moment.";
+        const msg = "seems like voice isn't quite working — let's finish this in chat.";
         setStatus(msg, "");
         saveToLocal("voice_collected", collected);
         await playCoco(msg);

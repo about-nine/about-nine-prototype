@@ -193,7 +193,7 @@ Already collected: {json.dumps(collected)}
 Still needed (REQUIRED): {missing_required}
 
 {"This is the very start of the conversation. In one sentence: greet them by name (" + (first_name or "their name") + "), introduce yourself as COCO, and ask how they identify in terms of gender." if is_initial else ""}
-{"gender_detail is still missing — ask how they specifically identify. Since this can be unfamiliar, give 2-3 short examples from the allowed list: " + str(GENDER_DETAIL_OPTIONS.get(collected.get("gender",""), [])) + ". Keep it to one sentence." if collected.get("gender") and not collected.get("gender_detail") else ""}
+{"gender_detail is still needed — ask with 2-3 examples: " + str(GENDER_DETAIL_OPTIONS.get(collected.get("gender", ""), ["cis woman/man", "trans woman/man", "non-binary"])) + ". If gender is also unclear, collect it first then immediately ask gender_detail with examples." if "gender_detail" in missing_required else ""}
 {"All required info is collected — wrap up the conversation warmly and naturally." if all_done else ""}
 {_nudge_instruction(nudge_field, collected) if nudge_field else ""}
 
@@ -238,7 +238,7 @@ Only extract what was clearly said in this turn. Do not re-extract already-colle
         gpt = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.4,
-            max_tokens=120,
+            max_tokens=300,
             response_format={"type": "json_object"},
             messages=messages,
         )
