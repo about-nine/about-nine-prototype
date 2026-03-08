@@ -333,6 +333,22 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
         if normalized:
             normalized_prompts.append(normalized)
 
+    def _is_prompt_echo(normalized_text: str) -> bool:
+        if not normalized_text or not normalized_prompts:
+            return False
+        for prompt in normalized_prompts:
+            if prompt not in normalized_text:
+                continue
+            leftover = normalized_text
+            prev = None
+            while prev != leftover:
+                prev = leftover
+                leftover = leftover.replace(prompt, " ")
+                leftover = " ".join(leftover.split())
+            if not leftover:
+                return True
+        return False
+
     filtered = []
     for seg in segments:
         text = seg["text"].strip()
@@ -344,9 +360,8 @@ def _filter_hallucinations(segments: List[Dict], min_text_len: int = 2) -> List[
         if normalized_prompts:
             normalized_text = re.sub(r"[^a-z0-9]+", " ", text.lower())
             normalized_text = " ".join(normalized_text.split())
-            if normalized_text:
-                if any(p in normalized_text for p in normalized_prompts):
-                    continue
+            if _is_prompt_echo(normalized_text):
+                continue
 
         # 알려진 환각 패턴
         if text.lower().strip(".,!? ") in HALLUCINATION_PATTERNS:

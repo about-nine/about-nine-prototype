@@ -510,6 +510,20 @@
 
       const NORMALIZED_WHISPER_ECHO = normalizePromptText(WHISPER_ECHO_PHRASE);
 
+      function isPromptEcho(normalizedText) {
+        if (!NORMALIZED_WHISPER_ECHO || !normalizedText) return false;
+        let leftover = normalizedText;
+        let prev = null;
+        while (prev !== leftover) {
+          prev = leftover;
+          leftover = leftover
+            .replace(NORMALIZED_WHISPER_ECHO, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+        return leftover.length === 0;
+      }
+
       function renderRoundContent(roundNumber) {
         const contentEl = document.getElementById("roundContent");
         const talk = roundsMap[roundNumber];
@@ -523,10 +537,10 @@
         const conversation = Array.isArray(talk.conversation)
           ? talk.conversation
             .filter((t) => {
-              const text = t?.text || "";
+              const text = t?.text;
+              if (typeof text !== "string" || !text.trim()) return false;
               const normalized = normalizePromptText(text);
-              if (!normalized) return false;
-              if (NORMALIZED_WHISPER_ECHO && normalized.includes(NORMALIZED_WHISPER_ECHO)) return false;
+              if (isPromptEcho(normalized)) return false;
               return true;
             })
             .map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`)
