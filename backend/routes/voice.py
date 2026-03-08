@@ -27,8 +27,10 @@ SEXUAL_ORIENTATION_OPTIONS = [
 
 _STT_CORRECTIONS = [
     # --- gender_detail ---
-    # "cis" sounds like "this", "sis", "siz", "six", "chris"
+    # "cis" sounds like "this", "sis", "siz", "six", "chris", "sus", "susse", "sussman"
     (r"\b(?:this|sis|siz|six|chris)\s+(woman|man)\b", r"cis \1"),
+    (r"\b(?:susse?man|sus\s+man|suss\s+man)\b", "cis man"),
+    (r"\b(?:suswoman|sus\s+woman)\b", "cis woman"),
     (r"\bcis[-\s]?(woman|man)\b", r"cis \1"),
     # "trans" variations
     (r"\btrans[-\s]?(woman|man|gender|masculine|feminine|feminin)\b", r"trans\1"),
@@ -141,8 +143,9 @@ def _nudge_instruction(field: str, collected: dict) -> str:
     opts = get_opts(collected)
     sample = opts[:3] if len(opts) > 3 else opts
     return (
-        f"NUDGE: The user has been struggling with '{field}' for several turns. "
-        f"Ask directly and name 2-3 specific options from: {sample}. Still one sentence only."
+        f"CRITICAL: The user has not answered '{field}' after multiple turns. "
+        f"Ignore any social small talk or off-topic responses — do NOT respond to them. "
+        f"Ask ONLY about '{field}' and list the options directly: {sample}. One sentence."
     )
 
 
@@ -209,6 +212,7 @@ Conversation rules:
 - If the same field keeps failing across multiple turns, rephrase the question completely — describe it differently or offer a brief list of options rather than asking the same way again
 - Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
 - Speech recognition may mishear certain words. When extracting fields, consider: "this/sis woman" likely means "cis woman", "non binary" means "non-binary", "weed/cannabis" means marijuana, "amen" when discussing gender likely means "a man"
+- If the user says something off-topic (greetings, farewells, unrelated comments), do not engage with it — briefly redirect back to the current question
 - ONE sentence only. Maximum 15 words. Never two sentences. Never a follow-up clause.
 - Never use lists, options, or multiple questions in one turn
 - Always reply in English
