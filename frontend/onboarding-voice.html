@@ -318,11 +318,29 @@
       const phone = getFromLocal("phone");
       const lastName = getFromLocal("lastName") || "";
       const VOICE_API_BASE = `${API_BASE}/voice`;
-      const BROWSER_LANG = navigator.languages?.[0] || navigator.language || "en-US";
-      const SPEECH_LANGS = BROWSER_LANG.toLowerCase().startsWith("en")
-        ? ["en-US"]
-        : [BROWSER_LANG, "en-US"];
-      let speechLangIndex = 0;
+      const LANG_HINTS_BY_CC = {
+        "1": "en", "44": "en", "61": "en", "64": "en", "353": "en", "27": "en",
+        "82": "ko", "81": "ja", "86": "zh", "886": "zh",
+        "33": "fr", "49": "de", "34": "es", "39": "it",
+        "55": "pt", "351": "pt", "52": "es", "54": "es", "57": "es", "56": "es",
+        "7": "ru", "91": "hi", "66": "th", "84": "vi", "62": "id", "60": "ms",
+        "31": "nl", "46": "sv", "47": "no", "45": "da", "358": "fi",
+        "48": "pl", "420": "cs", "36": "hu", "380": "uk", "90": "tr",
+        "966": "ar", "971": "ar", "20": "ar", "972": "he",
+      };
+      function getSttLanguage(phone) {
+        if (!phone) return null;
+        const digits = phone.replace(/\D/g, "");
+        for (const len of [3, 2, 1]) {
+          const cc = digits.slice(0, len);
+          if (LANG_HINTS_BY_CC[cc]) {
+            const lang = LANG_HINTS_BY_CC[cc];
+            return lang === "en" ? "en" : null; // non-English → auto-detect
+          }
+        }
+        return null;
+      }
+      const STT_LANGUAGE = getSttLanguage(phone); // "en" or null (auto-detect)
       const SILENT_WAV_B64 =
         "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -330,17 +348,34 @@
 
       const REQUIRED_FIELDS = ["gender", "gender_detail", "sexual_orientation", "age_preference", "drink", "smoke", "marijuana"];
 
-      let recognition = null;
+      let mediaStream = null;
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let audioContext = null;
+      let analyser = null;
+      let vadInterval = null;
+      let noSpeechTimer = null;
       let isListening = false;
       let isProcessing = false;
       let flowStarted = false;
       let audioUnlocked = false;
+      let speechDetected = false;
       let speechStartTime = 0;
+      let silenceStart = null;
       let switchModalOpen = false;
       let noSpeechCount = 0;
       let stuckTurns = 0;
       let prevRequiredCount = 0;
       const NO_SPEECH_THRESHOLD = 5;
+      const NO_SPEECH_HINTS = {
+        2: "try speaking a bit louder or closer to your mic",
+        3: "make sure you're in a quiet place and speak naturally",
+      };
+      const SPEECH_THRESHOLD = 0.015;
+      const SILENCE_DURATION = 1500;
+      const MIN_SPEECH_DURATION = 200;
+      const MAX_SPEECH_DURATION = 30000;
+      const NO_SPEECH_TIMEOUT = 8000;
       const conversationHistory = [];
       const collected = {};
       const speechPaceSamples = [];
@@ -450,6 +485,19 @@
 
       /* ================= MODAL ================= */
 
+      function handleNoSpeech() {
+        noSpeechCount++;
+        if (noSpeechCount >= NO_SPEECH_THRESHOLD) {
+          noSpeechCount = 0;
+          showSwitchModal();
+          return;
+        }
+        const hint = NO_SPEECH_HINTS[noSpeechCount];
+        if (hint) setStatus(hint, "");
+        stopListening();
+        startListening();
+      }
+
       function showSwitchModal() {
         if (!$switchModal || switchModalOpen) return;
         $switchModal.classList.add("active");
@@ -465,93 +513,108 @@
         noSpeechCount = 0;
       }
 
-      /* ================= WEB SPEECH API ================= */
+      /* ================= MEDIARECORDER + VAD ================= */
 
-      function setupRecognition() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognition = new SR();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = SPEECH_LANGS[speechLangIndex];
-
-        recognition.onstart = () => {
-          speechStartTime = Date.now();
-          setVoiceState("listening");
-        };
-
-        recognition.onspeechstart = () => {
-          $voiceIndicator.classList.add("user-speaking");
-        };
-
-        recognition.onspeechend = () => {
-          $voiceIndicator.classList.remove("user-speaking");
-        };
-
-        recognition.onresult = (event) => {
-          noSpeechCount = 0;
-          speechLangIndex = 0;
-          recognition.lang = SPEECH_LANGS[0];
-          let final = "";
-          let interim = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const t = event.results[i][0].transcript;
-            if (event.results[i].isFinal) final += t;
-            else interim += t;
-          }
-          if (interim) $heard.textContent = interim;
-          if (final.trim()) {
-            const durationMs = speechStartTime ? Date.now() - speechStartTime : 0;
-            speechStartTime = 0;
-            processTranscript(final.trim(), durationMs);
-          }
-        };
-
-        recognition.onerror = (event) => {
-          $voiceIndicator.classList.remove("user-speaking");
-          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-            showPermissionError("mic permission was blocked. please allow access in the browser.");
-            setStatus("mic permission denied.", "");
-            isListening = false;
-            return;
-          }
-          if (event.error === "no-speech") {
-            if (speechLangIndex < SPEECH_LANGS.length - 1) {
-              speechLangIndex++;
-              recognition.lang = SPEECH_LANGS[speechLangIndex];
-            } else {
-              speechLangIndex = 0;
-              recognition.lang = SPEECH_LANGS[0];
-              noSpeechCount++;
-              if (noSpeechCount >= NO_SPEECH_THRESHOLD) {
-                noSpeechCount = 0;
-                showSwitchModal();
-              }
-            }
-          }
-        };
-
-        recognition.onend = () => {
-          $voiceIndicator.classList.remove("user-speaking");
-          if (isListening && !isProcessing && !switchModalOpen) {
-            setTimeout(() => {
-              if (isListening && !isProcessing && !switchModalOpen) {
-                try { recognition.start(); } catch (e) {}
-              }
-            }, 150);
-          }
-        };
+      function getRMS() {
+        if (!analyser) return 0;
+        const buf = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        return Math.sqrt(sum / buf.length);
       }
 
       function startListening() {
-        if (!recognition || isProcessing || switchModalOpen) return;
+        if (!mediaStream || isProcessing || switchModalOpen) return;
         isListening = true;
-        try { recognition.start(); } catch (e) {}
+        speechDetected = false;
+        silenceStart = null;
+        audioChunks = [];
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = handleRecordingStop;
+
+        noSpeechTimer = setTimeout(() => {
+          if (!speechDetected && isListening) {
+            handleNoSpeech();
+          }
+        }, NO_SPEECH_TIMEOUT);
+
+        vadInterval = setInterval(() => {
+          if (!isListening) return;
+          const rms = getRMS();
+          if (rms > SPEECH_THRESHOLD) {
+            $voiceIndicator.classList.add("user-speaking");
+            if (!speechDetected) {
+              speechDetected = true;
+              speechStartTime = Date.now();
+              clearTimeout(noSpeechTimer);
+              mediaRecorder.start();
+              setVoiceState("listening");
+            }
+            silenceStart = null;
+          } else {
+            $voiceIndicator.classList.remove("user-speaking");
+            if (speechDetected && mediaRecorder.state === "recording") {
+              if (!silenceStart) {
+                silenceStart = Date.now();
+              } else if (Date.now() - silenceStart > SILENCE_DURATION) {
+                stopListening();
+              }
+            }
+            if (speechDetected && speechStartTime && Date.now() - speechStartTime > MAX_SPEECH_DURATION) {
+              stopListening();
+            }
+          }
+        }, 50);
       }
 
       function stopListening() {
         isListening = false;
+        clearInterval(vadInterval);
+        clearTimeout(noSpeechTimer);
         $voiceIndicator.classList.remove("user-speaking");
-        try { recognition.stop(); } catch (e) {}
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }
+
+      async function handleRecordingStop() {
+        if (!speechDetected || audioChunks.length === 0) return;
+        const duration = speechStartTime ? Date.now() - speechStartTime : 0;
+        if (duration < MIN_SPEECH_DURATION) {
+          $heard.textContent = "could you say that again?";
+          if (!isProcessing && !switchModalOpen) startListening();
+          return;
+        }
+
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunks, { type: mimeType });
+        setVoiceState("processing");
+
+        try {
+          const formData = new FormData();
+          const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+          formData.append("audio", blob, `audio.${ext}`);
+          if (STT_LANGUAGE) formData.append("language", STT_LANGUAGE);
+
+          const res = await fetch(`${VOICE_API_BASE}/stt`, { method: "POST", body: formData });
+          const data = await res.json().catch(() => ({}));
+          const transcript = (data.transcript || "").trim();
+
+          if (transcript) {
+            noSpeechCount = 0;
+            $heard.textContent = transcript;
+            processTranscript(transcript, duration);
+          } else {
+            handleNoSpeech();
+          }
+        } catch (e) {
+          console.error("STT error", e);
+          if (!switchModalOpen) startListening();
+        }
       }
 
       /* ================= PERMISSION ================= */
@@ -563,35 +626,25 @@
         unlockAudioPlayback();
         setStatus("initializing mic...", "");
 
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-          showPermissionError("voice recognition isn't supported in this browser.\nplease use text onboarding instead.");
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+          const isDenied = e.name === "NotAllowedError" || e.name === "PermissionDeniedError";
+          showPermissionError(
+            isDenied
+              ? "microphone access was denied. please allow mic access in your browser settings and refresh."
+              : "could not access microphone. please check your device settings."
+          );
           $permissionBtn.disabled = false;
           return;
         }
 
-        // trigger browser permission prompt
-        const granted = await new Promise((resolve) => {
-          let done = false;
-          const finish = (v) => { if (!done) { done = true; resolve(v); } };
-          const temp = new SR();
-          temp.onstart = () => { temp.abort(); finish(true); };
-          temp.onerror = (e) => {
-            if (e.error === "not-allowed" || e.error === "service-not-allowed") finish(false);
-            else finish(true);
-          };
-          temp.onend = () => finish(true);
-          setTimeout(() => finish(true), 4000);
-          try { temp.start(); } catch (e) { finish(false); }
-        });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
 
-        if (!granted) {
-          showPermissionError("mic permission was blocked. please allow access in the browser.");
-          $permissionBtn.disabled = false;
-          return;
-        }
-
-        setupRecognition();
         $permission?.classList.add("hidden");
         setStatus("", "");
         startFlow();

@@ -25,6 +25,47 @@ SEXUAL_ORIENTATION_OPTIONS = [
     "all types of genders",
 ]
 
+_STT_CORRECTIONS = [
+    # --- gender_detail ---
+    # "cis" sounds like "this", "sis", "siz", "six", "chris"
+    (r"\b(?:this|sis|siz|six|chris)\s+(woman|man)\b", r"cis \1"),
+    (r"\bcis[-\s]?(woman|man)\b", r"cis \1"),
+    # "trans" variations
+    (r"\btrans[-\s]?(woman|man|gender|masculine|feminine|feminin)\b", r"trans\1"),
+    (r"\btransgender\b", "transgender"),
+    # "non-binary" spacing/hyphen variations
+    (r"\bnon[-\s]binary\b", "non-binary"),
+    (r"\bnone[-\s]?binary\b", "non-binary"),
+    # "intersex" spacing
+    (r"\binter[-\s]sex\b", "intersex"),
+    # "genderfluid" spacing
+    (r"\bgender[-\s]fluid\b", "genderfluid"),
+    (r"\bgender[-\s]queer\b", "genderqueer"),
+    (r"\bgender[-\s]nonconforming\b", "gender nonconforming"),
+    (r"\bnon[-\s]binary[-\s](woman|man)\b", r"non-binary \1"),
+    # "two-spirit" spacing
+    (r"\btwo[-\s]spirit\b", "two-spirit"),
+    # --- sexual_orientation ---
+    # singular → plural
+    (r"\bman and woman\b", "men and women"),
+    (r"\bman and women\b", "men and women"),
+    (r"\bmen and woman\b", "men and women"),
+    (r"\bmen and non[-\s]?binary(?:\s+people)?\b", "men and non-binary people"),
+    (r"\bwomen and non[-\s]?binary(?:\s+people)?\b", "women and non-binary people"),
+    # --- marijuana synonyms ---
+    (r"\b(?:weed|cannabis|pot|ganja|herb|mary\s*jane|marry\s*(?:wanna|wana|juana?))\b", "marijuana"),
+    # --- drink/smoke normalizations ---
+    (r"\b(?:yeah|yep|yup|sure|absolutely|definitely)\b", "yes"),
+    (r"\b(?:nope|nah|never)\b", "no"),
+]
+_STT_CORRECTION_COMPILED = [(re.compile(p, re.IGNORECASE), r) for p, r in _STT_CORRECTIONS]
+
+def apply_stt_corrections(text: str) -> str:
+    for pattern, replacement in _STT_CORRECTION_COMPILED:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def normalize_gender_detail(value: str, gender: str) -> str | None:
     """Map free-form LLM output to one of the canonical gender_detail values."""
     v = value.strip().lower()
@@ -141,6 +182,9 @@ Conversation rules:
 - If they change their mind, update accordingly
 - Never suggest skipping or say things like "moving on" or "got it" robotically
 - If you need to ask about something the user already touched on but wasn't clear enough to collect, reference what they said rather than asking from scratch (e.g. "You mentioned you drink socially — so you do drink, yeah?" instead of "Do you drink alcohol?")
+- If the same field keeps failing across multiple turns, rephrase the question completely — describe it differently or offer a brief list of options rather than asking the same way again
+- Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
+- Speech recognition may mishear certain words. When extracting fields, consider: "this/sis woman" likely means "cis woman", "non binary" means "non-binary", "weed/cannabis" means marijuana
 - 1-2 sentences max per reply
 - Always reply in English
 
@@ -264,6 +308,29 @@ def voice_tts():
     except Exception as e:
         print("voice_tts error:", e)
         return jsonify(error="tts failed"), 500
+
+
+# =========================
+# STT endpoint
+# =========================
+
+@voice_bp.route("/stt", methods=["POST"])
+def voice_stt():
+    audio = request.files.get("audio")
+    if not audio:
+        return jsonify(error="no audio"), 400
+    language = request.form.get("language") or None
+    try:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(audio.filename, audio.stream, audio.mimetype),
+            language=language,
+        )
+        text = apply_stt_corrections(transcript.text.strip())
+        return jsonify(transcript=text)
+    except Exception as e:
+        print("STT error:", e)
+        return jsonify(error="stt failed"), 500
 
 
 # =========================
