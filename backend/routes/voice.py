@@ -136,16 +136,21 @@ _NUDGE_OPTIONS = {
     "marijuana": lambda _: ["yes", "no"],
 }
 
-def _nudge_instruction(field: str, collected: dict) -> str:
+def _nudge_instruction(field: str, collected: dict, round_num: int = 1) -> str:
     get_opts = _NUDGE_OPTIONS.get(field)
     if not get_opts:
         return ""
     opts = get_opts(collected)
     sample = opts[:3] if len(opts) > 3 else opts
+    if round_num >= 2:
+        return (
+            f"CRITICAL: The user still hasn't answered '{field}'. "
+            f"Ask ONLY about '{field}' and include 2-3 examples inline: {sample}. "
+            f"One sentence. Use noticeably different wording from before."
+        )
     return (
-        f"CRITICAL: The user has not answered '{field}' after multiple turns. "
-        f"Ignore any social small talk or off-topic responses — do NOT respond to them. "
-        f"Ask ONLY about '{field}' and list the options directly: {sample}. One sentence."
+        f"CRITICAL: The user hasn't answered '{field}'. "
+        f"Rephrase the question in a new way. One sentence."
     )
 
 
@@ -171,11 +176,54 @@ def voice_turn():
     history = data.get("history") or []
     collected = data.get("collected") or {}
     first_name = (data.get("firstName") or "").strip()
+    deferred_fields = data.get("deferred_fields") or []
+    if not isinstance(deferred_fields, list):
+        deferred_fields = []
+    deferred_fields = [f for f in deferred_fields if f in REQUIRED_FIELDS]
+    nudge_round_raw = data.get("nudge_round") or 1
+    try:
+        nudge_round = int(nudge_round_raw)
+    except (TypeError, ValueError):
+        nudge_round = 1
 
     missing_required = [k for k in REQUIRED_FIELDS if not collected.get(k)]
     is_initial = not any(m.get("role") == "user" for m in history)
     all_done = not missing_required
     nudge_field = data.get("nudge_field") or None
+    active_missing = [k for k in missing_required if k not in deferred_fields]
+    target_field = None
+    if nudge_field and nudge_field in missing_required:
+        target_field = nudge_field
+    elif active_missing:
+        target_field = active_missing[0]
+    elif missing_required:
+        target_field = missing_required[0]
+
+    target_instruction = ""
+    if target_field == "gender_detail":
+        if collected.get("gender"):
+            target_instruction = (
+                "gender_detail is still needed — their gender is already known "
+                f"({collected['gender']}). Ask specifically about gender_detail (this is different from gender). "
+                f"Give 2-3 examples: {GENDER_DETAIL_OPTIONS.get(collected['gender'], [])}."
+            )
+        else:
+            target_instruction = (
+                "gender_detail is still needed — once gender is known, immediately ask for gender_detail "
+                "with examples like: cis man, trans man, or something else."
+            )
+    elif target_field == "gender":
+        target_instruction = "Ask how they identify in terms of gender."
+    elif target_field == "sexual_orientation":
+        target_instruction = "Ask who they are attracted to."
+    elif target_field == "age_preference":
+        target_instruction = "Ask for the age range they are looking for."
+    elif target_field == "drink":
+        target_instruction = "Ask if they drink alcohol."
+    elif target_field == "smoke":
+        target_instruction = "Ask if they smoke cigarettes."
+    elif target_field == "marijuana":
+        target_instruction = "Ask if they use marijuana."
 
     system = f"""You are COCO, a warm and emotionally intelligent companion for a dating app.
 You're having a natural onboarding conversation with {first_name or "someone new"}.
@@ -196,9 +244,9 @@ Already collected: {json.dumps(collected)}
 Still needed (REQUIRED): {missing_required}
 
 {"This is the very start of the conversation. In one sentence: greet them by name (" + (first_name or "their name") + "), introduce yourself as COCO, and ask how they identify in terms of gender." if is_initial else ""}
-{("gender_detail is still needed — their gender is already known (" + collected['gender'] + "). Ask specifically about gender_detail (this is different from gender). Give 2-3 examples: " + str(GENDER_DETAIL_OPTIONS.get(collected['gender'], [])) + ".") if "gender_detail" in missing_required and collected.get("gender") else ("gender_detail is still needed — once gender is known, immediately ask for gender_detail with examples like: cis man, trans man, or something else.") if "gender_detail" in missing_required else ""}
 {"All required info is collected — wrap up the conversation warmly and naturally." if all_done else ""}
-{_nudge_instruction(nudge_field, collected) if nudge_field else ""}
+{target_instruction if target_instruction else ""}
+{_nudge_instruction(nudge_field, collected, nudge_round) if nudge_field else ""}
 
 Conversation rules:
 - Be warm and human, like a friend — NOT a form or survey
@@ -230,6 +278,10 @@ Field formats for "collected":
 - drink / smoke / marijuana: "yes" | "no"
 - sexual_orientation: must be exactly one of: "men" | "women" | "men and women" | "men and non-binary people" | "women and non-binary people" | "all types of genders"
 - age_preference: {{"min": <int>, "max": <int>}}
+
+Age preference guidance:
+- If the user gives vague or decade-style ranges (e.g., "mid twenties", "late 30s", "20대 중반", "not too young/old", "상관없어"),
+  set age_preference to {{"min": 20, "max": 60}}.
 
 Only extract what was clearly said in this turn. Do not re-extract already-collected fields."""
 
@@ -289,15 +341,13 @@ Only extract what was clearly said in this turn. Do not re-extract already-colle
                     merged["age_preference"] = {"min": mn, "max": mx}
                 else:
                     merged.pop("age_preference", None)
-            elif isinstance(ap, str):
-                m = re.search(r"(\d+)\D+(\d+)", ap)
-                if m:
-                    mn, mx = int(m.group(1)), int(m.group(2))
-                    if mn > mx:
-                        mn, mx = mx, mn
-                    merged["age_preference"] = {"min": mn, "max": mx}
-                else:
-                    merged.pop("age_preference", None)
+        elif isinstance(ap, str):
+            m = re.search(r"(\d+)\D+(\d+)", ap)
+            if m:
+                mn, mx = int(m.group(1)), int(m.group(2))
+                if mn > mx:
+                    mn, mx = mx, mn
+                merged["age_preference"] = {"min": mn, "max": mx}
             else:
                 merged.pop("age_preference", None)
 
@@ -316,6 +366,7 @@ Only extract what was clearly said in this turn. Do not re-extract already-colle
             audio=audio_b64,
             collected=merged,
             is_complete=is_complete,
+            target_field=target_field,
         )
 
     except Exception:

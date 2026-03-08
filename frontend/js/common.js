@@ -413,11 +413,11 @@ function showLoading(text) {
         <img src="images/asterisk.png" class="asterisk asterisk-1" alt="loading">
         <img src="images/asterisk.png" class="asterisk asterisk-2" alt="loading">
       </div>
-      <div class="loading-text">${text}</div>
+      <div class="loading-text">${message}</div>
     `;
     document.body.appendChild(overlay);
   } else {
-    overlay.querySelector(".loading-text").textContent = text;
+    overlay.querySelector(".loading-text").textContent = message;
     overlay.classList.remove("hidden");
   }
 }

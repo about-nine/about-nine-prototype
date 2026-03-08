@@ -341,6 +341,11 @@
         return null;
       }
       const STT_LANGUAGE = getSttLanguage(phone); // "en" or null (auto-detect)
+      const PLAYLIST_NOTICE_LINES = [
+        "thanks for telling me",
+        "now let's switch gears",
+        "let's fill your playlist with the music and artists you love",
+      ];
       const SILENT_WAV_B64 =
         "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -364,10 +369,12 @@
       let silenceStart = null;
       let switchModalOpen = false;
       let noSpeechCount = 0;
-      let globalStuckCount = 0;   // 전체 누적 실패 턴 (줄어들지 않음) → fallback
-      let consecutiveStuck = 0;   // 같은 필드 연속 실패 → nudge
       let nudgeField = null;
-      let prevCollectedCount = 0;
+      let nudgeMissCount = 0;
+      let lastAskedField = null;
+      const deferredFields = new Set();
+      const fieldFailCounts = {};
+      const fieldDeferredOnce = {};
       const NO_SPEECH_THRESHOLD = 5;
       const NO_SPEECH_HINTS = {
         2: "try speaking a bit louder or closer to your mic",
@@ -381,6 +388,23 @@
       const conversationHistory = [];
       const collected = {};
       const speechPaceSamples = [];
+
+      function getMissingFields() {
+        return REQUIRED_FIELDS.filter((k) => !collected[k]);
+      }
+
+      function getDeferredFieldsForRequest() {
+        const missing = getMissingFields();
+        const active = missing.filter((k) => !deferredFields.has(k));
+        return active.length ? Array.from(deferredFields) : [];
+      }
+
+      function getNextTargetField() {
+        const missing = getMissingFields();
+        const active = missing.filter((k) => !deferredFields.has(k));
+        if (active.length) return active[0];
+        return missing[0] || null;
+      }
 
       // Pre-fetch first COCO turn in the background while user reads permission screen
       const _prefetchFirstTurn = fetch(`${VOICE_API_BASE}/turn`, {
@@ -686,6 +710,11 @@
       }
 
       async function fetchTurnData() {
+        const nudgeFieldForRequest =
+          nudgeField && nudgeMissCount >= 1 ? nudgeField : null;
+        const nudgeRound =
+          nudgeFieldForRequest ? Math.min(nudgeMissCount, 2) : null;
+        const deferredForRequest = getDeferredFieldsForRequest();
         const res = await fetch(`${VOICE_API_BASE}/turn`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -693,7 +722,9 @@
             history: conversationHistory.slice(-20),
             collected,
             firstName,
-            nudge_field: consecutiveStuck >= 2 ? nudgeField : null,
+            nudge_field: nudgeFieldForRequest,
+            nudge_round: nudgeRound,
+            deferred_fields: deferredForRequest,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -716,6 +747,8 @@
         isProcessing = true;
         stopListening();
         setVoiceState("processing");
+        const prevCollectedSnapshot = { ...collected };
+        const askedField = lastAskedField;
 
         try {
           let data;
@@ -739,36 +772,56 @@
             $msg.textContent = data.reply;
             $heard.textContent = "";
             await playAudio(data.audio);
+            if (PLAYLIST_NOTICE_LINES.length) {
+              for (const line of PLAYLIST_NOTICE_LINES) {
+                setStatus(line, "");
+                await playCoco(line);
+              }
+            }
+            lastAskedField = null;
+            nudgeField = null;
+            nudgeMissCount = 0;
             await finish();
             return;
           }
 
-          // stuck 감지: playAudio 전에 체크
-          const userTurns = conversationHistory.filter(m => m.role === "user").length;
-          if (userTurns > 0) {
-            const collectedCount = REQUIRED_FIELDS.filter(k => collected[k]).length;
-            const targetField = REQUIRED_FIELDS.find(k => !collected[k]) || null;
-            if (collectedCount > prevCollectedCount) {
-              prevCollectedCount = collectedCount;
-              consecutiveStuck = 0;
-              nudgeField = targetField;
-              console.log("[stuck] progress →", collectedCount, "/ 7 | global:", globalStuckCount);
-            } else if (targetField) {
-              globalStuckCount++;
-              if (targetField === nudgeField) {
-                consecutiveStuck++;
+          if (askedField) {
+            const hadBefore = Boolean(prevCollectedSnapshot[askedField]);
+            const hasNow = Boolean(collected[askedField]);
+
+            if (hadBefore || hasNow) {
+              fieldFailCounts[askedField] = 0;
+              nudgeField = null;
+              nudgeMissCount = 0;
+              deferredFields.delete(askedField);
+            } else {
+              const prevFails = fieldFailCounts[askedField] || 0;
+              const newFails = prevFails + 1;
+              fieldFailCounts[askedField] = newFails;
+
+              if (!fieldDeferredOnce[askedField]) {
+                if (newFails >= 2) {
+                  deferredFields.add(askedField);
+                  fieldDeferredOnce[askedField] = true;
+                  fieldFailCounts[askedField] = 0;
+                  nudgeField = null;
+                  nudgeMissCount = 0;
+                } else {
+                  nudgeField = askedField;
+                  nudgeMissCount = newFails;
+                }
               } else {
-                consecutiveStuck = 1;
-                nudgeField = targetField;
-              }
-              console.log("[stuck] global:", globalStuckCount, "| consecutive:", consecutiveStuck, "on", targetField);
-              if (globalStuckCount >= 8) {
-                console.log("[stuck] fallback. collected:", JSON.stringify(collected));
-                fallbackToChat();
-                return;
+                if (newFails >= 2) {
+                  fallbackToChat();
+                  return;
+                }
+                nudgeField = askedField;
+                nudgeMissCount = newFails;
               }
             }
           }
+
+          lastAskedField = data.target_field || getNextTargetField();
 
           $msg.textContent = data.reply;
           $heard.textContent = "";
