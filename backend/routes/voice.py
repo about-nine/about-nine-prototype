@@ -125,13 +125,34 @@ def normalize_sexual_orientation(value: str) -> str | None:
 # helpers
 # =========================
 
+_NUDGE_OPTIONS = {
+    "gender_detail": lambda collected: GENDER_DETAIL_OPTIONS.get(collected.get("gender", ""), []),
+    "sexual_orientation": lambda _: SEXUAL_ORIENTATION_OPTIONS,
+    "age_preference": lambda _: ["e.g. 25 to 35", "e.g. 28 to 40"],
+    "drink": lambda _: ["yes", "no"],
+    "smoke": lambda _: ["yes", "no"],
+    "marijuana": lambda _: ["yes", "no"],
+}
+
+def _nudge_instruction(field: str, collected: dict) -> str:
+    get_opts = _NUDGE_OPTIONS.get(field)
+    if not get_opts:
+        return ""
+    opts = get_opts(collected)
+    sample = opts[:3] if len(opts) > 3 else opts
+    return (
+        f"NUDGE: The user has been struggling with '{field}' for several turns. "
+        f"Ask directly and name 2-3 specific options from: {sample}. Still one sentence only."
+    )
+
+
 def make_audio(reply):
     tts = client.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="shimmer",
         input=reply,
         response_format="mp3",
-        speed=0.8,
+        speed=1.0,
         instructions="Speak in a soft, gentle, whispering tone. Keep your voice calm, quiet, and intimate, like you're telling a secret."
     )
     return base64.b64encode(tts.read()).decode()
@@ -151,6 +172,7 @@ def voice_turn():
     missing_required = [k for k in REQUIRED_FIELDS if not collected.get(k)]
     is_initial = not any(m.get("role") == "user" for m in history)
     all_done = not missing_required
+    nudge_field = data.get("nudge_field") or None
 
     system = f"""You are COCO, a warm and emotionally intelligent companion for a dating app.
 You're having a natural onboarding conversation with {first_name or "someone new"}.
@@ -170,9 +192,10 @@ REQUIRED (must all be gathered before ending):
 Already collected: {json.dumps(collected)}
 Still needed (REQUIRED): {missing_required}
 
-{"This is the very start of the conversation. Warmly ask about their gender to begin." if is_initial else ""}
-{"After learning their gender, follow up with gender_detail (a more specific identity description) before moving on to other topics." if collected.get("gender") and not collected.get("gender_detail") else ""}
+{"This is the very start of the conversation. Greet them by name (" + (first_name or "their name") + ") and warmly ask how they identify in terms of gender." if is_initial else ""}
+{"gender_detail is still missing — ask how they specifically identify. Since this can be unfamiliar, give 2-3 short examples from the allowed list: " + str(GENDER_DETAIL_OPTIONS.get(collected.get("gender",""), [])) + ". Keep it to one sentence." if collected.get("gender") and not collected.get("gender_detail") else ""}
 {"All required info is collected — wrap up the conversation warmly and naturally." if all_done else ""}
+{_nudge_instruction(nudge_field, collected) if nudge_field else ""}
 
 Conversation rules:
 - Be warm and human, like a friend — NOT a form or survey

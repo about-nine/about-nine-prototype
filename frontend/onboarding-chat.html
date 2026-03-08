@@ -80,6 +80,9 @@
         scrollBottom();
       }
 
+      /* state */
+      const answers = {};
+
       /* voice fallback: load pre-collected data if redirected from voice onboarding */
       const voiceCollected = getFromLocal("voice_collected");
       if (voiceCollected && typeof voiceCollected === "object") {
@@ -159,7 +162,6 @@
 
       /* state */
       let step = 0;
-      const answers = {};
 
       const select = document.getElementById("select");
       const send = document.getElementById("send");

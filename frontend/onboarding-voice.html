@@ -364,8 +364,8 @@
       let silenceStart = null;
       let switchModalOpen = false;
       let noSpeechCount = 0;
-      let stuckTurns = 0;
-      let prevRequiredCount = 0;
+      let fieldStuckField = null;
+      let fieldStuckCount = 0;
       const NO_SPEECH_THRESHOLD = 5;
       const NO_SPEECH_HINTS = {
         2: "try speaking a bit louder or closer to your mic",
@@ -379,6 +379,14 @@
       const conversationHistory = [];
       const collected = {};
       const speechPaceSamples = [];
+
+      // Pre-fetch first COCO turn in the background while user reads permission screen
+      const _prefetchFirstTurn = fetch(`${VOICE_API_BASE}/turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: [], collected: {}, firstName }),
+      }).then(r => r.ok ? r.json() : null).catch(() => null);
+      let prefetchedFirstTurn = _prefetchFirstTurn;
 
       /* ================= DOM ================= */
 
@@ -648,7 +656,6 @@
         source.connect(analyser);
 
         $permission?.classList.add("hidden");
-        setStatus("", "");
         startFlow();
       }
 
@@ -678,6 +685,7 @@
             history: conversationHistory.slice(-20),
             collected,
             firstName,
+            nudge_field: fieldStuckCount >= 3 ? fieldStuckField : null,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -700,10 +708,17 @@
         isProcessing = true;
         stopListening();
         setVoiceState("processing");
-        if (!$msg.textContent) $msg.textContent = "...";
 
         try {
-          const data = await fetchTurnData();
+          let data;
+          if (prefetchedFirstTurn) {
+            data = await prefetchedFirstTurn;
+            prefetchedFirstTurn = null;
+            if (!data || data.error) data = await fetchTurnData();
+          } else {
+            if (!$msg.textContent) $msg.textContent = "...";
+            data = await fetchTurnData();
+          }
           if (data.error) throw new Error(data.error);
 
           console.log("[COCO]", data.reply);
@@ -721,19 +736,20 @@
             return;
           }
 
-          // stuck 감지: 오디오 재생 후 체크 (유저가 응답을 들은 뒤 전환)
+          // per-field stuck 감지
           const userTurns = conversationHistory.filter(m => m.role === "user").length;
           if (userTurns > 0) {
-            const requiredCount = REQUIRED_FIELDS.filter(k => collected[k]).length;
-            if (requiredCount > prevRequiredCount) {
-              stuckTurns = 0;
-              prevRequiredCount = requiredCount;
-              console.log("[stuck] progress made →", requiredCount, "/ 7 required");
-            } else {
-              stuckTurns++;
-              console.log("[stuck]", stuckTurns, "/ 3 — no new required field collected");
-              if (stuckTurns >= 3) {
-                console.log("[stuck] fallback to chat. collected so far:", JSON.stringify(collected));
+            const targetField = REQUIRED_FIELDS.find(k => !collected[k]) || null;
+            if (targetField !== fieldStuckField) {
+              // 필드 전환 → 카운터 초기화
+              console.log("[stuck] field changed:", fieldStuckField, "→", targetField);
+              fieldStuckField = targetField;
+              fieldStuckCount = 0;
+            } else if (targetField) {
+              fieldStuckCount++;
+              console.log("[stuck]", targetField, fieldStuckCount, "turns — nudge at 3, fallback at 6");
+              if (fieldStuckCount >= 6) {
+                console.log("[stuck] fallback. collected:", JSON.stringify(collected));
                 fallbackToChat();
                 return;
               }
@@ -750,8 +766,12 @@
         }
       }
 
-      function fallbackToChat() {
+      async function fallbackToChat() {
+        setVoiceState("");
+        stopListening();
+        setStatus("let's continue in chat — just a moment.", "");
         saveToLocal("voice_collected", collected);
+        await new Promise(r => setTimeout(r, 1800));
         navigateTo("onboarding-chat.html");
       }
 
