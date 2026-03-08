@@ -364,8 +364,10 @@
       let silenceStart = null;
       let switchModalOpen = false;
       let noSpeechCount = 0;
-      let fieldStuckField = null;
-      let fieldStuckCount = 0;
+      let globalStuckCount = 0;   // 전체 누적 실패 턴 (줄어들지 않음) → fallback
+      let consecutiveStuck = 0;   // 같은 필드 연속 실패 → nudge
+      let nudgeField = null;
+      let prevCollectedCount = 0;
       const NO_SPEECH_THRESHOLD = 5;
       const NO_SPEECH_HINTS = {
         2: "try speaking a bit louder or closer to your mic",
@@ -685,7 +687,7 @@
             history: conversationHistory.slice(-20),
             collected,
             firstName,
-            nudge_field: fieldStuckCount >= 3 ? fieldStuckField : null,
+            nudge_field: consecutiveStuck >= 2 ? nudgeField : null,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -727,34 +729,44 @@
           if (data.collected) Object.assign(collected, data.collected);
           conversationHistory.push({ role: "assistant", content: data.reply });
 
-          $msg.textContent = data.reply;
-          $heard.textContent = "";
-          await playAudio(data.audio);
-
           if (data.is_complete) {
+            $msg.textContent = data.reply;
+            $heard.textContent = "";
+            await playAudio(data.audio);
             await finish();
             return;
           }
 
-          // per-field stuck 감지
+          // stuck 감지: playAudio 전에 체크
           const userTurns = conversationHistory.filter(m => m.role === "user").length;
           if (userTurns > 0) {
+            const collectedCount = REQUIRED_FIELDS.filter(k => collected[k]).length;
             const targetField = REQUIRED_FIELDS.find(k => !collected[k]) || null;
-            if (targetField !== fieldStuckField) {
-              // 필드 전환 → 카운터 초기화
-              console.log("[stuck] field changed:", fieldStuckField, "→", targetField);
-              fieldStuckField = targetField;
-              fieldStuckCount = 0;
+            if (collectedCount > prevCollectedCount) {
+              prevCollectedCount = collectedCount;
+              consecutiveStuck = 0;
+              nudgeField = targetField;
+              console.log("[stuck] progress →", collectedCount, "/ 7 | global:", globalStuckCount);
             } else if (targetField) {
-              fieldStuckCount++;
-              console.log("[stuck]", targetField, fieldStuckCount, "turns — nudge at 3, fallback at 6");
-              if (fieldStuckCount >= 6) {
+              globalStuckCount++;
+              if (targetField === nudgeField) {
+                consecutiveStuck++;
+              } else {
+                consecutiveStuck = 1;
+                nudgeField = targetField;
+              }
+              console.log("[stuck] global:", globalStuckCount, "| consecutive:", consecutiveStuck, "on", targetField);
+              if (globalStuckCount >= 5) {
                 console.log("[stuck] fallback. collected:", JSON.stringify(collected));
                 fallbackToChat();
                 return;
               }
             }
           }
+
+          $msg.textContent = data.reply;
+          $heard.textContent = "";
+          await playAudio(data.audio);
 
           isProcessing = false;
           startListening();
@@ -769,9 +781,10 @@
       async function fallbackToChat() {
         setVoiceState("");
         stopListening();
-        setStatus("let's continue in chat — just a moment.", "");
+        const msg = "let's continue in chat — just a moment.";
+        setStatus(msg, "");
         saveToLocal("voice_collected", collected);
-        await new Promise(r => setTimeout(r, 1800));
+        await playCoco(msg);
         navigateTo("onboarding-chat.html");
       }
 

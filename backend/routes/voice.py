@@ -192,7 +192,7 @@ REQUIRED (must all be gathered before ending):
 Already collected: {json.dumps(collected)}
 Still needed (REQUIRED): {missing_required}
 
-{"This is the very start of the conversation. Greet them by name (" + (first_name or "their name") + ") and warmly ask how they identify in terms of gender." if is_initial else ""}
+{"This is the very start of the conversation. In one sentence: greet them by name (" + (first_name or "their name") + "), introduce yourself as COCO, and ask how they identify in terms of gender." if is_initial else ""}
 {"gender_detail is still missing — ask how they specifically identify. Since this can be unfamiliar, give 2-3 short examples from the allowed list: " + str(GENDER_DETAIL_OPTIONS.get(collected.get("gender",""), [])) + ". Keep it to one sentence." if collected.get("gender") and not collected.get("gender_detail") else ""}
 {"All required info is collected — wrap up the conversation warmly and naturally." if all_done else ""}
 {_nudge_instruction(nudge_field, collected) if nudge_field else ""}
@@ -204,6 +204,7 @@ Conversation rules:
 - If they're unclear, ask gently without repeating a list of options robotically
 - If they change their mind, update accordingly
 - Never suggest skipping or say things like "moving on" or "got it" robotically
+- Never ask how someone feels about their identity — accept what they say and move on
 - If you need to ask about something the user already touched on but wasn't clear enough to collect, reference what they said rather than asking from scratch (e.g. "You mentioned you drink socially — so you do drink, yeah?" instead of "Do you drink alcohol?")
 - If the same field keeps failing across multiple turns, rephrase the question completely — describe it differently or offer a brief list of options rather than asking the same way again
 - Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
