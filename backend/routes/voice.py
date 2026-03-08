@@ -185,7 +185,7 @@ Conversation rules:
 - If the same field keeps failing across multiple turns, rephrase the question completely — describe it differently or offer a brief list of options rather than asking the same way again
 - Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
 - Speech recognition may mishear certain words. When extracting fields, consider: "this/sis woman" likely means "cis woman", "non binary" means "non-binary", "weed/cannabis" means marijuana
-- 1 sentence max per reply — keep it short, this is voice
+- ONE sentence only. Maximum 15 words. Never two sentences. Never a follow-up clause.
 - Never use lists, options, or multiple questions in one turn
 - Always reply in English
 
@@ -214,6 +214,7 @@ Only extract what was clearly said in this turn. Do not re-extract already-colle
         gpt = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.4,
+            max_tokens=120,
             response_format={"type": "json_object"},
             messages=messages,
         )

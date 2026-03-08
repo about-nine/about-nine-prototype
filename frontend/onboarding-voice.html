@@ -418,7 +418,7 @@
             resolve(played);
           };
           $page.classList.add("coco-speaking");
-          const timeout = setTimeout(() => { try { audio.pause(); } catch {} finish(false); }, 8000);
+          const timeout = setTimeout(() => { try { audio.pause(); } catch {} finish(false); }, 15000);
           audio.onended = () => { clearTimeout(timeout); finish(true); };
           audio.onerror = () => { clearTimeout(timeout); finish(false); };
           const p = audio.play();
@@ -530,6 +530,7 @@
         speechDetected = false;
         silenceStart = null;
         audioChunks = [];
+        setVoiceState("listening");
 
         const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
         mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
@@ -699,6 +700,7 @@
         isProcessing = true;
         stopListening();
         setVoiceState("processing");
+        if (!$msg.textContent) $msg.textContent = "...";
 
         try {
           const data = await fetchTurnData();
