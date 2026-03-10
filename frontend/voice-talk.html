@@ -341,6 +341,7 @@
       const question = getFromLocal("current_question");
       const mySelection = getFromLocal("user_selection");
       const topic = getFromLocal("current_topic");
+      const currentRound = Number(getFromLocal("current_round")) || 1;
       const requestId = getFromLocal("match_request_id");
 
       const isLifeRound = topic === "life";
@@ -353,8 +354,17 @@
       let isMuted = false;
       let timer;
       let callStart;
+      let hasCallEnded = false;
+      let cueAudioContext = null;
+      let noticeResetTimer = null;
+      const firedCueKeys = new Set();
       const tapOverlay = document.getElementById("tapOverlay");
       const tapBtn = document.getElementById("tapToStart");
+      const roundLimitSeconds = currentRound === 3 ? 40 * 60 : 20 * 60;
+      const roundLimitLabel = formatMMSS(roundLimitSeconds);
+      const baseQuestionText = isLifeRound
+        ? "choose a topic and discuss it freely"
+        : question;
 
       function setTapOverlayVisible(visible) {
         if (!tapOverlay) return;
@@ -377,14 +387,13 @@
         navigateTo("lounge.html");
       }
 
-      document.getElementById("voiceQuestion").textContent = isLifeRound
-        ? "choose a topic and discuss it freely"
-        : question;
+      document.getElementById("voiceQuestion").textContent = baseQuestionText;
       document.getElementById("myName").textContent = "You";
       const first = partner?.firstName || partner?.first_name || "";
       const last = partner?.lastName || partner?.last_name || "";
       document.getElementById("partnerName").textContent =
         `${first} ${last}`.trim() || "your match";
+      voiceTimer.textContent = `00:00 / ${roundLimitLabel}`;
 
       if (isLifeRound) {
         document.querySelector(".voice-images").style.display = "none";
@@ -514,13 +523,91 @@
 
       /* ================= Timer ================= */
 
+      function formatMMSS(totalSeconds) {
+        const sec = Math.max(0, Math.floor(totalSeconds));
+        const m = String(Math.floor(sec / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${m}:${s}`;
+      }
+
+      function ensureCueAudioContext() {
+        if (!cueAudioContext) {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return null;
+          cueAudioContext = new Ctx();
+        }
+        return cueAudioContext;
+      }
+
+      function playCue(pattern = "warning") {
+        const ctx = ensureCueAudioContext();
+        if (!ctx) return;
+        if (ctx.state === "suspended") {
+          ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+        const offsets =
+          pattern === "final"
+            ? [0, 0.18, 0.36]
+            : pattern === "half"
+              ? [0, 0.2]
+              : [0];
+
+        offsets.forEach((offset, index) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value =
+            pattern === "final" ? (index % 2 ? 660 : 880) : 760;
+
+          gain.gain.setValueAtTime(0.0001, now + offset);
+          gain.gain.exponentialRampToValueAtTime(0.05, now + offset + 0.02);
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            now + offset + 0.15,
+          );
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.16);
+        });
+      }
+
+      function showTimedNotice(message, durationMs = 3000) {
+        const el = document.getElementById("voiceQuestion");
+        if (!el) return;
+        el.textContent = message;
+        if (noticeResetTimer) clearTimeout(noticeResetTimer);
+        noticeResetTimer = setTimeout(() => {
+          el.textContent = baseQuestionText;
+        }, durationMs);
+      }
+
+      function handleTimeCue(elapsedSec, remainingSec) {
+        const fiveMinKey = "300";
+        if (remainingSec <= 300 && !firedCueKeys.has(fiveMinKey)) {
+          firedCueKeys.add(fiveMinKey);
+          playCue("warning");
+          showTimedNotice("5 minutes remaining");
+        }
+      }
+
       function startTimer() {
         timer = setInterval(() => {
+          if (hasCallEnded) return;
           const now = Date.now();
           const elapsed = Math.floor((now - callStart) / 1000);
-          const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
-          const s = String(elapsed % 60).padStart(2, "0");
-          voiceTimer.textContent = `${m}:${s}`;
+          const remaining = roundLimitSeconds - elapsed;
+          voiceTimer.textContent = `${formatMMSS(elapsed)} / ${roundLimitLabel}`;
+          handleTimeCue(elapsed, remaining);
+
+          if (remaining <= 0) {
+            clearInterval(timer);
+            playCue("final");
+            showTimedNotice("time is up. ending call...", 2500);
+            window.endCall({ reason: "time_limit" });
+          }
         }, 1000);
       }
 
@@ -634,6 +721,8 @@
       };
 
       window.endCall = async (options = {}) => {
+        if (hasCallEnded) return;
+        hasCallEnded = true;
         const isRemote = options?.remote === true;
 
         if (timer) clearInterval(timer);
@@ -660,6 +749,7 @@
             call_ended: true,
             ended_by: userId,
             ended_at: endedAt,
+            ended_reason: options?.reason || "manual",
           });
         }
 
@@ -732,6 +822,8 @@
               setTapOverlayVisible(true);
               return;
             }
+
+            ensureCueAudioContext();
 
             setTapOverlayVisible(false);
             if (tapBtn) tapBtn.disabled = false;
