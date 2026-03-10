@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, session
 from firebase_admin import auth as fb_auth
 from backend.services.firestore import get_firestore
 from backend.services.rtdb import get_rtdb
+from backend.utils.age_policy import AGE_MAX, AGE_MIN, normalize_age_preference, parse_age
 from backend.utils.request import get_json
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
@@ -137,10 +138,22 @@ def update_profile():
         update_data["last_name"] = data["last_name"]
 
     if "age" in data:
-        update_data["age"] = data["age"]
+        parsed_age = parse_age(data.get("age"))
+        if parsed_age is None:
+            return jsonify(success=False, message=f"age must be between {AGE_MIN} and {AGE_MAX}"), 400
+        update_data["age"] = parsed_age
 
     if has_incoming("age_preference"):
-        update_data["age_preference"] = get_incoming("age_preference")
+        age_preference = normalize_age_preference(get_incoming("age_preference"))
+        if age_preference is None:
+            return (
+                jsonify(
+                    success=False,
+                    message=f"age_preference must be between {AGE_MIN} and {AGE_MAX}",
+                ),
+                400,
+            )
+        update_data["age_preference"] = age_preference
 
     if has_incoming("drink"):
         update_data["drink"] = get_incoming("drink")

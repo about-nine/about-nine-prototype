@@ -79,16 +79,15 @@
       const birthDate = `${year}-${month}-${day}`;
       const age = calculateAge(birthDate);
       
-      // 만 18세 미만 체크
-      if (age < 18) {
+      if (age < 20) {
         saveToLocal('birthdate', birthDate);
         navigateTo('underage.html');
         return;
       }
-      
-      // 만 19세 이하는 가입 불가 (명세서 기준)
-      if (age <= 19) {
-        showError('error', 'sorry, you must be 19 or older to use this service');
+
+      // 가입 가능 연령: 20~60세
+      if (age > 60) {
+        showError('error', 'sorry, you must be between 20 and 60 to use this service');
         return;
       }
       

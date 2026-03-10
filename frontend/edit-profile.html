@@ -139,8 +139,8 @@
                 type="number"
                 id="ageInput"
                 class="profile-input"
-                min="18"
-                max="99"
+                min="20"
+                max="60"
                 placeholder="--"
               />
             </div>
@@ -249,6 +249,8 @@
       let userId = null;
       let profileData = null;
       let hasChanges = false;
+      const AGE_MIN = 20;
+      const AGE_MAX = 60;
       const pageLoadingText = consumePendingLoadingText() || "loading profile...";
       showLoading(pageLoadingText);
 
@@ -292,6 +294,22 @@
       const genderSelect       = document.getElementById("genderSelect");
       const genderDetailSelect = document.getElementById("genderDetailSelect");
 
+      function normalizeAge(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return null;
+        return Math.max(AGE_MIN, Math.min(AGE_MAX, Math.trunc(n)));
+      }
+
+      function normalizeAgePreference(value) {
+        const minRaw = Number(value?.min);
+        const maxRaw = Number(value?.max);
+        const min = Number.isFinite(minRaw) ? Math.trunc(minRaw) : AGE_MIN;
+        const max = Number.isFinite(maxRaw) ? Math.trunc(maxRaw) : AGE_MAX;
+        const lower = Math.max(AGE_MIN, Math.min(min, max));
+        const upper = Math.min(AGE_MAX, Math.max(min, max));
+        return { min: lower, max: upper };
+      }
+
       function refreshGenderDetailOptions(gender, selectedDetail) {
         const options = genderDetailOptions[gender] || [];
         const placeholder = '<option value="">select</option>';
@@ -331,7 +349,12 @@
           ageInput.value = "";
           return;
         }
-        const normalized = Math.max(18, Math.min(99, Number(profileData.age) || 0));
+        const normalized = normalizeAge(profileData.age);
+        if (normalized === null) {
+          ageInput.value = "";
+          profileData.age = null;
+          return;
+        }
         profileData.age = normalized;
         ageInput.value = normalized;
       });
@@ -393,6 +416,9 @@
           }
 
           profileData = res.user;
+          const normalizedAge = normalizeAge(profileData.age);
+          profileData.age = normalizedAge === null ? null : normalizedAge;
+          profileData.age_preference = normalizeAgePreference(profileData.age_preference);
           hideLoading();
           updateUI();
         } catch (error) {
@@ -444,7 +470,8 @@
         profileData.sexual_orientation = currentOrientation;
         document.getElementById("orientationSelect").value = currentOrientation;
 
-        const agePref = profileData.age_preference || { min: 20, max: 60 };
+        const agePref = normalizeAgePreference(profileData.age_preference);
+        profileData.age_preference = agePref;
         document.getElementById("minAgeSlider").value = agePref.min;
         document.getElementById("maxAgeSlider").value = agePref.max;
         updateSlider();
@@ -566,7 +593,13 @@
           }
 
           if (profileData.age !== undefined && profileData.age !== null && profileData.age !== "") {
-            payload.age = Number(profileData.age);
+            const normalizedAge = normalizeAge(profileData.age);
+            if (normalizedAge === null) {
+              hideLoading();
+              alert("age must be between 20 and 60");
+              return;
+            }
+            payload.age = normalizedAge;
           }
 
           const res = await apiCall("/users/profile", "POST", payload);

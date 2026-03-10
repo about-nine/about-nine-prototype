@@ -8,6 +8,14 @@ from backend.services.user_profile_service import (
     embedding_payload_from_text,
     transcripts_to_text,
 )
+from backend.utils.age_policy import (
+    AGE_MAX,
+    AGE_MIN,
+    calculate_age_from_birthdate,
+    normalize_age_preference,
+    parse_age,
+    parse_birthdate,
+)
 from backend.utils.request import get_json
 
 onboarding_bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
@@ -50,6 +58,25 @@ def save_onboarding():
             400,
         )
 
+    parsed_age = parse_age(age)
+    if parsed_age is None:
+        return jsonify(success=False, message=f"age must be between {AGE_MIN} and {AGE_MAX}"), 400
+
+    parsed_birthdate = parse_birthdate(birthdate)
+    if parsed_birthdate is None:
+        return jsonify(success=False, message="birthdate must be YYYY-MM-DD"), 400
+
+    birthdate_age = calculate_age_from_birthdate(parsed_birthdate)
+    if birthdate_age < AGE_MIN or birthdate_age > AGE_MAX:
+        return jsonify(success=False, message=f"birthdate age must be between {AGE_MIN} and {AGE_MAX}"), 400
+
+    age_preference = normalize_age_preference(profile.get("age_preference"))
+    if age_preference is None:
+        return (
+            jsonify(success=False, message=f"age_preference must be between {AGE_MIN} and {AGE_MAX}"),
+            400,
+        )
+
     db = get_firestore()
 
     # ✅ 루트 필드에 직접 저장 (onboarding_profile 제거)
@@ -59,10 +86,12 @@ def save_onboarding():
         "gender": gender,
         "gender_detail": gender_detail,
         "sexual_orientation": sexual_orientation,
-        "age_preference": profile.get("age_preference"),
+        "age_preference": age_preference,
         "drink": profile.get("drink"),
         "smoke": profile.get("smoke"),
         "marijuana": profile.get("marijuana"),
+        "age": parsed_age,
+        "birthdate": birthdate,
     }
 
     # 선택적 필드
@@ -70,10 +99,6 @@ def save_onboarding():
         update_data["first_name"] = first_name
     if last_name:
         update_data["last_name"] = last_name
-    if age is not None:
-        update_data["age"] = age
-    if birthdate:
-        update_data["birthdate"] = birthdate
     if phone:
         update_data["phone"] = phone
         
