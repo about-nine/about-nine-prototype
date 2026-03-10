@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chemistry Score</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+
+    <style>
+      .result-voice-page {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        padding: var(--safe-top) 0 calc(36px + var(--safe-bottom));
+        height: var(--app-height);
+        max-width: 480px;
+        margin: 0 auto;
+      }
+
+      .result-voice-page .chat-header {
+        width: 100%;
+      }
+
+      .rv-stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        width: 100%;
+        padding: 0 24px;
+        box-sizing: border-box;
+      }
+
+      .pulse-circle {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        animation: pulseIdle 2s ease-in-out infinite;
+        box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
+        transition:
+          background 0.7s ease,
+          box-shadow 0.7s ease,
+          opacity 0.4s ease;
+      }
+
+      .user-listening .pulse-circle {
+        animation: pulseStill 4s ease-in-out infinite;
+      }
+
+      .coco-processing .pulse-circle {
+        background: linear-gradient(135deg, #d0d0d0 0%, #f0f0f0 100%);
+        animation: pulseProcessing 2.5s ease-in-out infinite;
+        box-shadow: 0 0 20px rgba(200, 200, 200, 0.3);
+      }
+
+      .coco-speaking .pulse-circle {
+        animation: pulseSpeaking 0.6s ease-in-out infinite;
+        box-shadow: 0 0 60px rgba(255, 110, 196, 0.85);
+      }
+
+      @keyframes pulseIdle {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+      @keyframes pulseStill {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+      }
+      @keyframes pulseProcessing {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.05); opacity: 1; }
+      }
+      @keyframes pulseSpeaking {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.12); }
+      }
+
+      .rv-textbox {
+        text-align: center;
+        max-width: 300px;
+      }
+
+      .rv-cmsg {
+        font-size: 17px;
+        color: var(--text-primary);
+        line-height: 1.5;
+        min-height: 28px;
+        font-family: "Merriweather", serif;
+        font-weight: 300;
+      }
+
+      .rv-heard {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 10px;
+        min-height: 20px;
+        font-style: italic;
+      }
+
+      .voice-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 32px;
+        padding: 0 24px 16px;
+      }
+
+      .vi-bar {
+        width: 3px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.25);
+        transition: background 0.15s;
+      }
+
+      .user-speaking .vi-bar {
+        background: rgba(255, 255, 255, 0.85);
+        animation: viPulse 0.4s ease-in-out infinite;
+      }
+
+      .user-speaking .vi-bar:nth-child(1) { animation-delay: 0s; animation-duration: 0.45s; }
+      .user-speaking .vi-bar:nth-child(2) { animation-delay: 0.09s; animation-duration: 0.38s; }
+      .user-speaking .vi-bar:nth-child(3) { animation-delay: 0.18s; animation-duration: 0.42s; }
+      .user-speaking .vi-bar:nth-child(4) { animation-delay: 0.09s; animation-duration: 0.38s; }
+      .user-speaking .vi-bar:nth-child(5) { animation-delay: 0s; animation-duration: 0.45s; }
+
+      @keyframes viPulse {
+        0%, 100% { height: 4px; }
+        50% { height: 22px; }
+      }
+
+      /* Lounge button */
+      .rv-lounge-container {
+        padding: 0 20px 0;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.4s ease, transform 0.4s ease;
+        pointer-events: none;
+      }
+
+      .rv-lounge-container.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .lounge-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 25px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      /* Permission overlay */
+      .ob-permission {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+
+      .ob-permission.hidden { display: none; }
+
+      .ob-permission-card {
+        background: #1e1e1e;
+        border-radius: 20px;
+        padding: 28px 24px;
+        max-width: 340px;
+        width: 100%;
+        text-align: center;
+      }
+
+      .ob-permission-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+      }
+
+      .ob-permission-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+
+      .ob-permission-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .ob-permission-actions button { width: 100%; }
+
+      .error { color: #ff6b6b; font-size: 13px; display: block; margin-top: 8px; }
+      .error.hidden { display: none; }
+
+      /* Switch modal */
+      .voice-switch-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+
+      .voice-switch-modal.active { display: flex; }
+
+      .voice-switch-card {
+        background: #1e1e1e;
+        border-radius: 20px;
+        padding: 28px 24px;
+        max-width: 340px;
+        width: 100%;
+        text-align: center;
+      }
+
+      .voice-switch-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+      }
+
+      .voice-switch-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+
+      .voice-switch-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .voice-switch-actions button { width: 100%; }
+
+      .voice-switch-actions button.primary {
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        color: white;
+        border: none;
+      }
+
+      .keep-trying {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="result-voice-page chat-container" id="rvPage">
+      <div class="chat-header brand-text">COCO</div>
+
+      <div class="rv-stage">
+        <div class="waiting-animation">
+          <div class="pulse-circle"></div>
+        </div>
+        <div class="rv-textbox">
+          <div id="rvMsg" class="rv-cmsg"></div>
+          <div id="rvHeard" class="rv-heard"></div>
+        </div>
+      </div>
+
+      <div class="rv-lounge-container" id="loungeContainer">
+        <button class="lounge-btn" onclick="navigateTo('lounge.html')">
+          go to lounge
+        </button>
+      </div>
+
+      <div class="voice-indicator" id="voiceIndicator">
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+        <div class="vi-bar"></div>
+      </div>
+    </div>
+
+    <!-- Permission overlay -->
+    <div class="ob-permission" id="obPermission">
+      <div class="ob-permission-card">
+        <div class="ob-permission-title">enable mic & audio</div>
+        <div class="ob-permission-text">
+          we need microphone access to hear you and audio playback for coco's
+          voice. please allow permissions to continue.
+        </div>
+        <div class="ob-permission-actions">
+          <button id="obPermissionBtn">enable microphone</button>
+          <button class="ghost" id="obPermissionSkip">use chat instead</button>
+        </div>
+        <span id="obPermissionError" class="error hidden"></span>
+      </div>
+    </div>
+
+    <!-- Switch modal -->
+    <div class="voice-switch-modal" id="voiceSwitchModal">
+      <div class="voice-switch-card">
+        <div class="voice-switch-title">having trouble?</div>
+        <div class="voice-switch-text">
+          it looks like the mic couldn't catch what you said. want to switch to
+          the chat version instead?
+        </div>
+        <div class="voice-switch-actions">
+          <button class="primary" id="voiceSwitchChat">switch to chat</button>
+          <button class="keep-trying" id="voiceSwitchKeep">keep trying</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/common.js"></script>
+
+    <script>
+      /* ================= DATA ================= */
+
+      const userId = getFromLocal("user_id");
+      let talkId = getFromLocal("current_talk_id");
+      const partner = getFromLocal("chat_partner");
+      const requestId = getFromLocal("match_request_id");
+      const phone = getFromLocal("phone");
+      const VOICE_API_BASE = `${API_BASE}/voice`;
+
+      const LANG_HINTS_BY_CC = {
+        "1": "en", "44": "en", "61": "en", "64": "en", "353": "en", "27": "en",
+        "82": "ko", "81": "ja", "86": "zh", "886": "zh",
+        "33": "fr", "49": "de", "34": "es", "39": "it",
+        "55": "pt", "351": "pt", "52": "es", "54": "es",
+        "7": "ru", "91": "hi", "66": "th", "84": "vi", "62": "id", "60": "ms",
+        "31": "nl", "46": "sv", "47": "no", "45": "da", "358": "fi",
+        "48": "pl", "90": "tr", "966": "ar", "971": "ar", "20": "ar",
+      };
+      function getSttLanguage(p) {
+        if (!p) return null;
+        const digits = p.replace(/\D/g, "");
+        for (const len of [3, 2, 1]) {
+          const cc = digits.slice(0, len);
+          if (LANG_HINTS_BY_CC[cc]) return LANG_HINTS_BY_CC[cc] === "en" ? "en" : null;
+        }
+        return null;
+      }
+      const STT_LANGUAGE = getSttLanguage(phone);
+
+      let talkData = null;
+      let analysisScore = null;
+      let currentRound = 1;
+      let myChoice = null;
+      let partnerPollTimer = null;
+      let partnerTimeoutTimer = null;
+      let effectiveUserId = userId;
+      const PARTNER_WAIT_MS = 60000;
+
+      /* ================= VOICE STATE ================= */
+
+      let mediaStream = null;
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let audioContext = null;
+      let analyser = null;
+      let vadInterval = null;
+      let noSpeechTimer = null;
+      let isListening = false;
+      let isProcessing = false;
+      let audioUnlocked = false;
+      let speechDetected = false;
+      let speechStartTime = 0;
+      let silenceStart = null;
+      let switchModalOpen = false;
+      let noSpeechCount = 0;
+
+      // Conversation state
+      // 'idle' | 'how_was_it' | 'go_no' | 're_ask' | 'waiting' | 'done'
+      let flowState = "idle";
+      let pendingChoice = null;
+
+      const NO_SPEECH_THRESHOLD = 5;
+      const SPEECH_THRESHOLD = 0.015;
+      const SILENCE_DURATION = 1500;
+      const MIN_SPEECH_DURATION = 200;
+      const MAX_SPEECH_DURATION = 30000;
+      const NO_SPEECH_TIMEOUT = 8000;
+
+      const SILENT_WAV_B64 =
+        "UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+      /* ================= DOM ================= */
+
+      const $msg = document.getElementById("rvMsg");
+      const $heard = document.getElementById("rvHeard");
+      const $page = document.getElementById("rvPage");
+      const $voiceIndicator = document.getElementById("voiceIndicator");
+      const $permission = document.getElementById("obPermission");
+      const $permissionBtn = document.getElementById("obPermissionBtn");
+      const $permissionSkip = document.getElementById("obPermissionSkip");
+      const $permissionError = document.getElementById("obPermissionError");
+      const $switchModal = document.getElementById("voiceSwitchModal");
+      const $switchKeep = document.getElementById("voiceSwitchKeep");
+      const $switchChat = document.getElementById("voiceSwitchChat");
+      const cocoPlayer = new Audio();
+      cocoPlayer.preload = "auto";
+      cocoPlayer.setAttribute("playsinline", "");
+      cocoPlayer.playsInline = true;
+
+      /* ================= AUDIO ENGINE ================= */
+
+      function playAudio(b64) {
+        return new Promise((resolve) => {
+          if (!b64) { resolve(false); return; }
+          try { cocoPlayer.pause(); } catch {}
+          cocoPlayer.onended = null;
+          cocoPlayer.onerror = null;
+          cocoPlayer.src = "data:audio/mpeg;base64," + String(b64).replace(/\s+/g, "");
+          cocoPlayer.load();
+          cocoPlayer.volume = 1;
+          let done = false;
+          const finish = (played) => {
+            if (done) return;
+            done = true;
+            $page.classList.remove("coco-speaking");
+            resolve(played);
+          };
+          $page.classList.add("coco-speaking");
+          const timeout = setTimeout(() => { try { cocoPlayer.pause(); } catch {} finish(false); }, 15000);
+          cocoPlayer.onended = () => { clearTimeout(timeout); finish(true); };
+          cocoPlayer.onerror = () => { clearTimeout(timeout); finish(false); };
+          const p = cocoPlayer.play();
+          if (p?.catch) p.catch(() => { clearTimeout(timeout); finish(false); });
+        });
+      }
+
+      function unlockAudioPlayback() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+        try {
+          cocoPlayer.src = "data:audio/wav;base64," + SILENT_WAV_B64;
+          cocoPlayer.volume = 0;
+          cocoPlayer.currentTime = 0;
+          const p = cocoPlayer.play();
+          if (p?.catch) p.catch(() => {});
+        } catch {}
+      }
+
+      async function fetchTtsAudio(text) {
+        const plain = String(text || "").replace(/\n+/g, " ").trim();
+        if (!plain) return null;
+        try {
+          const res = await fetch(`${VOICE_API_BASE}/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: plain }),
+          });
+          if (!res.ok) return null;
+          const data = await res.json().catch(() => ({}));
+          return data.audio || null;
+        } catch { return null; }
+      }
+
+      async function cocoSay(text) {
+        setStatus(text, "");
+        const audio = await fetchTtsAudio(text);
+        if (audio) {
+          await playAudio(audio);
+        } else {
+          await sleep(Math.min(2000, 400 + text.length * 40));
+        }
+      }
+
+      function setStatus(message, heard = null) {
+        if (message !== null && message !== undefined) $msg.textContent = message;
+        if (heard !== null) $heard.textContent = heard;
+      }
+
+      function setVoiceState(state) {
+        $page.classList.remove("user-listening", "coco-processing");
+        if (state === "listening") $page.classList.add("user-listening");
+        if (state === "processing") $page.classList.add("coco-processing");
+      }
+
+      /* ================= VAD + RECORDING ================= */
+
+      function getRMS() {
+        if (!analyser) return 0;
+        const buf = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        return Math.sqrt(sum / buf.length);
+      }
+
+      function startListening() {
+        if (!mediaStream || isProcessing || switchModalOpen) return;
+        isListening = true;
+        speechDetected = false;
+        silenceStart = null;
+        audioChunks = [];
+        setVoiceState("listening");
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = handleRecordingStop;
+
+        noSpeechTimer = setTimeout(() => {
+          if (!speechDetected && isListening) handleNoSpeech();
+        }, NO_SPEECH_TIMEOUT);
+
+        vadInterval = setInterval(() => {
+          if (!isListening) return;
+          const rms = getRMS();
+          if (rms > SPEECH_THRESHOLD) {
+            $voiceIndicator.classList.add("user-speaking");
+            if (!speechDetected) {
+              speechDetected = true;
+              speechStartTime = Date.now();
+              clearTimeout(noSpeechTimer);
+              mediaRecorder.start();
+              setVoiceState("listening");
+            }
+            silenceStart = null;
+          } else {
+            $voiceIndicator.classList.remove("user-speaking");
+            if (speechDetected && mediaRecorder.state === "recording") {
+              if (!silenceStart) {
+                silenceStart = Date.now();
+              } else if (Date.now() - silenceStart > SILENCE_DURATION) {
+                stopListening();
+              }
+            }
+            if (speechDetected && speechStartTime && Date.now() - speechStartTime > MAX_SPEECH_DURATION) {
+              stopListening();
+            }
+          }
+        }, 50);
+      }
+
+      function stopListening() {
+        isListening = false;
+        clearInterval(vadInterval);
+        clearTimeout(noSpeechTimer);
+        $voiceIndicator.classList.remove("user-speaking");
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }
+
+      async function handleRecordingStop() {
+        if (!speechDetected || audioChunks.length === 0) return;
+        const duration = speechStartTime ? Date.now() - speechStartTime : 0;
+        if (duration < MIN_SPEECH_DURATION) {
+          $heard.textContent = "could you say that again?";
+          if (!isProcessing && !switchModalOpen) startListening();
+          return;
+        }
+
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunks, { type: mimeType });
+        setVoiceState("processing");
+
+        try {
+          const formData = new FormData();
+          const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+          formData.append("audio", blob, `audio.${ext}`);
+          if (STT_LANGUAGE) formData.append("language", STT_LANGUAGE);
+
+          const res = await fetch(`${VOICE_API_BASE}/stt`, { method: "POST", body: formData });
+          const data = await res.json().catch(() => ({}));
+          const transcript = (data.transcript || "").trim();
+
+          if (transcript) {
+            const NOISE_WORDS = new Set(["you", "i", "the", "a", "an", "um", "uh", "hm", "hmm", "oh", "ah", "ok", "okay"]);
+            const words = transcript.trim().split(/\s+/);
+            const isNoise = words.length === 1 && NOISE_WORDS.has(words[0].toLowerCase().replace(/[.,?!]$/, ""));
+            if (isNoise) {
+              $heard.textContent = "could you say that again?";
+              if (!isProcessing && !switchModalOpen) startListening();
+              return;
+            }
+            noSpeechCount = 0;
+            $heard.textContent = transcript;
+            await processTranscript(transcript);
+          } else {
+            handleNoSpeech();
+          }
+        } catch (e) {
+          console.error("STT error", e);
+          if (!switchModalOpen) startListening();
+        }
+      }
+
+      /* ================= NO SPEECH / MODAL ================= */
+
+      function handleNoSpeech() {
+        noSpeechCount++;
+        if (noSpeechCount >= NO_SPEECH_THRESHOLD) {
+          noSpeechCount = 0;
+          showSwitchModal();
+          return;
+        }
+        stopListening();
+        const hints = {
+          2: "try speaking a bit louder or closer to your mic",
+          3: "make sure you're in a quiet place and speak naturally",
+        };
+        const hint = hints[noSpeechCount];
+        if (hint) {
+          setStatus(hint, "");
+          cocoSay(hint).then(() => { if (!switchModalOpen) startListening(); });
+        } else {
+          startListening();
+        }
+      }
+
+      function showSwitchModal() {
+        if (switchModalOpen) return;
+        $switchModal.classList.add("active");
+        switchModalOpen = true;
+        setVoiceState("");
+        stopListening();
+      }
+
+      function hideSwitchModal() {
+        $switchModal.classList.remove("active");
+        switchModalOpen = false;
+      }
+
+      /* ================= PERMISSION ================= */
+
+      async function handlePermissionStart() {
+        $permissionBtn.disabled = true;
+        if ($permissionError) { $permissionError.textContent = ""; $permissionError.classList.add("hidden"); }
+        unlockAudioPlayback();
+        setStatus("initializing mic...", "");
+
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+          const isDenied = e.name === "NotAllowedError" || e.name === "PermissionDeniedError";
+          if ($permissionError) {
+            $permissionError.textContent = isDenied
+              ? "microphone access was denied. please allow mic access in your browser settings."
+              : "could not access microphone. please check your device settings.";
+            $permissionError.classList.remove("hidden");
+          }
+          $permissionBtn.disabled = false;
+          return;
+        }
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+
+        $permission.classList.add("hidden");
+        startFlow();
+      }
+
+      $permissionBtn?.addEventListener("click", handlePermissionStart);
+      $permissionSkip?.addEventListener("click", () => navigateTo("talk-result.html"));
+      $switchKeep?.addEventListener("click", () => {
+        hideSwitchModal();
+        setStatus("okay, let's try again.", "");
+        startListening();
+      });
+      $switchChat?.addEventListener("click", () => navigateTo("talk-result.html"));
+
+      /* ================= INIT ================= */
+
+      window.onload = async () => {
+        if (!userId || !talkId || !partner) {
+          alert("invalid request");
+          navigateTo("lounge.html");
+          return;
+        }
+        // Load talk data before permission screen is dismissed
+        loadTalkData();
+      };
+
+      let talkDataReady = false;
+      let talkDataPromiseResolve = null;
+      const talkDataResolvedPromise = new Promise((r) => { talkDataPromiseResolve = r; });
+
+      async function loadTalkData() {
+        try {
+          const res = await apiCall(`/talks/history/${talkId}`);
+          if (!res?.talk) {
+            navigateTo("lounge.html");
+            return;
+          }
+          talkData = res.talk;
+          currentRound = Number(talkData.round) || 1;
+          analysisScore = extractAnalysisScore(talkData);
+        } catch (e) {
+          console.error("Failed to load talk data:", e);
+        }
+        talkDataReady = true;
+        talkDataPromiseResolve?.();
+      }
+
+      /* ================= FLOW ================= */
+
+      async function startFlow() {
+        if (!talkDataReady) {
+          setStatus("loading...", "");
+          await talkDataResolvedPromise;
+        }
+
+        const partnerName = getPartnerName();
+        let openingLines;
+        if (currentRound === 2) {
+          openingLines = [`so, second call with ${partnerName} done —`, "how did it go?"];
+        } else if (currentRound === 3) {
+          openingLines = [
+            `okay, that was your last call with ${partnerName} on this app.`,
+            "how did it feel?",
+          ];
+        } else {
+          openingLines = [`hey, how was the call with ${partnerName}?`];
+        }
+
+        for (const line of openingLines) await cocoSay(line);
+        flowState = "how_was_it";
+        startListening();
+      }
+
+      async function processTranscript(transcript) {
+        if (isProcessing) return;
+        isProcessing = true;
+        stopListening();
+        const t = transcript.toLowerCase();
+
+        try {
+          if (flowState === "how_was_it") {
+            flowState = "go_no";
+            await askGoNo();
+
+          } else if (flowState === "go_no") {
+            const intent = parseGoNoIntent(t);
+            await handleGoNoResponse(intent);
+
+          } else if (flowState === "re_ask") {
+            const intent = parseGoNoIntent(t);
+            if (intent === "go" || intent === "no") {
+              await finalizeChoice(intent);
+            } else {
+              await cocoSay("just let me know — go or no?");
+              startListening();
+            }
+          }
+        } catch (e) {
+          console.error("flow error:", e);
+          startListening();
+        } finally {
+          isProcessing = false;
+        }
+      }
+
+      /* ================= CONVERSATION LOGIC ================= */
+
+      function parseGoNoIntent(t) {
+        const unsureWords = [
+          "not sure", "unsure", "don't know", "i don't know", "idk",
+          "not really sure", "can't decide", "hard to say", "i'm not sure",
+          "maybe", "either way", "not sure yet",
+        ];
+        const goWords = [
+          "go", "yes", "yeah", "yep", "yup", "sure", "definitely",
+          "absolutely", "of course", "why not", "let's go", "i'll go",
+          "going for it",
+        ];
+        const noWords = [
+          "no", "nah", "nope", "pass", "not really", "i don't think",
+          "probably not", "i'm out", "i think no",
+        ];
+
+        if (unsureWords.some((w) => t.includes(w))) return "unsure";
+        if (goWords.some((w) => t.includes(w))) return "go";
+        if (noWords.some((w) => t.includes(w))) return "no";
+        return null;
+      }
+
+      async function askGoNo() {
+        const partnerName = getPartnerName();
+        let question;
+        if (currentRound === 2) {
+          question = `you've had two chats with ${partnerName} now. go or no?`;
+        } else if (currentRound === 3) {
+          question = "this is your final chance — go or no?";
+        } else {
+          question = "so, go or no?";
+        }
+        await cocoSay(question);
+        startListening();
+      }
+
+      async function handleGoNoResponse(intent) {
+        const score = analysisScore;
+        const isHigh = score !== null && score >= 75;
+        const isLow = score !== null && score < 60;
+
+        if (intent === null || intent === "unsure") {
+          await ensureScore();
+          await revealScore();
+          const rec = buildUnsureRec(score);
+          await cocoSay(rec);
+          flowState = "re_ask";
+          startListening();
+          return;
+        }
+
+        pendingChoice = intent;
+        await ensureScore();
+        await revealScore();
+
+        if (intent === "go") {
+          if (isLow) {
+            await cocoSay("honestly it's on the low side. i'm not totally sure about this one, but you know best.");
+            await cocoSay("still a go?");
+            flowState = "re_ask";
+            startListening();
+          } else {
+            const comment = isHigh
+              ? "looks like a solid pick."
+              : "not the highest, but connections can surprise you.";
+            await cocoSay(comment);
+            await finalizeChoice("go");
+          }
+        } else {
+          // no
+          if (isHigh) {
+            await cocoSay(`that's actually ${getScoreLabel(score)}. worth a second thought?`);
+            await cocoSay("still a no?");
+            flowState = "re_ask";
+            startListening();
+          } else {
+            const comment = isLow
+              ? "yeah, it's pretty low. good read."
+              : "your gut might be right.";
+            await cocoSay(comment);
+            await finalizeChoice("no");
+          }
+        }
+      }
+
+      function buildUnsureRec(score) {
+        if (score === null) return "go with your gut — go or no?";
+        if (score >= 75) return "i'd say go for it. go or no?";
+        if (score >= 60) return "could go either way, honestly. go or no?";
+        return "it's pretty low. probably a no, but it's up to you — go or no?";
+      }
+
+      async function ensureScore() {
+        if (analysisScore !== null) return;
+        setStatus("give me a second...", "");
+        for (let i = 0; i < 5 && analysisScore === null; i++) {
+          await sleep(3000);
+          try {
+            const res = await apiCall(`/talks/history/${talkId}`);
+            if (res?.talk) {
+              const s = extractAnalysisScore(res.talk);
+              if (s !== null) {
+                analysisScore = s;
+                talkData = res.talk;
+              }
+            }
+          } catch {}
+        }
+      }
+
+      async function revealScore() {
+        const score = analysisScore;
+        const partnerName = getPartnerName();
+        if (score === null) {
+          await cocoSay(`your chemistry score with ${partnerName} is still being calculated.`);
+        } else {
+          await cocoSay(`your chemistry score with ${partnerName} is ${score} — ${getScoreLabel(score)}.`);
+        }
+      }
+
+      async function finalizeChoice(choice) {
+        flowState = "waiting";
+        myChoice = choice;
+        await cocoSay("alright.");
+        await cocoSay(`checking if ${getPartnerName()} is ready too...`);
+
+        try {
+          const res = await apiCall("/talks/respond", "POST", { talk_id: talkId, choice });
+          if (!res.success) throw new Error(res.message || "failed");
+          listenForPartnerResponse();
+        } catch (e) {
+          console.error("respond error:", e);
+          await cocoSay("something went wrong. try switching to chat.");
+        }
+      }
+
+      /* ================= PARTNER POLLING ================= */
+
+      function handlePartnerTimersCleanup() {
+        if (partnerPollTimer) { clearInterval(partnerPollTimer); partnerPollTimer = null; }
+        if (partnerTimeoutTimer) { clearTimeout(partnerTimeoutTimer); partnerTimeoutTimer = null; }
+      }
+
+      function listenForPartnerResponse() {
+        handlePartnerTimersCleanup();
+
+        partnerTimeoutTimer = setTimeout(async () => {
+          handlePartnerTimersCleanup();
+          flowState = "done";
+          await cocoSay("your match hasn't responded yet.");
+          await cocoSay("you can check the result in your history later.");
+          showLoungeButton();
+        }, PARTNER_WAIT_MS);
+
+        partnerPollTimer = setInterval(async () => {
+          try {
+            const [res, rtdbRes] = await Promise.all([
+              apiCall(`/talks/history/${talkId}`),
+              fetchGoNoGoStatus(),
+            ]);
+            if (!res.success || !res.talk) return;
+
+            const data = res.talk;
+            const freshScore = extractAnalysisScore(data);
+            if (freshScore !== null && freshScore !== analysisScore) {
+              analysisScore = freshScore;
+              talkData = data;
+            }
+
+            const participants = rtdbRes?.participants || data?.participants || {};
+            const expectedCount = Object.values(participants).filter(Boolean).length || 2;
+            const goNoGo = rtdbRes?.go_no_go || extractGoNoGoMap(data);
+            const goNoGoValues = Object.values(goNoGo).filter((v) => v === true || v === false);
+
+            if (goNoGoValues.length >= expectedCount) {
+              handlePartnerTimersCleanup();
+              goNoGoValues.some((v) => v === false)
+                ? await handleSomeoneNo()
+                : await handleBothGo();
+              return;
+            }
+
+            // Check partner's individual response
+            let partnerId = participants.user_a === effectiveUserId ? participants.user_b : participants.user_a;
+            if (!partnerId) {
+              const ids = Object.keys(goNoGo);
+              partnerId = ids.find((id) => id !== effectiveUserId);
+            }
+            const partnerValue =
+              partnerId && Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
+                ? goNoGo[partnerId]
+                : null;
+            const partnerResponse = partnerValue === true ? "go" : partnerValue === false ? "no" : null;
+
+            if (partnerResponse) {
+              handlePartnerTimersCleanup();
+              myChoice === "go" && partnerResponse === "go"
+                ? await handleBothGo()
+                : await handleSomeoneNo();
+            }
+          } catch (e) {
+            if (String(e?.message || "").includes("talk_history not found")) {
+              handlePartnerTimersCleanup();
+              navigateTo("lounge.html");
+            }
+          }
+        }, 2000);
+      }
+
+      async function fetchGoNoGoStatus() {
+        const id = requestId || talkId;
+        if (!id) return null;
+        try {
+          const response = await fetch(`${getApiBase()}/talks/go-no-go/${id}`, {
+            credentials: "include",
+          });
+          if (!response.ok) return null;
+          const res = await response.json();
+          return res?.success ? res : null;
+        } catch { return null; }
+      }
+
+      /* ================= RESULTS ================= */
+
+      async function handleBothGo() {
+        flowState = "done";
+        const partnerName = getPartnerName();
+
+        if (currentRound >= 3) {
+          await cocoSay("wishing you luck!");
+          await readProfileAloud();
+        } else {
+          await cocoSay("you both said go!");
+          await cocoSay(`here's what i can share about ${partnerName}.`);
+          await readProfileAloud();
+        }
+
+        showLoungeButton();
+      }
+
+      async function handleSomeoneNo() {
+        flowState = "done";
+        await cocoSay("well, it looks like this one wasn't your one and only.");
+        await cocoSay("the match ends here.");
+        await cocoSay("we'll find someone new for you.");
+        await cocoSay("see you later.");
+        showLoungeButton();
+      }
+
+      async function readProfileAloud() {
+        const partnerName = getPartnerName();
+        const age = partner?.age ?? null;
+        const gender = partner?.gender || null;
+        const drink = partner?.drink || null;
+        const smoke = partner?.smoke || null;
+        const marijuana = partner?.marijuana || null;
+        const rawPhone = partner?.phone || null;
+        const playlist = Array.isArray(partner?.playlist) ? partner.playlist.slice(0, 3) : [];
+
+        // Round 1+: basic info
+        const basicParts = [];
+        if (age) basicParts.push(`${age} years old`);
+        if (gender) basicParts.push(gender);
+        if (basicParts.length > 0) {
+          await cocoSay(`${partnerName} is ${basicParts.join(", ")}.`);
+        }
+
+        if (playlist.length > 0) {
+          const tracks = playlist
+            .map((t) => `${t.name || "a track"} by ${t.artist || "unknown"}`)
+            .join(", ");
+          await cocoSay(`their playlist includes ${tracks}.`);
+        }
+
+        // Round 2+: lifestyle
+        if (currentRound >= 2) {
+          const lifestyle = [];
+          if (drink && drink !== "Not provided") lifestyle.push(`drinks ${drink}`);
+          if (smoke && smoke !== "Not provided") lifestyle.push(`smoking ${smoke}`);
+          if (marijuana && marijuana !== "Not provided") lifestyle.push(`marijuana ${marijuana}`);
+          if (lifestyle.length > 0) {
+            await cocoSay(lifestyle.join(", ") + ".");
+          }
+        }
+
+        // Round 3: contact
+        if (currentRound >= 3 && rawPhone) {
+          const formatted = formatContactNumber(rawPhone);
+          await cocoSay(`and here's their number — ${formatted}.`);
+        }
+      }
+
+      function showLoungeButton() {
+        document.getElementById("loungeContainer").classList.add("visible");
+      }
+
+      /* ================= HELPERS ================= */
+
+      function getPartnerName() {
+        const first = partner?.firstName || partner?.first_name || "";
+        const last = partner?.lastName || partner?.last_name || "";
+        return `${first} ${last}`.trim() || "your match";
+      }
+
+      function getScoreLabel(score) {
+        if (score === null) return "--";
+        if (score >= 90) return "great";
+        if (score >= 75) return "good";
+        if (score >= 60) return "fair";
+        return "low";
+      }
+
+      function extractAnalysisScore(data) {
+        const raw = data?.analysis?.chemistry_score;
+        if (typeof raw !== "number" || Number.isNaN(raw)) return null;
+        return Math.max(0, Math.min(100, Math.round(raw)));
+      }
+
+      function extractGoNoGoMap(talk) {
+        const map =
+          talk?.go_no_go && typeof talk.go_no_go === "object" ? { ...talk.go_no_go } : {};
+        if (talk && typeof talk === "object") {
+          Object.keys(talk).forEach((key) => {
+            if (key.startsWith("go_no_go.")) map[key.slice("go_no_go.".length)] = talk[key];
+          });
+        }
+        return map;
+      }
+
+      function formatContactNumber(raw) {
+        if (!raw) return "--";
+        const trimmed = String(raw).trim();
+        if (!trimmed) return "--";
+        const digits = trimmed.replace(/\D/g, "");
+        if (!digits) return trimmed;
+        let country = "", local = digits;
+        if (trimmed.startsWith("+") && digits.length > 8) {
+          const countryLen = Math.max(1, digits.length - 10);
+          country = digits.slice(0, countryLen);
+          local = digits.slice(countryLen);
+        }
+        const paddedLocal = local.padStart(10, "0").slice(-10);
+        const prefixLen = Math.max(2, paddedLocal.length - 8);
+        const first = paddedLocal.slice(0, prefixLen);
+        const middle = paddedLocal.slice(prefixLen, prefixLen + 4);
+        const last = paddedLocal.slice(prefixLen + 4);
+        const formattedLocal = [first, middle, last].filter(Boolean).join("-");
+        return country ? `+${country} ${formattedLocal}` : formattedLocal;
+      }
+
+      function getApiBase() {
+        try {
+          const s = localStorage.getItem("api_base");
+          if (s) return s;
+        } catch {}
+        return window.__API_BASE__ || `${window.location.origin}/api`;
+      }
+    </script>
+  </body>
+</html>
