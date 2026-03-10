@@ -1461,14 +1461,14 @@
 
       function getFeatureGuidanceText(score, featureKey) {
         if (typeof score !== "number" || Number.isNaN(score)) {
-          return `${FEATURE_GUIDANCE[featureKey]?.label || featureKey} · awaiting score.`;
+          return "awaiting score.";
         }
         const config = FEATURE_GUIDANCE[featureKey];
-        if (!config) return `${featureKey}: ${score}`;
+        if (!config) return `${score}`;
         const tier =
           config.tiers.find((t) => score >= t.min) ||
           config.tiers[config.tiers.length - 1];
-        return `${config.label} · ${tier.text}`;
+        return tier.text;
       }
 
       /* ================= 유틸 ================= */

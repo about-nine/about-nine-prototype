@@ -68,6 +68,22 @@ def apply_stt_corrections(text: str) -> str:
     return text
 
 
+_HALLUCINATION_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"https?://",                                   # URLs like otter.ai
+        r"(?:\b\w+\b)(?:\s+\1){2,}",                   # word repeated 3+ times
+    ]
+]
+
+def _is_hallucination(text: str) -> bool:
+    if not text:
+        return False
+    for pattern in _HALLUCINATION_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
+
+
 def normalize_gender_detail(value: str, gender: str) -> str | None:
     """Map free-form LLM output to one of the canonical gender_detail values."""
     v = value.strip().lower()
@@ -261,6 +277,7 @@ Conversation rules:
 - Phrase questions to naturally elicit a sentence rather than a single word (e.g. "how do you identify?" rather than "man, woman, or non-binary?") — longer responses are easier to understand
 - Speech recognition may mishear certain words. When extracting fields, consider: "this/sis woman" likely means "cis woman", "non binary" means "non-binary", "weed/cannabis" means marijuana, "amen" when discussing gender likely means "a man"
 - If the user says something off-topic (greetings, farewells, unrelated comments), do not engage with it — briefly redirect back to the current question
+- If the user expresses frustration, confusion, or says things like "I can't do this", "I'm lost", "what are you doing", swear words, or any emotional distress — do NOT acknowledge or engage with the emotional content. Treat it exactly like off-topic input: redirect back to the current question in one sentence. Never offer to take a break, pause, or talk about something else.
 - ONE sentence only. Maximum 15 words. Never two sentences. Never a follow-up clause.
 - Never use lists, options, or multiple questions in one turn
 - Always reply in English
@@ -419,11 +436,30 @@ def voice_stt():
             model="whisper-1",
             file=(audio.filename, audio.stream, audio.mimetype),
             language=language,
+            response_format="verbose_json",
         )
         if whisper_prompt:
             kwargs["prompt"] = whisper_prompt
         transcript = client.audio.transcriptions.create(**kwargs)
-        text = apply_stt_corrections(transcript.text.strip())
+
+        # Filter hallucinations via no_speech_prob
+        no_speech_prob = getattr(transcript, "no_speech_prob", None)
+        if no_speech_prob is not None and no_speech_prob > 0.6:
+            print(f"[STT] hallucination rejected (no_speech_prob={no_speech_prob:.2f})")
+            return jsonify(transcript="")
+
+        text = (transcript.text or "").strip()
+
+        # Filter known Whisper hallucination patterns
+        if _is_hallucination(text):
+            print(f"[STT] hallucination rejected (pattern): {text[:80]}")
+            return jsonify(transcript="")
+
+        text = apply_stt_corrections(text)
+        # For yes/no fields, "you" is likely a mishearing of "no"
+        if field_hint in ("drink", "smoke", "marijuana"):
+            if text.strip().lower() in ("you", "you.", "you?"):
+                text = "no"
         return jsonify(transcript=text)
     except Exception as e:
         print("STT error:", e)

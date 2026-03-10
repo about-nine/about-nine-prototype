@@ -646,6 +646,21 @@
           const transcript = (data.transcript || "").trim();
 
           if (transcript) {
+            // Filter out single-word noise picked up from background/speaker bleed.
+            // Skip filtering for yes/no fields — "you" can be a mishearing of "no".
+            const currentField = REQUIRED_FIELDS.find(k => !collected[k]);
+            const isYesNoField = ["drink", "smoke", "marijuana"].includes(currentField);
+            const NOISE_WORDS = new Set(isYesNoField
+              ? ["i", "the", "a", "an", "um", "uh", "hm", "hmm", "ah"]
+              : ["you", "i", "the", "a", "an", "um", "uh", "hm", "hmm", "oh", "ah", "ok", "okay"]);
+            const words = transcript.trim().split(/\s+/);
+            const isNoise = words.length === 1 && NOISE_WORDS.has(words[0].toLowerCase().replace(/[.,?!]$/, ""));
+            if (isNoise) {
+              console.log("[STT] noise filtered:", transcript);
+              $heard.textContent = "could you say that again?";
+              if (!isProcessing && !switchModalOpen) startListening();
+              return;
+            }
             noSpeechCount = 0;
             console.log("[STT]", transcript, `(${duration}ms)`);
             $heard.textContent = transcript;
@@ -692,14 +707,20 @@
       }
 
       $permissionBtn?.addEventListener("click", handlePermissionStart);
-      $permissionSkip?.addEventListener("click", () => navigateTo("onboarding-chat.html"));
+      $permissionSkip?.addEventListener("click", () => {
+        if (Object.keys(collected).length) saveToLocal("voice_collected", collected);
+        navigateTo("onboarding-chat.html");
+      });
 
       $switchKeep?.addEventListener("click", () => {
         hideSwitchModal();
         setStatus("okay, let's try again.", "");
         startListening();
       });
-      $switchChat?.addEventListener("click", () => navigateTo("onboarding-chat.html"));
+      $switchChat?.addEventListener("click", () => {
+        if (Object.keys(collected).length) saveToLocal("voice_collected", collected);
+        navigateTo("onboarding-chat.html");
+      });
 
       /* ================= FLOW ================= */
 
