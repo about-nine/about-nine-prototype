@@ -658,6 +658,7 @@
       }
 
       async function buildAIMatch() {
+        const aiEmptyReason = getLocationEmptyReason();
         try {
           const res = await apiCall("/match/recommend");
           const list = Array.isArray(res)
@@ -667,7 +668,7 @@
               : Object.values(res?.users || {});
           aiUsers = list.slice(0, 5);
         } catch { aiUsers = []; }
-        renderUsers(aiUsers, "aiUserList", "ai");
+        renderUsers(aiUsers, "aiUserList", "ai", { emptyReason: aiEmptyReason });
       }
 
       async function checkPendingGoNo() {
@@ -854,6 +855,13 @@
         const status = error?.status;
         const message = (error?.data?.message || error?.message || "").toString();
         return status === 400 && message.includes("missing my location");
+      }
+
+      function getLocationEmptyReason() {
+        if (getFromLocal("location_denied") === true) return "missing_location";
+        const stored = getFromLocal("location");
+        if (!stored || stored.lat == null || stored.lng == null) return "missing_location";
+        return null;
       }
 
       /* ── 매칭 요청 ───────────────────────────────────── */

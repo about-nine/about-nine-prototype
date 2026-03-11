@@ -291,7 +291,7 @@ Return JSON only:
 Field formats for "collected":
 - gender: "woman" | "man" | "non-binary"
 - gender_detail: one of the allowed values listed above — omit if not mentioned
-- drink / smoke / marijuana: "yes" | "no"
+- drink / smoke / marijuana: "yes" | "no" — treat "sometimes", "occasionally", "rarely", "socially", "a bit" as "yes"
 - sexual_orientation: must be exactly one of: "men" | "women" | "men and women" | "men and non-binary people" | "women and non-binary people" | "all types of genders"
 - age_preference: {{"min": <int>, "max": <int>}}
 

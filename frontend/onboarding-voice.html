@@ -790,18 +790,12 @@
           conversationHistory.push({ role: "assistant", content: data.reply });
 
           if (data.is_complete) {
-            $msg.textContent = data.reply;
             $heard.textContent = "";
-            await playAudio(data.audio);
-            if (PLAYLIST_NOTICE_LINES.length) {
-              for (const line of PLAYLIST_NOTICE_LINES) {
-                setStatus(line, "");
-                await playCoco(line);
-              }
+            setVoiceState("");
+            for (const line of PLAYLIST_NOTICE_LINES) {
+              setStatus(line, "");
+              await playCoco(line);
             }
-            lastAskedField = null;
-            nudgeField = null;
-            nudgeMissCount = 0;
             await finish();
             return;
           }
@@ -890,7 +884,7 @@
       /* ================= FINISH ================= */
 
       async function finish() {
-        showLoading();
+        showLoading("saving your profile...");
         try {
           const bio = await generateBio();
           const speech_pace =
