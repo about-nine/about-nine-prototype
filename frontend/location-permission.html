@@ -13,14 +13,14 @@
     <div class="container">
       <div>
         <div class="brand-text">
-          share your location<br />
-          to meet people nearby
+          we use your location<br />
+          to show matches within 10 km
         </div>
 
         <span id="error" class="error hidden"></span>
       </div>
 
-      <button onclick="requestLocation()">next</button>
+      <button id="locationActionBtn" type="button" onclick="requestLocation()">enable location</button>
     </div>
 
     <script src="js/common.js"></script>
@@ -94,9 +94,23 @@
         hideError("error");
 
         if (!navigator.geolocation) {
-          showError("error", "geolocation not supported");
+          showError(
+            "error",
+            "your browser doesn’t support location. you can continue without it."
+          );
+          setLocationAction("continue");
           return;
         }
+
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "geolocation" });
+            if (status.state === "denied") {
+              showDeniedNotice();
+              return;
+            }
+          }
+        } catch {}
 
         showLoading("getting location...");
 
@@ -105,6 +119,7 @@
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
 
+            removeFromLocal("location_denied");
             saveToLocal("location", { lat, lng });
 
             try {
@@ -115,12 +130,22 @@
               navigateTo(nextRoute);
             } catch (e) {
               hideLoading();
-              showError("error", "failed to save location");
+              showError("error", "failed to save location. try again.");
             }
           },
-          () => {
+          (err) => {
             hideLoading();
-            showError("error", "location permission is required to continue");
+            removeFromLocal("location");
+            saveToLocal("location_denied", true);
+            if (err?.code === 1) {
+              showDeniedNotice();
+              return;
+            }
+            showError(
+              "error",
+              "we couldn't get your location right now. you can continue without it."
+            );
+            setLocationAction("continue");
           },
           {
             enableHighAccuracy: true,
@@ -128,6 +153,32 @@
             maximumAge: 0,
           }
         );
+      }
+
+      function showDeniedNotice() {
+        showError(
+          "error",
+          "location access is blocked in your browser settings. you can enable it there or continue without it."
+        );
+        setLocationAction("continue");
+      }
+
+      function continueWithoutLocation(e) {
+        if (e?.preventDefault) e.preventDefault();
+        saveToLocal("location_denied", true);
+        resolveNextRoute().then(navigateTo);
+      }
+
+      function setLocationAction(mode) {
+        const btn = document.getElementById("locationActionBtn");
+        if (!btn) return;
+        if (mode === "continue") {
+          btn.textContent = "continue";
+          btn.onclick = () => continueWithoutLocation();
+          return;
+        }
+        btn.textContent = "enable location";
+        btn.onclick = () => requestLocation();
       }
     </script>
   </body>

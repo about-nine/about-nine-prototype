@@ -170,6 +170,21 @@
         text-align: center;
       }
 
+      .empty-state-box .bottom-text {
+        margin-top: 16px;
+        margin-bottom: 0;
+      }
+
+      .empty-state-link {
+        background: none;
+        border: none;
+        color: inherit;
+        text-decoration: underline;
+        font: inherit;
+        padding: 0;
+        cursor: pointer;
+      }
+
       /* ── 플레이리스트 모달 ───────────────────────────── */
 
       .modal {
@@ -460,6 +475,7 @@
       let playlistTracks = [];
       let currentPlayingIndex = -1;
       let spotifyTimer = null;
+      let loungeEmptyReason = null;
 
       /* ── 탭 ──────────────────────────────────────────── */
 
@@ -550,6 +566,35 @@
 
       async function updateLocation() {
         const stored = getFromLocal("location");
+        let canRefresh = false;
+
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "geolocation" });
+            canRefresh = status.state === "granted";
+          }
+        } catch {}
+
+        if (canRefresh && navigator.geolocation) {
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0,
+              });
+            });
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            saveToLocal("location", { lat, lng });
+            removeFromLocal("location_denied");
+            await apiCall("/users/update-location", "POST", { lat, lng });
+            return;
+          } catch (error) {
+            console.warn("Failed to refresh location:", error);
+          }
+        }
+
         if (stored?.lat == null || stored?.lng == null) return;
         try {
           await apiCall("/users/update-location", "POST", { lat: stored.lat, lng: stored.lng });
@@ -558,14 +603,34 @@
         }
       }
 
+      async function shouldAwaitLocationRefresh() {
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "geolocation" });
+            return status.state === "granted";
+          }
+        } catch {}
+        return false;
+      }
+
       /* ── 유저 로드 / AI 추천 ─────────────────────────── */
 
       async function loadUsers() {
+        loungeEmptyReason = null;
+        if (getFromLocal("location_denied") === true) {
+          users = [];
+          loungeEmptyReason = "missing_location";
+          renderUsers(users, "userList", "lounge", { emptyReason: loungeEmptyReason });
+          return;
+        }
         try {
           const res = await apiCall("/match/list");
           users = res.users || [];
-        } catch { users = []; }
-        renderUsers(users, "userList", "lounge");
+        } catch (error) {
+          users = [];
+          if (isMissingLocationError(error)) loungeEmptyReason = "missing_location";
+        }
+        renderUsers(users, "userList", "lounge", { emptyReason: loungeEmptyReason });
       }
 
       async function loadHistorySummary() {
@@ -693,7 +758,7 @@
 
       /* ── 유저 렌더 ───────────────────────────────────── */
 
-      function renderUsers(list, containerId, mode = "lounge") {
+      function renderUsers(list, containerId, mode = "lounge", { emptyReason = null } = {}) {
         const el = document.getElementById(containerId);
         const isAi = mode === "ai";
 
@@ -703,6 +768,20 @@
         const filteredList = safeList.filter((user) => !shouldHideUserFromLists(user));
 
         if (!filteredList.length) {
+          if (emptyReason === "missing_location") {
+            el.innerHTML = `
+              <div class="empty-state-box">
+                <img src="images/asterisk.png" alt="asterisk">
+                <div class="message">no one nearby right now.<br>check back soon!</div>
+                <div class="bottom-text">
+                  <button class="empty-state-link" type="button" onclick="navigateTo('location-permission.html')">
+                    enable location
+                  </button>
+                </div>
+              </div>
+            `;
+            return;
+          }
           el.innerHTML = `
             <div class="empty-state-box">
               <img src="images/asterisk.png" alt="asterisk">
@@ -769,6 +848,12 @@
             await startMatchRequest(sortedList.find((x) => getUserId(x) === btn.dataset.userId));
           };
         });
+      }
+
+      function isMissingLocationError(error) {
+        const status = error?.status;
+        const message = (error?.data?.message || error?.message || "").toString();
+        return status === 400 && message.includes("missing my location");
       }
 
       /* ── 매칭 요청 ───────────────────────────────────── */
@@ -1100,13 +1185,17 @@
             return;
           }
 
-          if (!getFromLocal("location")) { navigateTo("location-permission.html"); return; }
-
           renderBottomNav("lounge");
 
-          const locationPromise = updateLocation().catch((err) => {
-            console.warn("location update failed:", err);
-          });
+          let locationPromise = null;
+          if (await shouldAwaitLocationRefresh()) {
+            await updateLocation();
+            locationPromise = Promise.resolve();
+          } else {
+            locationPromise = updateLocation().catch((err) => {
+              console.warn("location update failed:", err);
+            });
+          }
 
           listenPresence();
 

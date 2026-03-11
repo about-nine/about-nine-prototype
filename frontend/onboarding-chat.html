@@ -38,11 +38,6 @@
     <script src="js/common.js"></script>
 
     <script>
-      /* location guard */
-      if (!getFromLocal("location")) {
-        navigateTo("location-permission.html");
-      }
-
       /* chat helpers */
       const chat = document.getElementById("chat");
       let lastMessageType = null;
