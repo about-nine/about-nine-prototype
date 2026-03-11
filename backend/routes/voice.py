@@ -71,7 +71,6 @@ def apply_stt_corrections(text: str) -> str:
 _HALLUCINATION_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in [
         r"https?://",                                   # URLs like otter.ai
-        r"(?:\b\w+\b)(?:\s+\1){2,}",                   # word repeated 3+ times
     ]
 ]
 
