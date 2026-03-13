@@ -118,8 +118,28 @@
 
         try {
           await ensureSessionFromToken();
-          await apiCall("/users/profile");
-          navigateTo("lounge.html");
+          const profileRes = await apiCall("/users/profile");
+          const onboardingDone = !!profileRes?.user?.onboarding_completed;
+          if (onboardingDone) {
+            navigateTo("lounge.html");
+            return;
+          }
+
+          const birthdate = getFromLocal("birthdate");
+          const age = getFromLocal("age");
+          if (!birthdate || age == null) {
+            navigateTo("birthdate.html");
+            return;
+          }
+
+          const firstName = (getFromLocal("firstName") || "").trim();
+          const lastName = (getFromLocal("lastName") || "").trim();
+          if (!firstName || !lastName) {
+            navigateTo("name.html");
+            return;
+          }
+
+          navigateTo("location-permission.html");
         } catch (error) {
           const status = error?.status;
           if (

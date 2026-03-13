@@ -34,9 +34,28 @@
 
     <script src="js/common.js"></script>
     <script>
+      const firstNameInput = document.getElementById("firstName");
+      const lastNameInput = document.getElementById("lastName");
+
+      function hydrateNameInputs() {
+        const first = getFromLocal("firstName");
+        const last = getFromLocal("lastName");
+        if (first) firstNameInput.value = first;
+        if (last) lastNameInput.value = last;
+      }
+
+      hydrateNameInputs();
+
+      firstNameInput.addEventListener("input", (e) => {
+        saveToLocal("firstName", e.target.value.trim());
+      });
+      lastNameInput.addEventListener("input", (e) => {
+        saveToLocal("lastName", e.target.value.trim());
+      });
+
       async function saveName() {
-        const firstName = document.getElementById("firstName").value.trim();
-        const lastName = document.getElementById("lastName").value.trim();
+        const firstName = firstNameInput.value.trim();
+        const lastName = lastNameInput.value.trim();
 
         hideError("error");
 
@@ -51,7 +70,7 @@
         navigateTo("location-permission.html");
       }
 
-      document.getElementById("lastName").addEventListener("keypress", (e) => {
+      lastNameInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") saveName();
       });
     </script>

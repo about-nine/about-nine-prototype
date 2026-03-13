@@ -29,11 +29,37 @@
     const yearInput = document.getElementById('year');
     const monthInput = document.getElementById('month');
     const dayInput = document.getElementById('day');
+
+    function hydrateBirthdateInputs() {
+      const storedBirthdate = getFromLocal('birthdate');
+      if (storedBirthdate && /^\d{4}-\d{2}-\d{2}$/.test(storedBirthdate)) {
+        const [y, m, d] = storedBirthdate.split('-');
+        yearInput.value = y;
+        monthInput.value = m;
+        dayInput.value = d;
+        saveToLocal('birthdate_year', y);
+        saveToLocal('birthdate_month', m);
+        saveToLocal('birthdate_day', d);
+        return;
+      }
+
+      const y = getFromLocal('birthdate_year');
+      const m = getFromLocal('birthdate_month');
+      const d = getFromLocal('birthdate_day');
+      if (y) yearInput.value = y;
+      if (m) monthInput.value = m;
+      if (d) dayInput.value = d;
+    }
+
+    hydrateBirthdateInputs();
     
     // 숫자만 입력
     [yearInput, monthInput, dayInput].forEach(input => {
       input.addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        saveToLocal('birthdate_year', yearInput.value);
+        saveToLocal('birthdate_month', monthInput.value);
+        saveToLocal('birthdate_day', dayInput.value);
         
         // 자동 다음 필드 이동
         if (input === yearInput && e.target.value.length === 4) {

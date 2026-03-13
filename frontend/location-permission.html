@@ -46,26 +46,24 @@
         return true;
       }
 
-      async function resolveNextRoute() {
-        const completed = getFromLocal("onboarding_completed");
-        if (completed === true) {
+      function resolveNextRoute() {
+        if (getFromLocal("onboarding_completed") === true) {
           return "lounge.html";
         }
-        if (completed === false) {
-          return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
+
+        const birthdate = getFromLocal("birthdate");
+        const age = getFromLocal("age");
+        if (!birthdate || age == null) {
+          return "birthdate.html";
         }
-        try {
-          const profileRes = await apiCall("/users/profile");
-          const isDone = !!profileRes?.user?.onboarding_completed;
-          saveToLocal("onboarding_completed", isDone);
-          return isDone
-            ? "lounge.html"
-            : isVoiceMode()
-              ? "onboarding-voice.html"
-              : "onboarding-chat.html";
-        } catch (e) {
-          return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
+
+        const firstName = (getFromLocal("firstName") || "").trim();
+        const lastName = (getFromLocal("lastName") || "").trim();
+        if (!firstName || !lastName) {
+          return "name.html";
         }
+
+        return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
       }
 
       // Test toggle: tap the title 5 times quickly to enable/disable voice onboarding.
@@ -126,8 +124,7 @@
               await apiCall("/users/update-location", "POST", { lat, lng });
 
               hideLoading();
-              const nextRoute = await resolveNextRoute();
-              navigateTo(nextRoute);
+              navigateTo(resolveNextRoute());
             } catch (e) {
               hideLoading();
               showError("error", "failed to save location. try again.");
@@ -166,8 +163,15 @@
       function continueWithoutLocation(e) {
         if (e?.preventDefault) e.preventDefault();
         saveToLocal("location_denied", true);
-        resolveNextRoute().then(navigateTo);
+        navigateTo(resolveNextRoute());
       }
+
+      // 이미 위치 정보(허용 or 거부)가 저장돼 있으면 화면 없이 바로 다음 라우트로
+      window.addEventListener("DOMContentLoaded", () => {
+        if (getFromLocal("location") || getFromLocal("location_denied")) {
+          navigateTo(resolveNextRoute());
+        }
+      });
 
       function setLocationAction(mode) {
         const btn = document.getElementById("locationActionBtn");
