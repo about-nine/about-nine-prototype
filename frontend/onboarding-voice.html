@@ -638,7 +638,7 @@
           const ext = mimeType.includes("mp4") ? "mp4" : "webm";
           formData.append("audio", blob, `audio.${ext}`);
           if (STT_LANGUAGE) formData.append("language", STT_LANGUAGE);
-          const currentField = REQUIRED_FIELDS.find(k => !collected[k]);
+          const currentField = lastAskedField || REQUIRED_FIELDS.find(k => !collected[k]);
           if (currentField) formData.append("field_hint", currentField);
 
           const res = await fetch(`${VOICE_API_BASE}/stt`, { method: "POST", body: formData });
@@ -782,6 +782,13 @@
             data = await fetchTurnData();
           }
           if (data.error) throw new Error(data.error);
+
+          if (!data.reply) {
+            console.log("[COCO] empty reply — restarting listening");
+            isProcessing = false;
+            startListening();
+            return;
+          }
 
           console.log("[COCO]", data.reply);
           console.log("[collected]", JSON.stringify(data.collected), "→ total:", JSON.stringify({ ...collected, ...data.collected }));
