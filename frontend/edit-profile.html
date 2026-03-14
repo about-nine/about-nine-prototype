@@ -25,16 +25,18 @@
 
       .profile-value.editable {
         cursor: pointer;
-        padding: 4px 8px;
+        padding: 0;
         border-radius: 6px;
         transition: background 0.2s;
         border: none;
         background: transparent;
         color: var(--text-primary);
         font: inherit;
+        font-size: 14px;
+        line-height: 1.4;
       }
 
-      .profile-value.editable:hover { background: var(--bg-card); }
+      .profile-value.editable:hover { background: transparent; }
 
       .section-title {
         font-size: 14px;
@@ -315,6 +317,7 @@
       const locationFilterSelect = document.getElementById("locationFilterSelect");
       const locationPermissionValue = document.getElementById("locationPermissionValue");
       let locationPermissionState = "unknown";
+      const LOCATION_GRANTED_KEY = "location_permission_granted";
 
       function normalizeAge(value) {
         const n = Number(value);
@@ -554,6 +557,7 @@
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           saveToLocal("location", { lat, lng });
+          saveToLocal(LOCATION_GRANTED_KEY, true);
           removeFromLocal("location_denied");
           await apiCall("/users/update-location", "POST", { lat, lng });
           await refreshLocationPermissionStatus();
@@ -563,6 +567,7 @@
           hideLoading();
           if (error?.code === 1) {
             removeFromLocal("location");
+            removeFromLocal(LOCATION_GRANTED_KEY);
             saveToLocal("location_denied", true);
             await apiCall("/users/location-filter", "POST", { enabled: false }).catch(() => {});
             await refreshLocationPermissionStatus();
@@ -597,22 +602,32 @@
 
       async function refreshLocationPermissionStatus() {
         let state = "unknown";
+        const hasStoredLocation = !!getFromLocal("location");
+        const grantedCached = getFromLocal(LOCATION_GRANTED_KEY) === true;
+        const hasProfileLocation =
+          !!(profileData?.location && profileData.location.lat != null && profileData.location.lng != null);
         try {
           if (navigator.permissions?.query) {
             const status = await navigator.permissions.query({ name: "geolocation" });
             state = status?.state || "unknown";
           } else if (getFromLocal("location_denied") === true) {
             state = "denied";
-          } else if (getFromLocal("location")) {
+          } else if (hasStoredLocation || grantedCached || hasProfileLocation) {
             state = "granted";
           } else {
             state = "prompt";
           }
         } catch {
           if (getFromLocal("location_denied") === true) state = "denied";
+          else if (hasStoredLocation || grantedCached || hasProfileLocation) state = "granted";
+        }
+
+        if ((state === "prompt" || state === "unknown") && (hasStoredLocation || grantedCached || hasProfileLocation)) {
+          state = "granted";
         }
 
         locationPermissionState = state;
+        if (state === "denied") removeFromLocal(LOCATION_GRANTED_KEY);
         locationPermissionValue.textContent = getPermissionLabel(state);
         locationPermissionValue.disabled = state === "granted";
         applyLocationFilterPermissionRule();
