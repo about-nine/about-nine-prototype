@@ -200,6 +200,26 @@
             <div style="color:var(--text-primary);font-size:14px" id="phoneValue">-</div>
           </div>
 
+          <div class="section-title">location</div>
+          <div class="card">
+            <div class="profile-row">
+              <span class="profile-label">location filter</span>
+              <select class="profile-select" id="locationFilterSelect">
+                <option value="on">on</option>
+                <option value="off">off</option>
+              </select>
+            </div>
+            <div class="bottom-text" style="margin-top:10px;">
+              <button
+                type="button"
+                class="empty-state-link"
+                onclick="navigateTo('location-permission.html?from=lounge')"
+              >
+                manage location permission
+              </button>
+            </div>
+          </div>
+
           <button id="saveButton1" onclick="saveProfile()" style="margin:8px 0 20px 0">save</button>
           <div class="bottom-text sign-out" onclick="signOut()">sign out</div>
           <div class="bottom-text delete" onclick="deleteAccount()">delete account</div>
@@ -293,6 +313,7 @@
       const ageInput           = document.getElementById("ageInput");
       const genderSelect       = document.getElementById("genderSelect");
       const genderDetailSelect = document.getElementById("genderDetailSelect");
+      const locationFilterSelect = document.getElementById("locationFilterSelect");
 
       function normalizeAge(value) {
         const n = Number(value);
@@ -379,6 +400,12 @@
         markChanged();
       });
 
+      locationFilterSelect.addEventListener("change", (e) => {
+        if (!profileData) return;
+        profileData.location_filter_enabled = e.target.value === "on";
+        markChanged();
+      });
+
       /* ── 탭 전환 ─────────────────────────────────────── */
 
       const aboutTab          = document.getElementById("aboutTab");
@@ -440,6 +467,8 @@
         lastNameInput.value  = profileData.last_name  || "";
         ageInput.value       = profileData.age ?? "";
         document.getElementById("phoneValue").textContent = profileData.phone || "-";
+        profileData.location_filter_enabled = profileData.location_filter_enabled !== false;
+        locationFilterSelect.value = profileData.location_filter_enabled ? "on" : "off";
 
         const currentGender = normalizeLower(profileData.gender || "");
         profileData.gender = currentGender;
@@ -582,6 +611,7 @@
             drink: profileData.drink,
             smoke: profileData.smoke,
             marijuana: profileData.marijuana,
+            location_filter_enabled: profileData.location_filter_enabled !== false,
           };
 
           Object.entries(directFields).forEach(([key, value]) => {
@@ -606,6 +636,9 @@
           hideLoading();
 
           if (res.success) {
+            if (profileData.location_filter_enabled === false) {
+              saveToLocal("location_denied", true);
+            }
             showSaveIndicator();
             hasChanges = false;
             updateSaveButton();

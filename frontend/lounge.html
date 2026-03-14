@@ -40,63 +40,6 @@
         margin-bottom: 10px;
       }
 
-      /* ── AI 닫힘 오버레이 ────────────────────────────── */
-
-      body.ai-closed { overflow: hidden; }
-
-      .ai-closed-overlay {
-        position: fixed;
-        inset: 0;
-        display: none;
-        background: linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 100%);
-        z-index: 12000;
-        color: var(--text-primary);
-      }
-
-      .ai-closed-overlay.active { display: flex; }
-
-      .ai-closed-inner {
-        width: 100%;
-        max-width: 480px;
-        margin: 0 auto;
-        padding: calc(48px + var(--safe-top)) 24px calc(40px + var(--safe-bottom));
-        display: flex;
-        flex-direction: column;
-        min-height: 100%;
-      }
-
-      .ai-closed-body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 22px;
-        text-align: center;
-        padding: 0 12px;
-      }
-
-      /* 공통: font-family / line-height */
-      .ai-closed-title,
-      .ai-closed-subtitle {
-        font-family: "Merriweather", serif;
-        line-height: 1.5;
-      }
-
-      .ai-closed-title    { font-size: 16px; font-weight: 600; }
-      .ai-closed-asterisk { width: 30px; height: 30px; object-fit: contain; }
-      .ai-closed-subtitle { font-size: 16px; font-weight: 400; }
-
-      .ai-closed-link {
-        background: none;
-        border: none;
-        color: var(--text-secondary);
-        text-decoration: underline;
-        font-size: 12px;
-        cursor: pointer;
-        padding: 4px 6px;
-      }
-
       /* ── 플레이리스트 티커 ────────────────────────────── */
 
       .playlist-ticker {
@@ -414,19 +357,6 @@
 
     <nav id="bottomNav" class="bottom-nav"></nav>
 
-    <div class="ai-closed-overlay" id="aiClosedOverlay" aria-hidden="true">
-      <div class="ai-closed-inner">
-        <div class="ai-closed-body">
-          <div class="ai-closed-title">
-            just to let you know,<br />ai match officially begins at 9 p.m.
-          </div>
-          <img src="images/asterisk.png" alt="asterisk" class="ai-closed-asterisk" />
-          <div class="ai-closed-subtitle">see you then</div>
-          <button class="ai-closed-link" id="aiClosedGoBtn" type="button">go to lounge</button>
-        </div>
-      </div>
-    </div>
-
     <div class="modal" id="playlistModal">
       <div class="modal-content">
         <div class="playlist-mood-gradient"></div>
@@ -533,35 +463,6 @@
 
       setTabUI(isAIMatchTime() ? "ai" : "lounge");
 
-      /* ── AI 닫힘 오버레이 ────────────────────────────── */
-
-      const AI_CLOSED_FLAG = "show_ai_closed_screen";
-
-      function shouldShowAiClosedOverlay() {
-        if (!getFromLocal(AI_CLOSED_FLAG)) return false;
-        if (isAIMatchTime()) { removeFromLocal(AI_CLOSED_FLAG); return false; }
-        return true;
-      }
-
-      function showAiClosedOverlay() {
-        const overlay = document.getElementById("aiClosedOverlay");
-        if (!overlay) return;
-        overlay.classList.add("active");
-        overlay.setAttribute("aria-hidden", "false");
-        document.body.classList.add("ai-closed");
-      }
-
-      function hideAiClosedOverlay() {
-        const overlay = document.getElementById("aiClosedOverlay");
-        if (!overlay) return;
-        overlay.classList.remove("active");
-        overlay.setAttribute("aria-hidden", "true");
-        document.body.classList.remove("ai-closed");
-        removeFromLocal(AI_CLOSED_FLAG);
-      }
-
-      document.getElementById("aiClosedGoBtn")?.addEventListener("click", hideAiClosedOverlay);
-
       /* ── 위치 업데이트 ───────────────────────────────── */
 
       async function updateLocation() {
@@ -628,17 +529,6 @@
 
       async function loadUsers() {
         loungeEmptyReason = null;
-        if (getFromLocal("location_denied") === true) {
-          await updateLocation();
-          const refreshed = getFromLocal("location");
-          const stillDenied = getFromLocal("location_denied") === true;
-          if (stillDenied || refreshed?.lat == null || refreshed?.lng == null) {
-            users = [];
-            loungeEmptyReason = "missing_location";
-            renderUsers(users, "userList", "lounge", { emptyReason: loungeEmptyReason });
-            return;
-          }
-        }
         try {
           const res = await apiCall("/match/list");
           users = res.users || [];
@@ -790,11 +680,6 @@
               <div class="empty-state-box">
                 <img src="images/asterisk.png" alt="asterisk">
                 <div class="message">no one nearby right now.<br>check back soon!</div>
-                <div class="bottom-text">
-                  <button class="empty-state-link" type="button" onclick="navigateTo('location-permission.html?from=lounge')">
-                    enable location
-                  </button>
-                </div>
               </div>
             `;
             return;
@@ -814,7 +699,7 @@
         });
 
         el.innerHTML = `
-          <div class="subtitle-text">${isAi ? "our recommended matches" : "pick whoever feels right"}</div>
+          <div class="subtitle-text">${isAi ? "our recommended matches" : getLoungeSubtitleText()}</div>
           ${sortedList.map((u) => {
             const uid = getUserId(u);
             const online = isOnline(uid);
@@ -873,7 +758,20 @@
         return status === 400 && message.includes("missing my location");
       }
 
+      function isLocationFilterEnabled() {
+        if (typeof currentUserProfile?.location_filter_enabled === "boolean") {
+          return currentUserProfile.location_filter_enabled;
+        }
+        return getFromLocal("location_denied") !== true;
+      }
+
+      function getLoungeSubtitleText() {
+        if (isLocationFilterEnabled()) return "pick whoever feels right";
+        return "showing people who turned off location filter";
+      }
+
       function getLocationEmptyReason() {
+        if (!isLocationFilterEnabled()) return null;
         if (getFromLocal("location_denied") === true) return "missing_location";
         const stored = getFromLocal("location");
         if (!stored || stored.lat == null || stored.lng == null) return "missing_location";
@@ -1231,8 +1129,6 @@
 
           const defaultTab = isAIMatchTime() ? "ai" : "lounge";
           switchTab(defaultTab);
-          if (shouldShowAiClosedOverlay()) showAiClosedOverlay();
-
           await Promise.allSettled([locationPromise, usersPromise, historyPromise, pendingPromise]);
         } finally {
           hideLoading();

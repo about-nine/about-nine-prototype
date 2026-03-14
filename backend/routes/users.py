@@ -63,9 +63,33 @@ def update_location():
         "location": {
             "lat": data.get("lat"),
             "lng": data.get("lng")
-        }
+        },
+        "location_filter_enabled": True,
     }, merge=True)
 
+    return jsonify(success=True)
+
+
+@users_bp.route("/location-filter", methods=["POST"])
+def update_location_filter():
+    """위치 필터 사용 여부 업데이트"""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify(success=False, message="enabled must be boolean"), 400
+
+    db = get_firestore()
+    db.collection("users").document(user_id).set(
+        {"location_filter_enabled": enabled},
+        merge=True,
+    )
     return jsonify(success=True)
 
 
@@ -108,6 +132,11 @@ def update_profile():
         if isinstance(value, str):
             cleaned = value.strip().lower()
             return cleaned if cleaned else None
+        return None
+
+    def normalize_bool(value):
+        if isinstance(value, bool):
+            return value
         return None
 
     # 업데이트할 필드만 전송
@@ -163,6 +192,12 @@ def update_profile():
 
     if has_incoming("marijuana"):
         update_data["marijuana"] = get_incoming("marijuana")
+
+    if has_incoming("location_filter_enabled"):
+        location_filter_enabled = normalize_bool(get_incoming("location_filter_enabled"))
+        if location_filter_enabled is None:
+            return jsonify(success=False, message="location_filter_enabled must be boolean"), 400
+        update_data["location_filter_enabled"] = location_filter_enabled
 
     incoming_gender = normalize_lower(get_incoming("gender"))
     incoming_orientation = normalize_lower(get_incoming("sexual_orientation"))

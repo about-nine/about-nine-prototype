@@ -164,9 +164,19 @@
         setLocationAction("continue");
       }
 
-      function continueWithoutLocation(e) {
+      async function setLocationFilterEnabled(enabled) {
+        try {
+          await apiCall("/users/location-filter", "POST", { enabled });
+        } catch (error) {
+          console.warn("Failed to update location filter:", error);
+        }
+      }
+
+      async function continueWithoutLocation(e) {
         if (e?.preventDefault) e.preventDefault();
         saveToLocal("location_denied", true);
+        removeFromLocal("location");
+        await setLocationFilterEnabled(false);
         navigateTo(resolveNextRoute());
       }
 
@@ -183,7 +193,7 @@
         if (!btn) return;
         if (mode === "continue") {
           btn.textContent = "continue";
-          btn.onclick = () => continueWithoutLocation();
+          btn.onclick = async () => continueWithoutLocation();
           return;
         }
         btn.textContent = "enable location";

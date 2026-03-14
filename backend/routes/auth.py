@@ -54,6 +54,7 @@ def firebase_login():
             "created_at": datetime.utcnow().isoformat(),
             "playlist": [],
             "location": None,
+            "location_filter_enabled": True,
             "onboarding_completed": False,
         })
         is_existing_user = False

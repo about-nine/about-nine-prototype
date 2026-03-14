@@ -191,6 +191,13 @@ def _ensure_models():
         _init_models()
         _models_initialized = True
 
+
+def _location_filter_enabled(user: Dict) -> bool:
+    value = user.get("location_filter_enabled")
+    if isinstance(value, bool):
+        return value
+    return True
+
 def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     _ensure_models()
     if not uid:
@@ -207,6 +214,7 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
     my_default = my_embedding.get("is_default") is True
 
     my_loc = me.get("location") or {}
+    my_filter_enabled = _location_filter_enabled(me)
     my_gender = me.get("gender")
     my_age = me.get("age")
     my_orientation = me.get("sexual_orientation")
@@ -239,9 +247,14 @@ def recommend_for_user(uid: str, top_k: int = 5) -> List[Tuple[str, float]]:
         if not user.get("onboarding_completed"):
             continue
 
-        other_loc = user.get("location") or {}
-        if not my_loc or not other_loc:
+        other_filter_enabled = _location_filter_enabled(user)
+        if my_filter_enabled != other_filter_enabled:
             continue
+
+        if my_filter_enabled:
+            other_loc = user.get("location") or {}
+            if not my_loc or not other_loc:
+                continue
 
         # 거리 체크 (10km) - TEMP disabled for AI match
         # try:
@@ -336,12 +349,13 @@ def filter_users_for_list(user_id, bypass_filters=False):
     me = db.collection("users").document(user_id).get().to_dict() or {}
 
     my_loc = me.get("location")
+    my_filter_enabled = _location_filter_enabled(me)
     my_gender = me.get("gender")
     my_age = me.get("age")
     my_sexual_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
 
-    if not my_loc or my_loc.get("lat") is None or my_loc.get("lng") is None:
+    if my_filter_enabled and (not my_loc or my_loc.get("lat") is None or my_loc.get("lng") is None):
         return None, None, (400, "missing my location")
 
     if not my_gender or my_age is None:
@@ -355,6 +369,7 @@ def filter_users_for_list(user_id, bypass_filters=False):
         "same_user": 0,
         "no_onboarding": 0,
         "no_location": 0,
+        "location_mode_mismatch": 0,
         "too_far": 0,
         "missing_gender_age": 0,
         "orientation_mismatch": 0,
@@ -390,11 +405,17 @@ def filter_users_for_list(user_id, bypass_filters=False):
             filtered_stats["no_onboarding"] += 1
             continue
 
-        # 위치 확인
-        loc = u.get("location")
-        if not loc:
-            filtered_stats["no_location"] += 1
+        other_filter_enabled = _location_filter_enabled(u)
+        if my_filter_enabled != other_filter_enabled:
+            filtered_stats["location_mode_mismatch"] += 1
             continue
+
+        # 위치 필터가 둘 다 켜져 있을 때만 위치 체크
+        if my_filter_enabled:
+            loc = u.get("location")
+            if not loc:
+                filtered_stats["no_location"] += 1
+                continue
 
         # 거리 체크 (10km) - TEMP disabled for lounge list
         # d = distance_km(
