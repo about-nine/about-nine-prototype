@@ -208,7 +208,7 @@
           <div class="card">
             <div class="profile-row">
               <span class="profile-label">location permission</span>
-              <span class="profile-value" id="locationPermissionValue">checking...</span>
+              <button type="button" class="profile-value editable" id="locationPermissionValue">checking...</button>
             </div>
             <div class="profile-row">
               <span class="profile-label">location filter</span>
@@ -401,6 +401,16 @@
         markChanged();
       });
 
+      locationPermissionValue.addEventListener("click", async () => {
+        await refreshLocationPermissionStatus();
+        if (locationPermissionState === "granted") return;
+        if (locationPermissionState === "denied") {
+          alert("location permission is denied in browser settings. please allow location and try again.");
+          return;
+        }
+        await requestLocationPermissionOnly();
+      });
+
       locationFilterSelect.addEventListener("change", async (e) => {
         if (!profileData) return;
         const nextOn = e.target.value === "on";
@@ -522,19 +532,13 @@
       function getPermissionLabel(state) {
         if (state === "granted") return "allowed";
         if (state === "denied") return "denied";
-        if (state === "prompt") return "not decided";
-        return "unknown";
+        if (state === "prompt") return "enable location";
+        return "enable location";
       }
 
-      async function requestLocationAndEnableFilter() {
+      async function requestLocationPermissionOnly() {
         if (!navigator.geolocation) {
           alert("your browser doesn't support location.");
-          return false;
-        }
-
-        await refreshLocationPermissionStatus();
-        if (locationPermissionState === "denied") {
-          alert("location permission is denied in browser settings. please allow location and try again.");
           return false;
         }
 
@@ -547,7 +551,6 @@
               maximumAge: 0,
             });
           });
-
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           saveToLocal("location", { lat, lng });
@@ -566,10 +569,20 @@
             alert("location permission is denied in browser settings. please allow location and try again.");
             return false;
           }
-          console.error("Failed to enable location:", error);
+          console.error("Failed to get location permission:", error);
           alert("failed to get location. please try again.");
           return false;
         }
+      }
+
+      async function requestLocationAndEnableFilter() {
+        await refreshLocationPermissionStatus();
+        if (locationPermissionState === "denied") {
+          alert("location permission is denied in browser settings. please allow location and try again.");
+          return false;
+        }
+        if (locationPermissionState === "granted") return true;
+        return await requestLocationPermissionOnly();
       }
 
       function applyLocationFilterPermissionRule() {
@@ -601,6 +614,7 @@
 
         locationPermissionState = state;
         locationPermissionValue.textContent = getPermissionLabel(state);
+        locationPermissionValue.disabled = state === "granted";
         applyLocationFilterPermissionRule();
       }
 
