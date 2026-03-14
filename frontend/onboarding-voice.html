@@ -708,7 +708,7 @@
 
       $permissionBtn?.addEventListener("click", handlePermissionStart);
       $permissionSkip?.addEventListener("click", () => {
-        if (Object.keys(collected).length) saveToLocal("voice_collected", collected);
+        persistVoiceFallbackData();
         navigateTo("onboarding-chat.html");
       });
 
@@ -718,7 +718,7 @@
         startListening();
       });
       $switchChat?.addEventListener("click", () => {
-        if (Object.keys(collected).length) saveToLocal("voice_collected", collected);
+        persistVoiceFallbackData();
         navigateTo("onboarding-chat.html");
       });
 
@@ -867,7 +867,7 @@
         stopListening();
         const msg = "seems like voice isn't quite working — let's finish this in chat.";
         setStatus(msg, "");
-        saveToLocal("voice_collected", collected);
+        persistVoiceFallbackData();
         await playCoco(msg);
         navigateTo("onboarding-chat.html");
       }
@@ -894,23 +894,8 @@
         showLoading("saving your profile...");
         try {
           const bio = await generateBio();
-          const speech_pace =
-            speechPaceSamples.length >= 2
-              ? speechPaceSamples.reduce((a, b) => a + b) / speechPaceSamples.length
-              : null;
-
-          // convert conversationHistory to {question, said} format for embedding
-          const transcripts = [];
-          for (let i = 0; i < conversationHistory.length; i++) {
-            const msg = conversationHistory[i];
-            if (msg.role === "user" && msg.content) {
-              const prev = conversationHistory[i - 1];
-              transcripts.push({
-                question: (prev?.role === "assistant" ? prev.content : "") || "",
-                said: msg.content,
-              });
-            }
-          }
+          const speech_pace = getSpeechPaceAverage();
+          const transcripts = buildVoiceTranscripts();
 
           await apiCall("/onboarding/save", "POST", {
             user_id: userId,
@@ -926,6 +911,8 @@
           });
           saveToLocal("onboarding_completed", true);
           saveToLocal("just_completed_onboarding", true);
+          removeFromLocal("voice_transcripts");
+          removeFromLocal("voice_speech_pace");
           hideLoading();
           navigateTo("playlist.html");
         } catch (error) {
@@ -941,6 +928,44 @@
         "please enable mic and audio to continue.",
         "permission is required before we can start",
       );
+
+      function getSpeechPaceAverage() {
+        return speechPaceSamples.length >= 2
+          ? speechPaceSamples.reduce((a, b) => a + b) / speechPaceSamples.length
+          : null;
+      }
+
+      function buildVoiceTranscripts() {
+        const transcripts = [];
+        for (let i = 0; i < conversationHistory.length; i++) {
+          const msg = conversationHistory[i];
+          if (msg.role === "user" && msg.content) {
+            const prev = conversationHistory[i - 1];
+            transcripts.push({
+              question: (prev?.role === "assistant" ? prev.content : "") || "",
+              said: msg.content,
+            });
+          }
+        }
+        return transcripts;
+      }
+
+      function persistVoiceFallbackData() {
+        saveToLocal("voice_collected", collected);
+        const transcripts = buildVoiceTranscripts();
+        if (Array.isArray(transcripts) && transcripts.length) {
+          saveToLocal("voice_transcripts", transcripts);
+        } else {
+          removeFromLocal("voice_transcripts");
+        }
+
+        const speech_pace = getSpeechPaceAverage();
+        if (speech_pace !== null) {
+          saveToLocal("voice_speech_pace", speech_pace);
+        } else {
+          removeFromLocal("voice_speech_pace");
+        }
+      }
     </script>
   </body>
 </html>

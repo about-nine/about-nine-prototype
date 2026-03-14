@@ -80,11 +80,14 @@
 
       /* voice fallback: load pre-collected data if redirected from voice onboarding */
       const voiceCollected = getFromLocal("voice_collected");
+      const voiceTranscripts = getFromLocal("voice_transcripts");
+      const voiceSpeechPaceRaw = Number(getFromLocal("voice_speech_pace"));
+      const voiceSpeechPace = Number.isFinite(voiceSpeechPaceRaw) ? voiceSpeechPaceRaw : null;
       if (voiceCollected && typeof voiceCollected === "object") {
         Object.assign(answers, voiceCollected);
         saveToLocal("voice_collected", null);
       }
-      const fromVoice = !!voiceCollected;
+      const fromVoice = !!voiceCollected || (Array.isArray(voiceTranscripts) && voiceTranscripts.length > 0);
 
       /* questions */
       const firstName = getFromLocal("firstName") || "there";
@@ -326,7 +329,7 @@
         const phone = getFromLocal("phone");
 
         try {
-          await apiCall("/onboarding/save", "POST", {
+          const payload = {
             user_id: getFromLocal("user_id"),
             profile: answers,
             firstName,
@@ -334,10 +337,21 @@
             age,
             birthdate,
             phone,
-          });
+          };
+
+          if (Array.isArray(voiceTranscripts) && voiceTranscripts.length) {
+            payload.transcripts = voiceTranscripts;
+          }
+          if (voiceSpeechPace !== null) {
+            payload.speech_pace = voiceSpeechPace;
+          }
+
+          await apiCall("/onboarding/save", "POST", payload);
 
           saveToLocal("onboarding_completed", true);
           saveToLocal("just_completed_onboarding", true);
+          removeFromLocal("voice_transcripts");
+          removeFromLocal("voice_speech_pace");
           hideLoading();
           navigateTo("playlist.html");
         } catch (error) {
