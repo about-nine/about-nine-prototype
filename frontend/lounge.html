@@ -566,16 +566,23 @@
 
       async function updateLocation() {
         const stored = getFromLocal("location");
-        let canRefresh = false;
+        let permissionState = "unknown";
 
         try {
           if (navigator.permissions?.query) {
             const status = await navigator.permissions.query({ name: "geolocation" });
-            canRefresh = status.state === "granted";
+            permissionState = status.state || "unknown";
           }
         } catch {}
 
-        if (canRefresh && navigator.geolocation) {
+        const shouldTryGeolocation =
+          navigator.geolocation &&
+          (
+            permissionState === "granted" ||
+            (permissionState === "unknown" && getFromLocal("location_denied") === true)
+          );
+
+        if (shouldTryGeolocation) {
           try {
             const pos = await new Promise((resolve, reject) => {
               navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -591,6 +598,10 @@
             await apiCall("/users/update-location", "POST", { lat, lng });
             return;
           } catch (error) {
+            if (error?.code === 1) {
+              removeFromLocal("location");
+              saveToLocal("location_denied", true);
+            }
             console.warn("Failed to refresh location:", error);
           }
         }
@@ -618,10 +629,15 @@
       async function loadUsers() {
         loungeEmptyReason = null;
         if (getFromLocal("location_denied") === true) {
-          users = [];
-          loungeEmptyReason = "missing_location";
-          renderUsers(users, "userList", "lounge", { emptyReason: loungeEmptyReason });
-          return;
+          await updateLocation();
+          const refreshed = getFromLocal("location");
+          const stillDenied = getFromLocal("location_denied") === true;
+          if (stillDenied || refreshed?.lat == null || refreshed?.lng == null) {
+            users = [];
+            loungeEmptyReason = "missing_location";
+            renderUsers(users, "userList", "lounge", { emptyReason: loungeEmptyReason });
+            return;
+          }
         }
         try {
           const res = await apiCall("/match/list");
@@ -775,7 +791,7 @@
                 <img src="images/asterisk.png" alt="asterisk">
                 <div class="message">no one nearby right now.<br>check back soon!</div>
                 <div class="bottom-text">
-                  <button class="empty-state-link" type="button" onclick="navigateTo('location-permission.html')">
+                  <button class="empty-state-link" type="button" onclick="navigateTo('location-permission.html?from=lounge')">
                     enable location
                   </button>
                 </div>

@@ -65,6 +65,11 @@
         return isVoiceMode() ? "onboarding-voice.html" : "onboarding-chat.html";
       }
 
+      function shouldBypassAutoRedirect() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("from") === "lounge";
+      }
+
       // Test toggle: tap the title 5 times quickly to enable/disable voice onboarding.
       (function enableVoiceToggle() {
         const title = document.querySelector(".brand-text");
@@ -167,6 +172,7 @@
 
       // 이미 위치 정보(허용 or 거부)가 저장돼 있으면 화면 없이 바로 다음 라우트로
       window.addEventListener("DOMContentLoaded", () => {
+        if (shouldBypassAutoRedirect()) return;
         if (getFromLocal("location") || getFromLocal("location_denied")) {
           navigateTo(resolveNextRoute());
         }
