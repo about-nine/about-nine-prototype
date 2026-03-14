@@ -28,6 +28,10 @@
         padding: 4px 8px;
         border-radius: 6px;
         transition: background 0.2s;
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        font: inherit;
       }
 
       .profile-value.editable:hover { background: var(--bg-card); }
@@ -203,20 +207,15 @@
           <div class="section-title">location</div>
           <div class="card">
             <div class="profile-row">
+              <span class="profile-label">location permission</span>
+              <span class="profile-value" id="locationPermissionValue">checking...</span>
+            </div>
+            <div class="profile-row">
               <span class="profile-label">location filter</span>
               <select class="profile-select" id="locationFilterSelect">
                 <option value="on">on</option>
                 <option value="off">off</option>
               </select>
-            </div>
-            <div class="bottom-text" style="margin-top:10px;">
-              <button
-                type="button"
-                class="empty-state-link"
-                onclick="navigateTo('location-permission.html?from=lounge')"
-              >
-                manage location permission
-              </button>
             </div>
           </div>
 
@@ -314,6 +313,8 @@
       const genderSelect       = document.getElementById("genderSelect");
       const genderDetailSelect = document.getElementById("genderDetailSelect");
       const locationFilterSelect = document.getElementById("locationFilterSelect");
+      const locationPermissionValue = document.getElementById("locationPermissionValue");
+      let locationPermissionState = "unknown";
 
       function normalizeAge(value) {
         const n = Number(value);
@@ -400,9 +401,18 @@
         markChanged();
       });
 
-      locationFilterSelect.addEventListener("change", (e) => {
+      locationFilterSelect.addEventListener("change", async (e) => {
         if (!profileData) return;
-        profileData.location_filter_enabled = e.target.value === "on";
+        const nextOn = e.target.value === "on";
+        if (nextOn) {
+          const enabled = await requestLocationAndEnableFilter();
+          if (!enabled) {
+            profileData.location_filter_enabled = false;
+            locationFilterSelect.value = "off";
+            return;
+          }
+        }
+        profileData.location_filter_enabled = nextOn;
         markChanged();
       });
 
@@ -509,6 +519,91 @@
         updateSaveButton();
       }
 
+      function getPermissionLabel(state) {
+        if (state === "granted") return "allowed";
+        if (state === "denied") return "denied";
+        if (state === "prompt") return "not decided";
+        return "unknown";
+      }
+
+      async function requestLocationAndEnableFilter() {
+        if (!navigator.geolocation) {
+          alert("your browser doesn't support location.");
+          return false;
+        }
+
+        await refreshLocationPermissionStatus();
+        if (locationPermissionState === "denied") {
+          alert("location permission is denied in browser settings. please allow location and try again.");
+          return false;
+        }
+
+        try {
+          showLoading("enabling location...");
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0,
+            });
+          });
+
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          saveToLocal("location", { lat, lng });
+          removeFromLocal("location_denied");
+          await apiCall("/users/update-location", "POST", { lat, lng });
+          await refreshLocationPermissionStatus();
+          hideLoading();
+          return true;
+        } catch (error) {
+          hideLoading();
+          if (error?.code === 1) {
+            removeFromLocal("location");
+            saveToLocal("location_denied", true);
+            await apiCall("/users/location-filter", "POST", { enabled: false }).catch(() => {});
+            await refreshLocationPermissionStatus();
+            alert("location permission is denied in browser settings. please allow location and try again.");
+            return false;
+          }
+          console.error("Failed to enable location:", error);
+          alert("failed to get location. please try again.");
+          return false;
+        }
+      }
+
+      function applyLocationFilterPermissionRule() {
+        const onOption = locationFilterSelect.querySelector('option[value="on"]');
+        const canEnableFilter = locationPermissionState !== "denied";
+        if (onOption) onOption.disabled = !canEnableFilter;
+        if (!canEnableFilter && profileData) {
+          profileData.location_filter_enabled = false;
+          locationFilterSelect.value = "off";
+        }
+      }
+
+      async function refreshLocationPermissionStatus() {
+        let state = "unknown";
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "geolocation" });
+            state = status?.state || "unknown";
+          } else if (getFromLocal("location_denied") === true) {
+            state = "denied";
+          } else if (getFromLocal("location")) {
+            state = "granted";
+          } else {
+            state = "prompt";
+          }
+        } catch {
+          if (getFromLocal("location_denied") === true) state = "denied";
+        }
+
+        locationPermissionState = state;
+        locationPermissionValue.textContent = getPermissionLabel(state);
+        applyLocationFilterPermissionRule();
+      }
+
       /* ── 플레이리스트 칩 ─────────────────────────────── */
 
       function renderPlaylistChips() {
@@ -611,7 +706,10 @@
             drink: profileData.drink,
             smoke: profileData.smoke,
             marijuana: profileData.marijuana,
-            location_filter_enabled: profileData.location_filter_enabled !== false,
+            location_filter_enabled:
+              locationPermissionState === "denied"
+                ? false
+                : profileData.location_filter_enabled !== false,
           };
 
           Object.entries(directFields).forEach(([key, value]) => {
@@ -636,9 +734,8 @@
           hideLoading();
 
           if (res.success) {
-            if (profileData.location_filter_enabled === false) {
-              saveToLocal("location_denied", true);
-            }
+            profileData.location_filter_enabled = payload.location_filter_enabled;
+            locationFilterSelect.value = profileData.location_filter_enabled ? "on" : "off";
             showSaveIndicator();
             hasChanges = false;
             updateSaveButton();
@@ -691,7 +788,7 @@
 
       window.onload = () => {
         renderBottomNav("profile");
-        loadProfile();
+        loadProfile().then(() => refreshLocationPermissionStatus());
       };
     </script>
   </body>
