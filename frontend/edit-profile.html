@@ -46,6 +46,7 @@
 
       .location-permission-btn {
         width: 60%;
+        padding: 4px 8px;
         overflow: hidden;
         text-overflow: ellipsis;
       }
@@ -620,6 +621,7 @@
 
       async function refreshLocationPermissionStatus() {
         let state = "unknown";
+        const deniedCached = getFromLocal("location_denied") === true;
         const hasStoredLocation = !!getFromLocal("location");
         const grantedCached = getFromLocal(LOCATION_GRANTED_KEY) === true;
         const hasProfileLocation =
@@ -628,7 +630,7 @@
           if (navigator.permissions?.query) {
             const status = await navigator.permissions.query({ name: "geolocation" });
             state = status?.state || "unknown";
-          } else if (getFromLocal("location_denied") === true) {
+          } else if (deniedCached) {
             state = "denied";
           } else if (hasStoredLocation || grantedCached || hasProfileLocation) {
             state = "granted";
@@ -636,9 +638,12 @@
             state = "prompt";
           }
         } catch {
-          if (getFromLocal("location_denied") === true) state = "denied";
+          if (deniedCached) state = "denied";
           else if (hasStoredLocation || grantedCached || hasProfileLocation) state = "granted";
         }
+
+        // If app has a known deny decision, keep UI consistent even when browser returns prompt.
+        if (deniedCached && state !== "granted") state = "denied";
 
         if ((state === "prompt" || state === "unknown") && (hasStoredLocation || grantedCached || hasProfileLocation)) {
           state = "granted";
