@@ -63,8 +63,7 @@ def update_location():
         "location": {
             "lat": data.get("lat"),
             "lng": data.get("lng")
-        },
-        "location_filter_enabled": True,
+        }
     }, merge=True)
 
     return jsonify(success=True)

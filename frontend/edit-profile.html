@@ -31,12 +31,24 @@
         border: none;
         background: transparent;
         color: var(--text-primary);
-        font: inherit;
-        font-size: 14px;
-        line-height: 1.4;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        text-align: right;
+        white-space: nowrap;
+        margin: 0;
+        appearance: none;
+        -webkit-appearance: none;
       }
 
       .profile-value.editable:hover { background: transparent; }
+      .profile-value.editable:disabled { opacity: 1; color: var(--text-primary); cursor: default; }
+
+      .location-permission-btn {
+        width: 60%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
       .section-title {
         font-size: 14px;
@@ -206,21 +218,6 @@
             <div style="color:var(--text-primary);font-size:14px" id="phoneValue">-</div>
           </div>
 
-          <div class="section-title">location</div>
-          <div class="card">
-            <div class="profile-row">
-              <span class="profile-label">location permission</span>
-              <button type="button" class="profile-value editable" id="locationPermissionValue">checking...</button>
-            </div>
-            <div class="profile-row">
-              <span class="profile-label">location filter</span>
-              <select class="profile-select" id="locationFilterSelect">
-                <option value="on">on</option>
-                <option value="off">off</option>
-              </select>
-            </div>
-          </div>
-
           <button id="saveButton1" onclick="saveProfile()" style="margin:8px 0 20px 0">save</button>
           <div class="bottom-text sign-out" onclick="signOut()">sign out</div>
           <div class="bottom-text delete" onclick="deleteAccount()">delete account</div>
@@ -254,6 +251,27 @@
                 </div>
               </div>
               <span class="age-value" id="maxAgeDisplay">60</span>
+            </div>
+          </div>
+
+          <div class="section-title">location</div>
+          <div class="card">
+            <div class="profile-row">
+              <span class="profile-label">location permission</span>
+              <button
+                type="button"
+                class="profile-value editable location-permission-btn"
+                id="locationPermissionValue"
+              >
+                checking...
+              </button>
+            </div>
+            <div class="profile-row">
+              <span class="profile-label">location filter</span>
+              <select class="profile-select" id="locationFilterSelect">
+                <option value="on">on</option>
+                <option value="off">off</option>
+              </select>
             </div>
           </div>
 
