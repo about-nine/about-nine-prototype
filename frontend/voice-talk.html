@@ -318,8 +318,8 @@
 
     <div class="ob-permission" id="tapOverlay">
       <div class="ob-permission-card">
-        <div class="ob-permission-title">enable mic & audio</div>
-        <div class="ob-permission-text">
+        <div class="ob-permission-title" id="tapOverlayTitle">enable mic & audio</div>
+        <div class="ob-permission-text" id="tapOverlayText">
           we need microphone access to start the voice call.
         </div>
         <div class="ob-permission-actions">
@@ -361,6 +361,8 @@
       const firedCueKeys = new Set();
       const tapOverlay = document.getElementById("tapOverlay");
       const tapBtn = document.getElementById("tapToStart");
+      const tapOverlayTitle = document.getElementById("tapOverlayTitle");
+      const tapOverlayText = document.getElementById("tapOverlayText");
       const roundLimitSeconds = currentRound === 3 ? 40 * 60 : 20 * 60;
       const roundLimitLabel = formatMMSS(roundLimitSeconds);
       const baseQuestionText = isLifeRound
@@ -379,6 +381,28 @@
         }
         showError("tapPermissionError", message);
         if (tapBtn) tapBtn.textContent = "retry";
+      }
+
+      async function refreshTapPermissionUI() {
+        if (!tapOverlayTitle || !tapOverlayText || !tapBtn) return;
+        let granted = false;
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "microphone" });
+            granted = status?.state === "granted";
+          }
+        } catch {}
+
+        if (granted) {
+          tapOverlayTitle.textContent = "audio ready";
+          tapOverlayText.textContent =
+            "microphone access is already enabled. tap continue to start the voice call.";
+          tapBtn.textContent = "continue";
+        } else {
+          tapOverlayTitle.textContent = "enable mic & audio";
+          tapOverlayText.textContent = "we need microphone access to start the voice call.";
+          tapBtn.textContent = "connect";
+        }
       }
 
       /* ================= UI ================= */
@@ -828,6 +852,7 @@
         console.log("   userId:", userId);
         console.log("   requestId:", requestId);
         console.log("   topic:", topic);
+        refreshTapPermissionUI();
 
         // 이미지, 시간 동기화는 미리 로드
         if (!isLifeRound) {

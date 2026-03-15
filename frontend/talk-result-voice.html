@@ -302,8 +302,8 @@
     <!-- Permission overlay -->
     <div class="ob-permission" id="obPermission">
       <div class="ob-permission-card">
-        <div class="ob-permission-title">enable mic & audio</div>
-        <div class="ob-permission-text">
+        <div class="ob-permission-title" id="obPermissionTitle">enable mic & audio</div>
+        <div class="ob-permission-text" id="obPermissionText">
           we need microphone access to hear you and audio playback for coco's
           voice. please allow permissions to continue.
         </div>
@@ -411,6 +411,8 @@
       const $page = document.getElementById("rvPage");
       const $voiceIndicator = document.getElementById("voiceIndicator");
       const $permission = document.getElementById("obPermission");
+      const $permissionTitle = document.getElementById("obPermissionTitle");
+      const $permissionText = document.getElementById("obPermissionText");
       const $permissionBtn = document.getElementById("obPermissionBtn");
       const $permissionSkip = document.getElementById("obPermissionSkip");
       const $permissionError = document.getElementById("obPermissionError");
@@ -421,6 +423,29 @@
       cocoPlayer.preload = "auto";
       cocoPlayer.setAttribute("playsinline", "");
       cocoPlayer.playsInline = true;
+
+      async function refreshMicPermissionUI() {
+        if (!$permissionTitle || !$permissionText || !$permissionBtn) return;
+        let granted = false;
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "microphone" });
+            granted = status?.state === "granted";
+          }
+        } catch {}
+
+        if (granted) {
+          $permissionTitle.textContent = "audio ready";
+          $permissionText.textContent =
+            "microphone access is already enabled. tap continue to start.";
+          $permissionBtn.textContent = "continue";
+        } else {
+          $permissionTitle.textContent = "enable mic & audio";
+          $permissionText.textContent =
+            "we need microphone access to hear you and audio playback for coco's voice. please allow permissions to continue.";
+          $permissionBtn.textContent = "enable microphone";
+        }
+      }
 
       /* ================= AUDIO ENGINE ================= */
 
@@ -693,6 +718,7 @@
           navigateTo("lounge.html");
           return;
         }
+        refreshMicPermissionUI();
         // Load talk data before permission screen is dismissed
         loadTalkData();
       };
@@ -1014,6 +1040,7 @@
           await cocoSay(`here's what i can share about ${partnerName}.`);
           await readProfileAloud();
         }
+        await cocoSay("i shared the highlights here. you can check full details in history anytime.");
 
         showLoungeButton();
       }

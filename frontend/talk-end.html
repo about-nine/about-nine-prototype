@@ -453,39 +453,8 @@
       /* ================= Next 버튼 ================= */
 
       window.handleNext = async () => {
-        if (getFromLocal("voice_result_mode") === "true") {
-          removeFromLocal("voice_result_mode");
-          navigateTo("talk-result-voice.html");
-        } else {
-          navigateTo("talk-result.html");
-        }
+        navigateTo("talk-result-voice.html");
       };
-
-      /* ================= 음성 모드 트리거 (triple-tap) ================= */
-
-      (function () {
-        let tapCount = 0;
-        let tapTimer = null;
-        const titleEl = document.querySelector(".end-title");
-        if (!titleEl) return;
-        titleEl.addEventListener("click", () => {
-          tapCount++;
-          clearTimeout(tapTimer);
-          if (tapCount >= 3) {
-            tapCount = 0;
-            saveToLocal("voice_result_mode", "true");
-            titleEl.style.transition = "opacity 0.2s";
-            titleEl.style.opacity = "0.3";
-            setTimeout(() => {
-              titleEl.style.opacity = "";
-              const btn = document.getElementById("nextBtn");
-              if (btn && !btn.disabled) btn.textContent = "next (voice ✦)";
-            }, 200);
-          } else {
-            tapTimer = setTimeout(() => { tapCount = 0; }, 800);
-          }
-        });
-      })();
 
       /* ================= 🔥 Firestore 저장 (top-level collection) ================= */
 

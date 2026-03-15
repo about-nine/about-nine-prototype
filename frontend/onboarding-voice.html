@@ -277,8 +277,8 @@
 
     <div class="ob-permission" id="obPermission">
       <div class="ob-permission-card">
-        <div class="ob-permission-title">enable mic & audio</div>
-        <div class="ob-permission-text">
+        <div class="ob-permission-title" id="obPermissionTitle">enable mic & audio</div>
+        <div class="ob-permission-text" id="obPermissionText">
           we need microphone access to hear you and audio playback for coco's
           voice. please allow permissions to continue.
         </div>
@@ -421,12 +421,37 @@
       const $page = document.querySelector(".onboarding-page");
       const $voiceIndicator = document.getElementById("voiceIndicator");
       const $permission = document.getElementById("obPermission");
+      const $permissionTitle = document.getElementById("obPermissionTitle");
+      const $permissionText = document.getElementById("obPermissionText");
       const $permissionBtn = document.getElementById("obPermissionBtn");
       const $permissionSkip = document.getElementById("obPermissionSkip");
       const $permissionError = document.getElementById("obPermissionError");
       const $switchModal = document.getElementById("voiceSwitchModal");
       const $switchKeep = document.getElementById("voiceSwitchKeep");
       const $switchChat = document.getElementById("voiceSwitchChat");
+
+      async function refreshMicPermissionUI() {
+        if (!$permissionTitle || !$permissionText || !$permissionBtn) return;
+        let granted = false;
+        try {
+          if (navigator.permissions?.query) {
+            const status = await navigator.permissions.query({ name: "microphone" });
+            granted = status?.state === "granted";
+          }
+        } catch {}
+
+        if (granted) {
+          $permissionTitle.textContent = "audio ready";
+          $permissionText.textContent =
+            "microphone access is already enabled. tap continue to start.";
+          $permissionBtn.textContent = "continue";
+        } else {
+          $permissionTitle.textContent = "enable mic & audio";
+          $permissionText.textContent =
+            "we need microphone access to hear you and audio playback for coco's voice. please allow permissions to continue.";
+          $permissionBtn.textContent = "enable microphone";
+        }
+      }
       const cocoPlayer = new Audio();
       cocoPlayer.preload = "auto";
       cocoPlayer.setAttribute("playsinline", "");
@@ -928,6 +953,7 @@
         "please enable mic and audio to continue.",
         "permission is required before we can start",
       );
+      refreshMicPermissionUI();
 
       function getSpeechPaceAverage() {
         return speechPaceSamples.length >= 2
