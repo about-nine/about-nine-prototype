@@ -313,6 +313,9 @@
       let currentCenterIndex = -1;
       let requestId = null;
       let matchRequestRef = null;
+      let isReviewAuto = false;
+      let isInitiator = false;
+      let autoEntered = false;
       const READY_TIMEOUT_MS = 120000;
       let readyTimeout = null;
 
@@ -402,6 +405,8 @@
           const matchRequest = snapshot.val();
           const question = matchRequest.question;
           const options = matchRequest.options;
+          isInitiator = matchRequest.initiator === userId;
+          isReviewAuto = matchRequest.review_auto === true;
 
           console.log("🎯 Match Request Data:", { question, options });
 
@@ -416,6 +421,7 @@
           renderCarousel(options);
 
           startReadyListener();
+          maybeAutoEnterReview();
         } catch (error) {
           console.error("Failed to load match request:", error);
         }
@@ -533,6 +539,7 @@
             openModal(category, selectedQuestions[category]);
           };
         });
+        maybeAutoEnterReview();
       }
 
       /* ====================== 모달 ====================== */
@@ -586,7 +593,7 @@
         });
       }
 
-      document.getElementById("enterBtn").onclick = async () => {
+      async function submitReadyAndSelection() {
         if (!requestId) {
           console.error("No requestId");
           alert("invalid request");
@@ -607,16 +614,23 @@
           const snapshot = await get(matchRequestRef);
           const matchRequest = snapshot.val();
 
-          const isInitiator = matchRequest.initiator === userId;
-          const readyField = isInitiator ? "initiator_ready" : "receiver_ready";
-          const selectionField = isInitiator
+          const amInitiator = matchRequest.initiator === userId;
+          const readyField = amInitiator ? "initiator_ready" : "receiver_ready";
+          const selectionField = amInitiator
             ? "initiator_selection"
             : "receiver_selection";
 
-          await update(matchRequestRef, {
+          const patch = {
             [readyField]: true,
             [selectionField]: selectedOption,
-          });
+          };
+
+          if (matchRequest.review_auto === true && amInitiator) {
+            patch.receiver_ready = true;
+            patch.receiver_selection = selectedOption;
+          }
+
+          await update(matchRequestRef, patch);
 
           console.log(
             `✅ Set ${readyField} = true, ${selectionField} = ${selectedOption}`,
@@ -626,7 +640,20 @@
           console.error("Failed to update ready status:", error);
           hideLoading();
         }
+      }
+
+      document.getElementById("enterBtn").onclick = async () => {
+        await submitReadyAndSelection();
       };
+
+      function maybeAutoEnterReview() {
+        if (!isReviewAuto || !isInitiator || autoEntered) return;
+        if (selectedOption == null || selectedOption === "") return;
+        autoEntered = true;
+        setTimeout(() => {
+          submitReadyAndSelection();
+        }, 800);
+      }
 
       async function loadOrCreateGuideQuestions() {
         initRequestId();
@@ -654,6 +681,8 @@
         ];
 
         if (data.initiator === userId) {
+          isInitiator = true;
+          isReviewAuto = data.review_auto === true;
           const selectedQuestions = {};
           categories.forEach((cat) => {
             const questions = GUIDE_QUESTIONS[cat];
@@ -662,6 +691,10 @@
           });
 
           await update(matchRequestRef, { guide_questions: selectedQuestions });
+          setTimeout(() => {
+            if (!selectedOption) selectedOption = "review_auto";
+            maybeAutoEnterReview();
+          }, 300);
           return selectedQuestions;
         }
 

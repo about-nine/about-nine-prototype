@@ -355,6 +355,7 @@
       let timer;
       let callStart;
       let hasCallEnded = false;
+      let isReviewAuto = false;
       let cueAudioContext = null;
       let noticeResetTimer = null;
       const firedCueKeys = new Set();
@@ -611,6 +612,49 @@
         }, 1000);
       }
 
+      function playReviewScript(scriptText) {
+        return new Promise((resolve) => {
+          const text = String(scriptText || "this is a test conversation").trim();
+          if ("speechSynthesis" in window && window.SpeechSynthesisUtterance) {
+            try {
+              const utter = new SpeechSynthesisUtterance(text);
+              utter.lang = "en-US";
+              utter.rate = 0.95;
+              utter.pitch = 1.0;
+              utter.onend = () => resolve();
+              utter.onerror = () => resolve();
+              window.speechSynthesis.cancel();
+              window.speechSynthesis.speak(utter);
+              return;
+            } catch {}
+          }
+          setTimeout(resolve, 2500);
+        });
+      }
+
+      async function startReviewAutoCall() {
+        const scriptText = "this is a test conversation";
+        callStart = Date.now();
+        saveToLocal("call_start_ms", callStart);
+
+        try {
+          await update(ref(rtdb, `match_requests/${requestId}`), {
+            call_started_at: callStart,
+          });
+        } catch (e) {
+          console.warn("Failed to mark review call start:", e);
+        }
+
+        setTapOverlayVisible(false);
+        startTimer();
+        showTimedNotice(scriptText, 2500);
+
+        await playReviewScript(scriptText);
+        setTimeout(() => {
+          window.endCall({ reason: "review_auto" });
+        }, 1400);
+      }
+
       /* ================= Agora ================= */
 
       function getNumericUid(userId) {
@@ -808,6 +852,13 @@
           callStart = Date.now();
         }
 
+        try {
+          const reviewSnap = await get(ref(rtdb, `match_requests/${requestId}`));
+          const reviewData = reviewSnap.val() || {};
+          isReviewAuto = reviewData.review_auto === true;
+          isInitiator = reviewData.initiator === userId;
+        } catch {}
+
         // 🔥 사용자 탭을 기다림 (iOS 오디오 정책 대응)
         document
           .getElementById("tapToStart")
@@ -815,6 +866,12 @@
             console.log("👆 사용자 탭 감지 — 통화 시작");
             if (tapBtn) tapBtn.disabled = true;
             showTapError("");
+
+            if (isReviewAuto) {
+              await startReviewAutoCall();
+              if (tapBtn) tapBtn.disabled = false;
+              return;
+            }
 
             const ok = await initCall();
             if (!ok) {

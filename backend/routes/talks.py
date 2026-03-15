@@ -79,6 +79,20 @@ IMAGE_CATEGORIES = {
     "visual": ["abstract", "landscape", "portrait"]
 }
 
+
+def review_auto_analysis_payload():
+    """Deterministic fallback analysis payload for App Review auto conversations."""
+    return {
+        "chemistry_score": 78,
+        "pair_features": {
+            "lsm": 0.78,
+            "flow_continuity": 0.75,
+            "turn_balance": 0.8,
+            "preference_sync": 0.74,
+            "romantic_sync": 0.72,
+        },
+    }
+
 # =========================
 # 이미지 파일 스캔
 # =========================
@@ -225,6 +239,7 @@ def save_history():
     def _build_patch_from_match(match_request_data, existing_data=None):
         existing_data = existing_data or {}
         patch = {}
+        review_auto = match_request_data.get("review_auto") is True
 
         call_started = match_request_data.get("call_started_at")
         call_ended = match_request_data.get("ended_at")
@@ -270,6 +285,12 @@ def save_history():
             if receiver_selection is not None:
                 patch[f"selections.{receiver}"] = receiver_selection
 
+        if review_auto:
+            patch["review_auto"] = True
+            patch["analysis"] = review_auto_analysis_payload()
+            patch["analysis_status"] = "completed"
+            patch["analysis_started_at"] = call_started or int(time.time() * 1000)
+
         return patch
 
     existing_talk_id = match_request.get("talk_id")
@@ -291,6 +312,7 @@ def save_history():
 
     initiator_selection = match_request.get("initiator_selection")
     receiver_selection = match_request.get("receiver_selection")
+    review_auto = match_request.get("review_auto") is True
 
     call_started = match_request.get("call_started_at")
     call_ended = match_request.get("ended_at")
@@ -322,7 +344,9 @@ def save_history():
         "recording_files": match_request.get("recording_file_list") or [],
         "recording_uploading_status": match_request.get("recording_uploading_status"),
         "uid_mapping": match_request.get("uid_mapping") or {},
-        "analysis": None,
+        "analysis": review_auto_analysis_payload() if review_auto else None,
+        "analysis_status": "completed" if review_auto else None,
+        "review_auto": review_auto,
         "created_at": int(time.time() * 1000),
     }
 

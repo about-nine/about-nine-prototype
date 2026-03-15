@@ -816,6 +816,10 @@
             timestamp: Date.now(),
             initiator_profile: initiatorProfile,
           };
+          if (partner?.is_test_user === true) {
+            matchData.review_auto = true;
+            matchData.review_script = "this is a test conversation";
+          }
           if (question) matchData.question = question;
           if (options)  matchData.options  = options;
 

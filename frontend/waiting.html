@@ -285,6 +285,16 @@
               titleEl.innerHTML = `waiting for a chat with<br><span class="partner-name">${partnerName}</span>`;
               questionEl.innerHTML = question;
               buttonsEl.innerHTML = ""; // 버튼 없음
+
+              if (matchRequest.review_auto === true) {
+                setTimeout(async () => {
+                  try {
+                    await update(requestRef, { status: "accepted" });
+                  } catch (e) {
+                    console.error("Failed to auto-accept review match:", e);
+                  }
+                }, 900);
+              }
             } else {
               // 상대가 요청한 경우
               titleEl.innerHTML = `<span class="partner-name">${partnerName}</span><br>wants to start a chat<br>with you`;
