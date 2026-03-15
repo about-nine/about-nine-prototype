@@ -604,6 +604,7 @@
         if (!uid) return false;
         const p = presenceData[uid];
         if (!p || p.online !== true) return false;
+        if (p.persistent_online === true) return true;
         const updatedAt = Number(p.updated_at || 0);
         return updatedAt && Date.now() - updatedAt <= PRESENCE_TTL_MS;
       }
@@ -767,7 +768,7 @@
 
       function getLoungeSubtitleText() {
         if (isLocationFilterEnabled()) return "pick whoever feels right";
-        return "showing people who turned off location filter";
+        return "pick whoever feels right, distance may vary";
       }
 
       function getLocationEmptyReason() {

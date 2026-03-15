@@ -103,6 +103,8 @@ def set_presence_online(user_id: str) -> bool:
         {
             "online": True,
             "updated_at": int(time.time() * 1000),
+            "persistent_online": True,
+            "source": "test_user_script",
         }
     )
     return True
