@@ -172,15 +172,17 @@
       let progressTimer = null;
       let progressValue = 0;
       let progressStartAt = null;
-      const ANALYSIS_EXPECTED_MS = 45000;
+      const ANALYSIS_EXPECTED_MS = 90000;
       const ANALYSIS_MAX_WAIT_MS = 5 * 60 * 1000;
-      const ANALYSIS_MAX_PROGRESS = 95;
+      const ANALYSIS_PHASE1_MAX = 80;
+      const ANALYSIS_MAX_PROGRESS = 97;
       let progressLabel = "analyzing...";
       let talkId = getFromLocal("current_talk_id");
       let stepQueue = [];
       let stepActive = false;
       let stepTimer = null;
       let lastStepMessage = "";
+      let lastTalkSnapshot = null;
       const STEP_DELAY_MS = 350;
       const stepEl = document.getElementById("analysisSteps");
 
@@ -219,23 +221,132 @@
 
       function updateStepsFromTalk(talk) {
         if (!talk) return;
+        lastTalkSnapshot = talk;
         let message = "";
+        const round = Number(talk?.round || 0) || null;
+        const topic = String(talk?.topic || "").trim() || "unknown";
+        const conversation = extractConversationTurns(talk);
+        const convoTurns = conversation.length;
+        const recordingCount = getRecordingCount(talk);
+        const pairFeatures = talk?.analysis?.pair_features || null;
 
         if (isAnalysisComplete(talk)) {
-          message = "Analysis complete. You're ready to continue.";
+          const topFeatures = summarizeTopFeatures(pairFeatures, 2);
+          progressLabel = "result ready";
+          const humanSummary = summarizeFeaturesHuman(pairFeatures, 2);
+          message = humanSummary
+            ? `Done. I found strong signals in ${humanSummary}.`
+            : "Done. Your result is ready.";
         } else if (talk?.analysis_status === "failed") {
-          message = "Still processing. We'll keep trying...";
+          progressLabel = "analysis retrying...";
+          message = "I hit a temporary issue, so I am retrying your analysis now.";
         } else if (talk?.analysis_status === "running") {
-          message = "Crunching chemistry signals...";
+          const elapsedSec = Math.max(
+            0,
+            Math.floor((Date.now() - Number(talk?.analysis_started_at || Date.now())) / 1000),
+          );
+          const topFeatures = summarizeTopFeatures(pairFeatures, 2);
+          if (topFeatures.length) {
+            progressLabel = "scoring pair features...";
+            const humanSummary = summarizeFeaturesHuman(pairFeatures, 2);
+            message = humanSummary
+              ? `I am ${elapsedSec}s into analysis, and your strongest pattern so far is ${humanSummary}.`
+              : `I am ${elapsedSec}s into analysis and scoring your interaction patterns now.`;
+          } else if (convoTurns > 0) {
+            const preview = summarizeConversationPreview(conversation, 2);
+            progressLabel = `transcript ready (${convoTurns} turns)`;
+            message = preview
+              ? `I captured ${convoTurns} turns. You talked about "${preview}". I am now scoring the conversation (${elapsedSec}s).`
+              : `I captured ${convoTurns} turns and I am now scoring the conversation (${elapsedSec}s).`;
+          } else {
+            progressLabel = "analyzing...";
+            message = `I am analyzing your conversation patterns now (${elapsedSec}s).`;
+          }
         } else if (!hasRecordings(talk) && !hasConversation(talk)) {
-          message = "Checking recording uploads...";
+          progressLabel = "waiting for recordings...";
+          message = "I am waiting for the call recording data to arrive.";
         } else if (hasRecordings(talk) && !hasConversation(talk)) {
-          message = "Building your transcript from audio...";
+          progressLabel = `building transcript (${recordingCount} files)`;
+          message = `I received ${recordingCount} audio file(s) and I am building your transcript now.`;
         } else if (hasConversation(talk)) {
-          message = "Transcript ready. Analyzing conversation...";
+          const preview = summarizeConversationPreview(conversation, 2);
+          progressLabel = `transcript ready (${convoTurns} turns)`;
+          const roundTopic = round ? `round ${round} on ${topic}` : `topic ${topic}`;
+          message = preview
+            ? `Transcript is ready for ${roundTopic}. I captured ${convoTurns} turns, including "${preview}".`
+            : `Transcript is ready for ${roundTopic}. I captured ${convoTurns} turns.`;
         }
 
         if (message) addStep(message);
+      }
+
+      function summarizeTopFeatures(pairFeatures, limit = 1) {
+        if (!pairFeatures || typeof pairFeatures !== "object") return [];
+        const entries = Object.entries(pairFeatures)
+          .map(([key, value]) => [key, Number(value)])
+          .filter(([, value]) => Number.isFinite(value));
+        if (!entries.length) return [];
+        entries.sort((a, b) => b[1] - a[1]);
+        return entries.slice(0, Math.max(1, limit)).map(([key, value]) => {
+          const normalized = String(key).replace(/_/g, " ");
+          return `${normalized} ${value.toFixed(2)}`;
+        });
+      }
+
+      function summarizeFeaturesHuman(pairFeatures, limit = 2) {
+        if (!pairFeatures || typeof pairFeatures !== "object") return "";
+        const entries = Object.entries(pairFeatures)
+          .map(([key, value]) => [key, Number(value)])
+          .filter(([, value]) => Number.isFinite(value))
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, Math.max(1, limit));
+        if (!entries.length) return "";
+        return entries
+          .map(([key]) => formatFeatureLabel(key))
+          .join(" and ");
+      }
+
+      function formatFeatureLabel(key) {
+        const normalized = String(key || "")
+          .trim()
+          .toLowerCase();
+        const map = {
+          turn_balance: "balanced back-and-forth",
+          flow_continuity: "smooth conversation flow",
+          romantic_sync: "romantic tone alignment",
+          preference_sync: "shared preferences",
+          lsm_similarity: "language style similarity",
+          vocabulary_similarity: "vocabulary similarity",
+          rhythm_sync: "conversation rhythm",
+          discourse_sync: "topic continuity",
+        };
+        return map[normalized] || normalized.replace(/_/g, " ");
+      }
+
+      function extractConversationTurns(talk) {
+        const conv = talk?.conversation;
+        if (Array.isArray(conv)) return conv;
+        if (conv && typeof conv === "object" && Array.isArray(conv.conversation)) {
+          return conv.conversation;
+        }
+        return [];
+      }
+
+      function summarizeConversationPreview(conversation, limit = 2) {
+        if (!Array.isArray(conversation) || !conversation.length) return "";
+        const texts = conversation
+          .map((turn) => String(turn?.text || "").trim())
+          .filter(Boolean)
+          .slice(0, Math.max(1, limit))
+          .map((text) => text.replace(/\s+/g, " "));
+        if (!texts.length) return "";
+        const merged = texts.join(" / ");
+        return merged.length > 90 ? `${merged.slice(0, 87)}...` : merged;
+      }
+
+      function getRecordingCount(talk) {
+        const files = talk?.recording_files || talk?.recording_file_list;
+        return Array.isArray(files) ? files.length : 0;
       }
 
       /* ================= 초기화 ================= */
@@ -419,10 +530,19 @@
 
         progressTimer = setInterval(() => {
           const elapsed = Date.now() - progressStartAt;
-          const ratio = elapsed / ANALYSIS_EXPECTED_MS;
+          const coreElapsed = Math.max(0, Math.min(elapsed, ANALYSIS_EXPECTED_MS));
+          const coreRatio = coreElapsed / ANALYSIS_EXPECTED_MS;
+
+          const tailWindow = Math.max(1, ANALYSIS_MAX_WAIT_MS - ANALYSIS_EXPECTED_MS);
+          const tailElapsed = Math.max(0, elapsed - ANALYSIS_EXPECTED_MS);
+          const tailRatio = Math.max(0, Math.min(tailElapsed / tailWindow, 1));
+
+          const coreProgress = ANALYSIS_PHASE1_MAX * coreRatio;
+          const tailProgress = (ANALYSIS_MAX_PROGRESS - ANALYSIS_PHASE1_MAX) * tailRatio;
+
           progressValue = Math.min(
             ANALYSIS_MAX_PROGRESS,
-            Math.max(2, Math.floor(ratio * 100)),
+            Math.max(2, Math.floor(coreProgress + tailProgress)),
           );
           textEl.textContent = `${progressLabel} ${progressValue}%`;
           barEl.style.width = `${progressValue}%`;
@@ -447,7 +567,14 @@
           }, 600);
         } else {
           if (reason === "timeout" || reason === "pending") {
-            addStep("Still processing in the background.");
+            const runningFor = lastTalkSnapshot?.analysis_started_at
+              ? Math.floor((Date.now() - Number(lastTalkSnapshot.analysis_started_at)) / 1000)
+              : null;
+            if (runningFor && runningFor > 0) {
+              addStep(`still processing in the background (${runningFor}s elapsed).`);
+            } else {
+              addStep("still processing in the background.");
+            }
             textEl.textContent =
               "analysis is taking longer. you can continue.";
           } else {
@@ -479,12 +606,11 @@
       }
 
       function hasRecordings(talk) {
-        const files = talk?.recording_files || talk?.recording_file_list;
-        return Array.isArray(files) && files.length > 0;
+        return getRecordingCount(talk) > 0;
       }
 
       function hasConversation(talk) {
-        return Array.isArray(talk?.conversation) && talk.conversation.length > 0;
+        return extractConversationTurns(talk).length > 0;
       }
 
       async function processAnalysis() {
@@ -572,7 +698,6 @@
             lastStatus = status;
 
             if (status === "running") {
-              progressLabel = "analyzing...";
               const started = talk?.analysis_started_at || 0;
               const elapsed = Date.now() - started;
               if (started && elapsed > 180000) {
